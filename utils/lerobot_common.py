@@ -74,6 +74,64 @@ def compute_chunk_delta_pose(curr_pose: np.ndarray, target_pose: np.ndarray) -> 
     return np.concatenate([delta_xyz, R_delta[:3, 0], R_delta[:3, 1]])
 
 
+# ── absolute-EE sources (egomix retargets, Panda/XHand recordings) ───────────
+# Such datasets store, per frame and per arm, [x, y, z, rotation vector (3) | hand
+# joints]. These helpers turn them into the T-Rex layout per arm, [arm 9D | hand],
+# on numpy arrays of any leading shape.
+EE_SRC_DIM = 6
+
+
+def rotvec_to_matrix(rv: np.ndarray) -> np.ndarray:
+    """Rotation vectors [..., 3] -> rotation matrices [..., 3, 3] (Rodrigues)."""
+    rv = np.asarray(rv, dtype=np.float64)
+    theta = np.linalg.norm(rv, axis=-1, keepdims=True)
+    axis = rv / np.where(theta > 1e-12, theta, 1.0)
+    x, y, z = axis[..., 0], axis[..., 1], axis[..., 2]
+    zero = np.zeros_like(x)
+    K = np.stack([zero, -z, y, z, zero, -x, -y, x, zero], axis=-1).reshape(rv.shape[:-1] + (3, 3))
+    s = np.sin(theta)[..., None]
+    c = np.cos(theta)[..., None]
+    return np.eye(3) + s * K + (1 - c) * (K @ K)
+
+
+def eef_to_9d(ee: np.ndarray) -> np.ndarray:
+    """[..., 6] xyz + rotation vector -> [..., 9] xyz + rot6d (first two columns)."""
+    R = rotvec_to_matrix(ee[..., 3:6])
+    return np.concatenate([ee[..., :3], R[..., :, 0], R[..., :, 1]], axis=-1)
+
+
+def eef_delta_9d(base_ee: np.ndarray, target_ee: np.ndarray) -> np.ndarray:
+    """Delta-base arm action from absolute EE poses (same math as
+    compute_chunk_delta_pose). base_ee [..., 6], target_ee [..., K, 6] -> [..., K, 9]."""
+    R_b = rotvec_to_matrix(base_ee[..., 3:6])[..., None, :, :]        # [..., 1, 3, 3]
+    R_t = rotvec_to_matrix(target_ee[..., 3:6])                        # [..., K, 3, 3]
+    R_bT = np.swapaxes(R_b, -1, -2)
+    d_xyz = (R_bT @ (target_ee[..., :3] - base_ee[..., None, :3])[..., None])[..., 0]
+    R_d = R_bT @ R_t
+    return np.concatenate([d_xyz, R_d[..., :, 0], R_d[..., :, 1]], axis=-1)
+
+
+def eef_to_trex(base_ee, base_hand, target_src, hand_dim):
+    """Absolute-EE source -> T-Rex state and delta-base chunk.
+
+    base_ee   [..., n_arms*6]           chunk-base EE poses
+    base_hand [..., n_arms*hand_dim]    hand joints at the base frame
+    target_src [..., K, n_arms*(6+hand_dim)]  future source rows
+    Returns state [..., n_arms*(9+hand_dim)], chunk [..., K, n_arms*(9+hand_dim)].
+    """
+    src_w = EE_SRC_DIM + hand_dim
+    n_arms = target_src.shape[-1] // src_w
+    states, chunks = [], []
+    for a in range(n_arms):
+        b_ee = base_ee[..., a * EE_SRC_DIM:(a + 1) * EE_SRC_DIM]
+        b_hand = base_hand[..., a * hand_dim:(a + 1) * hand_dim]
+        t_blk = target_src[..., a * src_w:(a + 1) * src_w]
+        states += [eef_to_9d(b_ee), b_hand]
+        chunks += [eef_delta_9d(b_ee, t_blk[..., :EE_SRC_DIM]), t_blk[..., EE_SRC_DIM:]]
+    return (np.concatenate(states, axis=-1).astype(np.float32),
+            np.concatenate(chunks, axis=-1).astype(np.float32))
+
+
 def compute_tracking_error_axis_angle(state_31d: np.ndarray, target_31d: np.ndarray) -> np.ndarray:
     s_arm = state_31d[:9]
     t_arm = target_31d[:9]

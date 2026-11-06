@@ -44,6 +44,7 @@ from transformers import AutoProcessor, set_seed
 from datasets import Dataset as HFDataset
 
 from qwen_vla import Qwen3VLVLAModel, extend_position_ids_for_flare, split_slow_fast_embeds
+from qwen_vla.lerobot_dataset import add_lerobot_args
 import cv2
 
 logger = logging.getLogger(__name__)
@@ -71,34 +72,43 @@ def _axis_angle_to_arm9d(arm_aa):
     return np.concatenate([arm_aa[:3], R[:, 0], R[:, 1]])
 
 
-def add_tracking_error_noise(state, te_mean, te_std, action_dim):
+def tracking_error_dim(action_dim, hand_dim):
+    """Tracking-error width: per arm 3 xyz + 3 axis-angle + hand_dim joints."""
+    return (action_dim // (9 + hand_dim)) * (6 + hand_dim)
+
+
+def add_tracking_error_noise(state, te_mean, te_std, action_dim, hand_dim=22):
     """Add tracking-error noise to robot state.
 
-    Supports single-arm (action_dim=31, te=28D) and bimanual (action_dim=62, te=56D).
-    Per arm (28D tracking error = 3 xyz + 3 axis-angle + 22 hand):
+    Per arm the state is [arm 9D | hand hand_dim] and the tracking error is
+    [3 xyz + 3 axis-angle + hand_dim]. Examples: Sharpa bimanual
+    (action_dim=62, hand_dim=22, te=56D); Panda + XHand single arm
+    (action_dim=21, hand_dim=12, te=18D).
       1. Convert arm 9D [trans, rot6d] → [trans, axis_angle]
       2. Sample noise ~ N(te_mean, te_std)
       3. Add noise
       4. Convert back to [trans, rot6d]
     """
     noisy = state.copy()
-    n_arms = action_dim // 31
+    arm_w = 9 + hand_dim
+    te_w = 6 + hand_dim
+    n_arms = action_dim // arm_w
     for arm_idx in range(n_arms):
-        offset = arm_idx * 31
+        offset = arm_idx * arm_w
         arm_9d = state[offset:offset + 9]
-        hand_22d = state[offset + 9:offset + 31]
+        hand = state[offset + 9:offset + arm_w]
 
         arm_aa = _arm9d_to_axis_angle(arm_9d)  # (6,)
 
-        te_off = arm_idx * 28
+        te_off = arm_idx * te_w
         noise_arm = np.random.normal(te_mean[te_off:te_off + 6],
                                      te_std[te_off:te_off + 6]).astype(np.float32)
-        noise_hand = np.random.normal(te_mean[te_off + 6:te_off + 28],
-                                      te_std[te_off + 6:te_off + 28]).astype(np.float32)
+        noise_hand = np.random.normal(te_mean[te_off + 6:te_off + te_w],
+                                      te_std[te_off + 6:te_off + te_w]).astype(np.float32)
 
         noisy_arm_9d = _axis_angle_to_arm9d(arm_aa + noise_arm)
         noisy[offset:offset + 9] = noisy_arm_9d
-        noisy[offset + 9:offset + 31] = hand_22d + noise_hand
+        noisy[offset + 9:offset + arm_w] = hand + noise_hand
     return noisy
 
 
@@ -142,8 +152,8 @@ class SftDataset(Dataset):
         self.tacf6_max   = _arr("tactile_f6", "q99")
 
         # Tracking error stats for state noise injection (used when use_robot_state=1)
-        # Dimension: 28D per arm (6 arm + 22 hand), scales with n_arms
-        te_dim = (config.action_dim // 31) * 28
+        # Dimension per arm: 6 arm + hand_dim (28D Sharpa, 18D XHand), scales with n_arms
+        te_dim = tracking_error_dim(config.action_dim, getattr(config, "hand_dim", 22))
         te_stats = self.stats_data[self.dataset_name].get("tracking_error", {})
         self.te_mean = np.array(te_stats.get("mean", np.zeros(te_dim)), dtype=np.float32)
         self.te_std  = np.array(te_stats.get("std",  np.zeros(te_dim)), dtype=np.float32)
@@ -368,7 +378,8 @@ class SftDataset(Dataset):
                 state_raw = np.array(x["state_fast"], dtype=np.float32)
                 state_raw = add_tracking_error_noise(state_raw,
                                                      self.te_mean, self.te_std,
-                                                     cfg.action_dim)
+                                                     cfg.action_dim,
+                                                     getattr(cfg, "hand_dim", 22))
                 norm_state = self._normalize(state_raw, self.state_mask,
                                      self.state_min, self.state_max)
                 state_raw_list.append(torch.tensor(norm_state, dtype=torch.bfloat16))
@@ -1237,10 +1248,7 @@ if __name__ == "__main__":
     parser.add_argument("--data_root", type=str, default="")
     # Data source: legacy JSON (default) or a LeRobot v3.0 dataset directory.
     parser.add_argument("--data_format", type=str, default="json", choices=["json", "lerobot"])
-    parser.add_argument("--lerobot_root", type=str, default="",
-                        help="LeRobot dataset dir (required when --data_format lerobot).")
-    parser.add_argument("--lerobot_repo_id", type=str, default="",
-                        help="Optional repo_id; defaults to basename(lerobot_root).")
+    add_lerobot_args(parser)
     parser.add_argument("--output_dir", type=str, default="./outputs")
     parser.add_argument("--log_dir", type=str, default="./logs")
     parser.add_argument("--max_ckpts", type=int, default=10)
@@ -1332,6 +1340,9 @@ if __name__ == "__main__":
             parser.error("--data_format lerobot requires --lerobot_root")
     elif not args.data_path:
         parser.error("--data_format json requires --data_path")
+    if args.action_dim % (9 + args.hand_dim) != 0:
+        parser.error(f"--action_dim {args.action_dim} is not a multiple of "
+                     f"9 + --hand_dim ({9 + args.hand_dim})")
 
     args.log_dir = os.path.join(args.log_dir, args.experiment_name)
     args.output_dir = os.path.join(args.output_dir, args.experiment_name, args.run_name)

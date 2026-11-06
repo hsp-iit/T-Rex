@@ -1,25 +1,45 @@
-"""TRexLeRobotDataset — load a LeRobot v3.0 dataset and emit the EXACT batch
-contract the T-Rex trainers already consume (drop-in for SftDataset).
+"""TRexLeRobotDataset — load LeRobot v3.0 datasets and emit the EXACT batch
+contract the T-Rex trainers already consume (drop-in for SftDataset, the
+midtrain dataset and the pretrain dataset).
 
 The model and the cascaded-flow training loop are unchanged: this dataset +
-`collate_fn` reproduce every key `SftDataset.collate_fn` returns
+`collate_fn` reproduce every key the JSON pipelines return
 (input_ids/pixel_values/noisy_actions/target/timesteps/tactile_*/flare_*/...),
-sourcing frames from LeRobot instead of a JSON.
+sourcing frames from LeRobot instead.
+
+Two action schemas are accepted (`--lerobot_action_format`, default auto):
+  * chunk — the T-Rex schema written by utils/convert_*_to_lerobot.py:
+            `action` is the baked delta-base chunk [ACTION_CHUNK, D] and
+            `observation.state` the 9D-arm state [D].
+  * eef   — absolute end-effector sources (egomix retargets, Panda/XHand
+            recordings): `action` is one row per frame, per arm
+            [x, y, z, rotation vector | hand_dim joints]. The delta-base chunk
+            and the 9D-arm state are built on the fly (utils/lerobot_common.py).
+            `--lerobot_base action`: chunk base = action[t], targets
+            action[t+1 .. t+chunk] (a pose per video frame, e.g. retargeted human
+            video). `--lerobot_base state`: base = the EE pose in
+            observation.state at t, targets action[t .. t+chunk-1] (robot
+            recordings, where action[t] is reached at t+1).
 
 Design:
-  * Temporal windows (action chunk is baked, but the F6 history and FLARE future
-    head frames) come from LeRobot `delta_timestamps`.
-  * Normalization uses the q01/q99 `meta/trex_norm_stats.json` sidecar so it is
-    byte-identical to the JSON pipeline.
+  * Several roots (e.g. one per human-video source) are concatenated; each may
+    name its head camera differently. A root with a single video uses it as head.
+  * Fast images are `--lerobot_fast_keys` in order; a key a root lacks is
+    replaced by its head frame (the JSON pretrain does the same for human video).
+  * Temporal windows (action targets, FLARE future head frames, F6 history,
+    delayed tactile) come from LeRobot `delta_timestamps`, clamped to the
+    episode like the JSON pipelines.
+  * Normalization uses the q01/q99 `meta/trex_norm_stats.json` sidecar of a
+    single root, or is computed from the parquet tables (no video) otherwise.
+  * `_cum_frames` / `_num_episodes` follow episode order, so EpisodeGroupedSampler
+    (pretrain, midtrain) groups frames by episode.
   * The LeRobot import is lazy and `collate_fn` consumes plain item dicts, so this
     module imports (and the collate is testable) without lerobot installed.
-
-Co-training across sources is handled at *conversion* time (merge several raw
-roots into one LeRobot dataset), so the loader only needs the single-dataset API.
 """
 from __future__ import annotations
 
 import copy
+import glob
 import json
 import os
 from typing import Dict, List, Optional
@@ -30,12 +50,66 @@ import torch
 import torch.nn.functional as F
 
 from utils.lerobot_common import (
-    ACTION_DIM, STATS_KEY,
-    KEY_HEAD, KEY_WRIST_R, KEY_WRIST_L, KEY_STATE, KEY_ACTION, KEY_ACTION_ABS,
-    KEY_TACF6, DEFORM_KEYS, load_norm_stats,
+    ACTION_DIM, ACTION_CHUNK, STATS_KEY, EE_SRC_DIM,
+    KEY_HEAD, KEY_WRIST_R, KEY_WRIST_L, KEY_STATE, KEY_ACTION,
+    KEY_TACF6, DEFORM_KEYS, NORM_STATS_FILENAME, calculate_stats, eef_to_trex,
+    load_norm_stats,
 )
 
 import cv2  # for the tracking-error-noise rotation conversions
+
+
+def add_lerobot_args(parser):
+    """CLI options shared by pretrain.py, midtrain.py and train.py."""
+    g = parser.add_argument_group("LeRobot data (--data_format lerobot)")
+    g.add_argument("--lerobot_root", type=str, nargs="+", default=[],
+                   help="One or more LeRobot v3.0 dataset dirs, or dirs that contain them.")
+    g.add_argument("--lerobot_repo_id", type=str, default="",
+                   help="Optional repo_id for a single root; defaults to basename(root).")
+    g.add_argument("--lerobot_head_key", type=str, default=KEY_HEAD,
+                   help="Head (slow) camera key; a root with a single video uses it.")
+    g.add_argument("--lerobot_fast_keys", type=str, nargs="*", default=[KEY_WRIST_R, KEY_WRIST_L],
+                   help="Fast camera keys in prompt order; a missing key is replaced by the head frame.")
+    g.add_argument("--lerobot_action_format", choices=["auto", "chunk", "eef"], default="auto")
+    g.add_argument("--lerobot_base", choices=["action", "state"], default="action",
+                   help="eef only: where the chunk-base pose comes from.")
+    g.add_argument("--lerobot_state_ee_index", type=int, default=0,
+                   help="eef + base state: first of the n_arms*6 EE values in observation.state.")
+    g.add_argument("--lerobot_state_hand_index", type=int, default=6,
+                   help="eef + base state: first of the n_arms*hand_dim hand joints in observation.state.")
+    g.add_argument("--lerobot_tactile_key", type=str, default=KEY_TACF6,
+                   help="Feature holding fingertip forces, e.g. observation.state for TAPTIC.")
+    g.add_argument("--lerobot_tactile_index", type=int, default=0,
+                   help="First force value inside that feature (TAPTIC: 19).")
+    g.add_argument("--lerobot_tactile_fingers", type=int, default=10,
+                   help="Fingertips stored there (T-Rex 10, TAPTIC 5).")
+    g.add_argument("--lerobot_tactile_axes", type=int, choices=[3, 6], default=6,
+                   help="Values per fingertip: 6 (F + M) or 3 (F only; moments padded with zeros).")
+    g.add_argument("--lerobot_video_backend", type=str, default="",
+                   help="LeRobot video decoder (torchcodec, pyav); empty = LeRobot default. "
+                        "Use pyav when FFmpeg shared libraries are not available for torchcodec.")
+    g.add_argument("--image_fit", choices=["stretch", "crop", "pad"], default="stretch",
+                   help="How frames reach --image_size: stretch, centre crop, or letterbox.")
+    if not any(a.dest == "hand_dim" for a in parser._actions):
+        parser.add_argument("--hand_dim", type=int, default=22,
+                            help="Hand joints per arm (22 Sharpa Wave, 12 XHand).")
+    return g
+
+
+def find_lerobot_roots(roots) -> List[str]:
+    """Every LeRobot dataset dir (has meta/info.json) under the given roots."""
+    if isinstance(roots, str):
+        roots = [roots]
+    found = []
+    for r in roots:
+        if os.path.isfile(os.path.join(r, "meta", "info.json")):
+            found.append(r)
+        else:
+            found += sorted(os.path.dirname(os.path.dirname(p))
+                            for p in glob.glob(os.path.join(r, "*", "meta", "info.json")))
+    if not found:
+        raise FileNotFoundError(f"no LeRobot dataset (meta/info.json) under {roots}")
+    return found
 
 
 # ── state-noise helpers (mirror scripts/train.py) ────────────────────────────
@@ -55,16 +129,17 @@ def _axis_angle_to_arm9d(arm_aa):
     return np.concatenate([arm_aa[:3], R[:, 0], R[:, 1]])
 
 
-def add_tracking_error_noise(state, te_mean, te_std, action_dim):
+def add_tracking_error_noise(state, te_mean, te_std, action_dim, hand_dim=22):
+    arm_w, te_w = 9 + hand_dim, 6 + hand_dim
     noisy = state.copy()
-    for arm_idx in range(action_dim // 31):
-        off = arm_idx * 31
+    for arm_idx in range(action_dim // arm_w):
+        off = arm_idx * arm_w
         arm_aa = _arm9d_to_axis_angle(state[off:off + 9])
-        te_off = arm_idx * 28
+        te_off = arm_idx * te_w
         noise_arm = np.random.normal(te_mean[te_off:te_off + 6], te_std[te_off:te_off + 6]).astype(np.float32)
-        noise_hand = np.random.normal(te_mean[te_off + 6:te_off + 28], te_std[te_off + 6:te_off + 28]).astype(np.float32)
+        noise_hand = np.random.normal(te_mean[te_off + 6:te_off + te_w], te_std[te_off + 6:te_off + te_w]).astype(np.float32)
         noisy[off:off + 9] = _axis_angle_to_arm9d(arm_aa + noise_arm)
-        noisy[off + 9:off + 31] = state[off + 9:off + 31] + noise_hand
+        noisy[off + 9:off + arm_w] = state[off + 9:off + arm_w] + noise_hand
     return noisy
 
 
@@ -72,28 +147,71 @@ def _normalize(values, mask, vmin, vmax):
     return np.where(mask, np.clip(2 * (values - vmin) / (vmax - vmin + 1e-8) - 1, -1, 1), values)
 
 
+def _read_table(root: str, columns: List[str]):
+    import pandas as pd
+    files = sorted(glob.glob(os.path.join(root, "data", "*", "*.parquet")))
+    return pd.concat([pd.read_parquet(p, columns=columns) for p in files], ignore_index=True)
+
+
+class _Source:
+    """One LeRobot root: its feature layout and the per-root LeRobotDataset."""
+
+    def __init__(self, root: str, cfg, repo_id: str):
+        self.root = root
+        self.repo_id = repo_id
+        with open(os.path.join(root, "meta", "info.json")) as f:
+            info = json.load(f)
+        self.fps = int(info["fps"])
+        self.feats = info["features"]
+        videos = [k for k, v in self.feats.items() if v["dtype"] == "video"]
+        if cfg.head_key in self.feats:
+            self.head_key = cfg.head_key
+        elif len(videos) == 1:
+            self.head_key = videos[0]
+        else:
+            raise ValueError(f"{root}: head camera {cfg.head_key!r} not found; "
+                             f"videos are {videos}, pass --lerobot_head_key")
+        self.fast_keys = [k if k in self.feats else None for k in cfg.fast_keys]
+        a_shape = self.feats[KEY_ACTION]["shape"]
+        fmt = cfg.action_format
+        if fmt == "auto":
+            fmt = "chunk" if len(a_shape) == 2 else "eef"
+        self.action_format = fmt
+        self.src_dim = a_shape[-1]
+        self.has_tactile = cfg.tactile_key in self.feats
+        self.has_deform = DEFORM_KEYS[0] in self.feats
+        self.ds = None
+
+    def episode_lengths(self, episodes: Optional[List[int]]) -> np.ndarray:
+        import pandas as pd
+        files = sorted(glob.glob(os.path.join(self.root, "meta", "episodes", "*", "*.parquet")))
+        eps = pd.concat([pd.read_parquet(p, columns=["episode_index", "length"]) for p in files])
+        eps = eps.sort_values("episode_index")
+        if episodes is not None:
+            eps = eps[eps.episode_index.isin(episodes)]
+        return eps.length.to_numpy(dtype=np.int64)
+
+    def episode_indices(self) -> List[int]:
+        import pandas as pd
+        files = sorted(glob.glob(os.path.join(self.root, "meta", "episodes", "*", "*.parquet")))
+        return sorted(pd.concat([pd.read_parquet(p, columns=["episode_index"]) for p in files])
+                      .episode_index.astype(int).tolist())
+
+
 class TRexLeRobotDataset(torch.utils.data.Dataset):
-    def __init__(self, config, processor, accelerator, episodes: Optional[List[int]] = None,
-                 _ds=None, _stats=None):
+    def __init__(self, config, processor, accelerator, episodes: Optional[Dict[str, List[int]]] = None):
         self.config = config
         self.processor = processor
         self.accelerator = accelerator
 
-        root = config.lerobot_root
-        self.root = root
-        repo_id = getattr(config, "lerobot_repo_id", "") or os.path.basename(root.rstrip("/"))
-
-        # fps + feature presence from info.json (no lerobot needed for this).
-        with open(os.path.join(root, "meta", "info.json")) as f:
-            info = json.load(f)
-        self.fps = int(info["fps"])
-        feats = info["features"]
-        self.has_wrist   = KEY_WRIST_R in feats and KEY_WRIST_L in feats
-        self.has_tactile = KEY_TACF6 in feats
-        self.has_deform  = DEFORM_KEYS[0] in feats
+        roots = config.lerobot_root
+        roots = find_lerobot_roots(roots if isinstance(roots, (list, tuple)) else [roots])
+        self.roots = roots
+        repo_id_cli = getattr(config, "lerobot_repo_id", "")
 
         # flow / flare / tactile config (mirror SftDataset)
         self.image_size = tuple(config.image_size) if getattr(config, "image_size", None) else None
+        self.image_fit = getattr(config, "image_fit", "stretch")
         self.use_flare = bool(getattr(config, "use_flare", 0))
         self.n_flare_steps = int(getattr(config, "n_flare_steps", 0)) if self.use_flare else 0
         self.flare_stride = int(getattr(config, "flare_frame_stride", 1))
@@ -102,91 +220,290 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         self.use_tactile_vqvae = bool(getattr(config, "use_tactile_vqvae", 0))
         self.use_robot_state = bool(getattr(config, "use_robot_state", 0))
         self.vqvae_window = int(getattr(config, "vqvae_window", 16))
+        self.delay_offsets = [int(d) for d in getattr(config, "tactile_delay_offsets", [0]) or [0]]
         self.action_dim = int(getattr(config, "action_dim", ACTION_DIM))
+        self.action_chunk = int(getattr(config, "action_chunk", ACTION_CHUNK))
+        self.hand_dim = int(getattr(config, "hand_dim", 22))
+        self.base = getattr(config, "lerobot_base", "action")
+        self.state_ee_index = int(getattr(config, "lerobot_state_ee_index", 0))
+        self.state_hand_index = int(getattr(config, "lerobot_state_hand_index", 6))
+        self.tac_key = getattr(config, "lerobot_tactile_key", KEY_TACF6)
+        self.tac_index = int(getattr(config, "lerobot_tactile_index", 0))
+        self.tac_fingers = int(getattr(config, "lerobot_tactile_fingers", 10))
+        self.tac_axes = int(getattr(config, "lerobot_tactile_axes", 6))
 
-        # ── normalization stats (q01/q99 sidecar) ──
-        self.stats_data = _stats if _stats is not None else load_norm_stats(root)
+        src_cfg = type("SrcCfg", (), dict(
+            head_key=getattr(config, "lerobot_head_key", KEY_HEAD),
+            fast_keys=list(getattr(config, "lerobot_fast_keys", [KEY_WRIST_R, KEY_WRIST_L])),
+            action_format=getattr(config, "lerobot_action_format", "auto"),
+            tactile_key=self.tac_key))
+        self.sources = [
+            _Source(r, src_cfg, repo_id_cli if (repo_id_cli and len(roots) == 1)
+                    else os.path.basename(os.path.normpath(r)))
+            for r in roots]
+        self.fps = self.sources[0].fps
+        for s in self.sources:
+            if s.fps != self.fps:
+                raise ValueError(f"all roots must share one fps; {s.root} is {s.fps}, expected {self.fps}")
+            if s.action_format == "eef" and s.src_dim % (EE_SRC_DIM + self.hand_dim):
+                raise ValueError(f"{s.root}: eef action width {s.src_dim} is not a multiple of "
+                                 f"6 + hand_dim ({EE_SRC_DIM + self.hand_dim})")
+        self.has_tactile = all(s.has_tactile for s in self.sources)
+        self.has_deform = all(s.has_deform for s in self.sources)
+        self.n_fast = len(src_cfg.fast_keys)
+
+        # ── normalization stats ──
+        if len(roots) == 1 and os.path.isfile(os.path.join(roots[0], NORM_STATS_FILENAME)):
+            self.stats_data = load_norm_stats(roots[0])
+        else:
+            self.stats_data = self._compute_stats()
         block = self.stats_data[next(iter(self.stats_data))]
         def _arr(key, sub):
             return np.array(block[key][sub])
         self.action_mask = _arr("action", "mask"); self.action_min = _arr("action", "q01"); self.action_max = _arr("action", "q99")
         self.state_mask  = _arr("state", "mask");  self.state_min  = _arr("state", "q01");  self.state_max  = _arr("state", "q99")
-        if self.has_tactile:
+        if self.has_tactile and "tactile_f6" in block:
             self.tacf6_mask = _arr("tactile_f6", "mask"); self.tacf6_min = _arr("tactile_f6", "q01"); self.tacf6_max = _arr("tactile_f6", "q99")
         te = block.get("tracking_error", {})
-        te_dim = (self.action_dim // 31) * 28
+        te_dim = (self.action_dim // (9 + self.hand_dim)) * (6 + self.hand_dim)
         self.te_mean = np.array(te.get("mean", np.zeros(te_dim)), dtype=np.float32)
         self.te_std  = np.array(te.get("std",  np.zeros(te_dim)), dtype=np.float32)
 
-        # ── build the underlying LeRobotDataset (lazy import) ──
-        if _ds is not None:
-            self.ds = _ds
-        else:
-            from lerobot.datasets.lerobot_dataset import LeRobotDataset
-            self.ds = LeRobotDataset(
-                repo_id, root=root, episodes=episodes,
-                delta_timestamps=self._build_delta_timestamps())
-        accelerator.print(f"[LeRobot] {repo_id}: {len(self.ds)} frames, fps={self.fps}, "
-                          f"wrist={self.has_wrist}, tactile={self.has_tactile}")
+        self._build(episodes)
+        accelerator.print(
+            f"[LeRobot] {len(self.sources)} root(s), {self._num_episodes} episodes, "
+            f"{len(self)} frames, fps={self.fps}, fast images={self.n_fast}, "
+            f"tactile={self.has_tactile}; "
+            + ", ".join(f"{s.repo_id}:{s.action_format}/head={s.head_key}" for s in self.sources))
 
-    # head: index 0 = current slow image; 1..S = FLARE future frames.
-    def _head_offsets(self):
-        offs = [0.0]
-        for k in range(self.n_flare_steps):
-            offs.append((k + 1) * self.flare_stride / self.fps)
-        return offs
+    # ── LeRobot datasets + episode index ──
+    def _build(self, episodes: Optional[Dict[str, List[int]]]):
+        from lerobot.datasets.lerobot_dataset import LeRobotDataset
+        lengths, sizes = [], []
+        self._selected = {}
+        for s in self.sources:
+            sel = None if episodes is None else episodes.get(s.root, [])
+            if sel is not None and not sel:
+                s.ds = None
+                sizes.append(0)
+                continue
+            s.ds = LeRobotDataset(s.repo_id, root=s.root, episodes=sel,
+                                  delta_timestamps=self._delta_timestamps(s),
+                                  video_backend=getattr(self.config, "lerobot_video_backend", None) or None)
+            self._selected[s.root] = sel
+            lengths.append(s.episode_lengths(sel))
+            sizes.append(len(s.ds))
+        ep_lengths = np.concatenate(lengths) if lengths else np.zeros(0, dtype=np.int64)
+        self._cum_frames = np.cumsum(ep_lengths)
+        self._num_episodes = len(ep_lengths)
+        self._src_cum = np.cumsum(sizes)
+        if self._num_episodes and int(self._cum_frames[-1]) != int(self._src_cum[-1]):
+            raise RuntimeError("episode lengths do not match the LeRobot frame count")
 
-    def _f6_offsets(self):
-        W = self.vqvae_window
-        return [(i - (W - 1)) / self.fps for i in range(W)]   # [-(W-1)/fps ... 0]
-
-    def _build_delta_timestamps(self) -> Dict[str, list]:
-        dt = {KEY_HEAD: self._head_offsets()}
-        if self.has_tactile and (self.use_tactile_vec or self.use_tactile_vqvae):
-            dt[KEY_TACF6] = self._f6_offsets()
+    def _delta_timestamps(self, s: _Source) -> Dict[str, list]:
+        fps = s.fps
+        dt = {s.head_key: [0.0] + [(k + 1) * self.flare_stride / fps for k in range(self.n_flare_steps)]}
+        if s.action_format == "eef":
+            start = 0 if self.base == "state" else 1
+            offs = list(range(start, start + self.action_chunk))
+            dt[KEY_ACTION] = ([0.0] if self.base == "action" else []) + [k / fps for k in offs]
+        max_d = max(self.delay_offsets)
+        if self._uses_tactile(s):
+            W = self.vqvae_window
+            dt[self.tac_key] = [(i - (W - 1)) / fps for i in range(W + max_d)]   # history + delays
+        if s.has_deform and self.use_tactile_deform:
+            for k in DEFORM_KEYS:
+                dt[k] = [d / fps for d in self.delay_offsets]
         return dt
 
+    def _uses_tactile(self, s: _Source) -> bool:
+        return s.has_tactile and (self.use_tactile_vec or self.use_tactile_vqvae)
+
+    def _tactile_rows(self, arr, s: _Source):
+        """Force feature [..., *feature shape] -> T-Rex F6 [..., fingers, 6]; a
+        3-axis source gets zero moments (masked out by the stats)."""
+        n_feat = len(s.feats[self.tac_key]["shape"])
+        arr = np.asarray(arr, dtype=np.float32)
+        lead = arr.shape[:arr.ndim - n_feat]
+        flat = arr.reshape(lead + (-1,))
+        n = self.tac_fingers * self.tac_axes
+        f = flat[..., self.tac_index:self.tac_index + n].reshape(lead + (self.tac_fingers, self.tac_axes))
+        if self.tac_axes < 6:
+            f = np.concatenate([f, np.zeros(lead + (self.tac_fingers, 6 - self.tac_axes), np.float32)], axis=-1)
+        return f
+
+    def _current(self, item, key, s: _Source):
+        """Value of `key` at frame t; the tactile window holds it at index W-1."""
+        v = item[key]
+        if key == self.tac_key and self._uses_tactile(s):
+            v = v[self.vqvae_window - 1]
+        return v
+
+    def _compute_stats(self) -> dict:
+        """q01/q99 over every frame of every root, from the parquet tables only."""
+        states, chunks, tac = [], [], []
+        for s in self.sources:
+            cols = ["episode_index", "frame_index", KEY_ACTION]
+            if KEY_STATE in s.feats:
+                cols.append(KEY_STATE)
+            if s.has_tactile and self.tac_key not in cols:
+                cols.append(self.tac_key)
+            df = _read_table(s.root, cols).sort_values(["episode_index", "frame_index"])
+            for _, ep in df.groupby("episode_index", sort=True):
+                A = np.stack(ep[KEY_ACTION].to_numpy()).astype(np.float64)
+                if s.action_format == "chunk":
+                    chunks.append(A.reshape(len(A), -1, self.action_dim).astype(np.float32))
+                    states.append(np.stack(ep[KEY_STATE].to_numpy()).astype(np.float32))
+                else:
+                    st, ch = self._eef_episode(A, np.stack(ep[KEY_STATE].to_numpy()).astype(np.float64)
+                                               if KEY_STATE in ep else None)
+                    states.append(st)
+                    chunks.append(ch)
+                if s.has_tactile:
+                    rows = self._tactile_rows(np.stack(ep[self.tac_key].to_numpy()), s)
+                    tac.append(rows.reshape(len(ep), -1))
+        S = np.concatenate(states)
+        C = np.concatenate(chunks)
+        if S.shape[-1] != self.action_dim or C.shape[-1] != self.action_dim:
+            raise ValueError(f"data gives {S.shape[-1]}-D states / {C.shape[-1]}-D actions, "
+                             f"but --action_dim is {self.action_dim}")
+        block = {
+            "action": calculate_stats(C, [True] * self.action_dim),     # per (step, dim)
+            "state": calculate_stats(S, [True] * self.action_dim),
+            "num_transitions": int(len(S)),
+        }
+        if tac and self.has_tactile:
+            T = np.concatenate(tac)
+            # Channels with no spread (padded moments, fingers that never touch)
+            # stay unnormalized instead of collapsing to -1.
+            live = (np.quantile(T, 0.99, axis=0) - np.quantile(T, 0.01, axis=0)) > 1e-6
+            block["tactile_f6"] = calculate_stats(T, live.tolist())
+            self.accelerator.print(f"[LeRobot] tactile channels normalized: {int(live.sum())}/{T.shape[-1]}")
+        self.accelerator.print(f"[LeRobot] normalization stats computed over {len(S)} frames")
+        return {STATS_KEY: block}
+
+    def _eef_episode(self, A, S):
+        """A whole eef episode -> states [N, D], chunks [N, chunk, D] (clamped at the end)."""
+        n = len(A)
+        t = np.arange(n)[:, None]
+        if self.base == "action":
+            fut = np.minimum(t + 1 + np.arange(self.action_chunk)[None], n - 1)
+            base_ee, base_hand = self._split_src(A)
+        else:
+            fut = np.minimum(t + np.arange(self.action_chunk)[None], n - 1)
+            base_ee, base_hand = self._split_state(S)
+        return eef_to_trex(base_ee, base_hand, A[fut], self.hand_dim)
+
+    def _split_src(self, rows):
+        """Source rows [..., n_arms*(6+hand)] -> EE [..., n_arms*6], hand [..., n_arms*hand]."""
+        w = EE_SRC_DIM + self.hand_dim
+        n_arms = rows.shape[-1] // w
+        ee = np.concatenate([rows[..., a * w:a * w + EE_SRC_DIM] for a in range(n_arms)], axis=-1)
+        hand = np.concatenate([rows[..., a * w + EE_SRC_DIM:(a + 1) * w] for a in range(n_arms)], axis=-1)
+        return ee, hand
+
+    def _split_state(self, state):
+        n_arms = self.action_dim // (9 + self.hand_dim)
+        e, h = self.state_ee_index, self.state_hand_index
+        return state[..., e:e + n_arms * EE_SRC_DIM], state[..., h:h + n_arms * self.hand_dim]
+
     def __len__(self):
-        return len(self.ds)
+        return int(self._src_cum[-1]) if len(self._src_cum) else 0
 
     def __getitem__(self, idx):
-        return self.ds[idx]   # LeRobot item dict (tensors + task + *_is_pad)
+        si = int(np.searchsorted(self._src_cum, idx, side="right"))
+        local = idx - (int(self._src_cum[si - 1]) if si > 0 else 0)
+        s = self.sources[si]
+        item = s.ds[local]
+
+        # Frames become image_size PILs here, not in collate_fn: a raw decoded
+        # frame is float32 at full resolution (~33 MB at 1920x1456), and a worker
+        # holds a whole batch of items before collating.
+        head = [self._img_to_pil(f) for f in item[s.head_key]]   # 1+S PILs
+        out = {
+            "head": head,
+            "head_is_pad": item.get(f"{s.head_key}_is_pad"),
+            "fast": [self._img_to_pil(item[k]) if k is not None else head[0] for k in s.fast_keys],
+            "task": item.get("task", ""),
+        }
+        if s.action_format == "chunk":
+            out["action_chunk"] = np.asarray(item[KEY_ACTION], dtype=np.float32)
+            out["state"] = (np.asarray(self._current(item, KEY_STATE, s), dtype=np.float32)
+                            if KEY_STATE in item else None)
+        else:
+            rows = np.asarray(item[KEY_ACTION], dtype=np.float64)     # [(1+)chunk, src]
+            if self.base == "action":
+                base_ee, base_hand = self._split_src(rows[0])
+                targets = rows[1:]
+            else:
+                state_t = np.asarray(self._current(item, KEY_STATE, s), dtype=np.float64)
+                base_ee, base_hand = self._split_state(state_t)
+                targets = rows
+            out["state"], out["action_chunk"] = eef_to_trex(base_ee, base_hand, targets, self.hand_dim)
+
+        # delayed tactile: one delay per sample, like the midtrain JSON path
+        di = int(np.random.randint(len(self.delay_offsets)))
+        out["delay_k"] = self.delay_offsets[di]
+        if self._uses_tactile(s):
+            W = self.vqvae_window
+            f6 = torch.from_numpy(self._tactile_rows(item[self.tac_key], s))   # [W+max_d, fingers, 6]
+            d = out["delay_k"]
+            out["f6_hist"] = f6[d:d + W]                             # history ending at t+delay
+        if self.use_tactile_deform and s.has_deform:
+            out["deform"] = torch.stack([item[k][di][0] if item[k].dim() == 4 else item[k][0]
+                                         for k in DEFORM_KEYS], dim=0)   # [10, H, W]
+        return out
 
     def create_val_split(self, val_ratio=0.05, seed=42):
-        """Split by episode index; returns a val TRexLeRobotDataset (shares stats)."""
-        from lerobot.datasets.lerobot_dataset import LeRobotDataset
-        n_ep = self.ds.meta.total_episodes
+        """Split each root by episode; returns a val TRexLeRobotDataset (shares stats)."""
         rng = np.random.RandomState(seed)
-        perm = rng.permutation(n_ep)
-        n_val = max(1, int(n_ep * val_ratio))
-        val_eps = sorted(perm[:n_val].tolist())
-        train_eps = sorted(perm[n_val:].tolist())
-        repo_id = getattr(self.config, "lerobot_repo_id", "") or os.path.basename(self.root.rstrip("/"))
-        dt = self._build_delta_timestamps()
-        val_ds = LeRobotDataset(repo_id, root=self.root, episodes=val_eps, delta_timestamps=dt)
-        self.ds = LeRobotDataset(repo_id, root=self.root, episodes=train_eps, delta_timestamps=dt)
-        self.accelerator.print(f"[LeRobot] train/val split: {len(train_eps)}/{len(val_eps)} episodes")
+        train_sel, val_sel = {}, {}
+        for s in self.sources:
+            eps = self._selected.get(s.root) or s.episode_indices()
+            perm = rng.permutation(len(eps))
+            n_val = max(1, int(len(eps) * val_ratio)) if len(eps) > 1 else 0
+            val_sel[s.root] = sorted(eps[i] for i in perm[:n_val])
+            train_sel[s.root] = sorted(eps[i] for i in perm[n_val:])
         val = copy.copy(self)
-        val.ds = val_ds
+        val.sources = [copy.copy(s) for s in self.sources]
+        val._build(val_sel)
+        self._build(train_sel)
+        self.accelerator.print(f"[LeRobot] train/val split: {self._num_episodes}/{val._num_episodes} episodes")
         return val
 
     # ── image helpers ──
     def _img_to_pil(self, img_t: torch.Tensor) -> PIL.Image.Image:
-        """LeRobot video tensor [3,H,W] float[0,1] → resized RGB PIL."""
-        arr = (img_t.detach().float().clamp(0, 1) * 255.0).to(torch.uint8)
+        """LeRobot video tensor [3,H,W] float[0,1] → RGB PIL at image_size (stretch/crop/pad).
+        A PIL input was already converted by __getitem__ and is returned as is."""
+        if isinstance(img_t, PIL.Image.Image):
+            return img_t
+        arr =(img_t.detach().float().clamp(0, 1) * 255.0).to(torch.uint8)
         arr = arr.permute(1, 2, 0).cpu().numpy()           # HWC
         img = PIL.Image.fromarray(arr, mode="RGB")
-        if self.image_size is not None:
-            img = img.resize(self.image_size, PIL.Image.LANCZOS)
-        return img
+        if self.image_size is None:
+            return img
+        W, H = self.image_size
+        w, h = img.size
+        if self.image_fit == "crop":
+            if w * H > h * W:
+                cw = round(h * W / H); x0 = (w - cw) // 2
+                img = img.crop((x0, 0, x0 + cw, h))
+            else:
+                ch = round(w * H / W); y0 = (h - ch) // 2
+                img = img.crop((0, y0, w, y0 + ch))
+        elif self.image_fit == "pad":
+            s = min(W / w, H / h)
+            canvas = PIL.Image.new("RGB", (W, H))
+            small = img.resize((round(w * s), round(h * s)), PIL.Image.LANCZOS)
+            canvas.paste(small, ((W - small.size[0]) // 2, (H - small.size[1]) // 2))
+            return canvas
+        return img.resize(self.image_size, PIL.Image.LANCZOS)
 
     def collate_fn(self, batch: List[Dict]) -> Dict:
-        cfg = self.config
         B = len(batch)
-        device_cpu = torch.device("cpu")
 
         # ── actions + flow matching ──
-        actions = np.stack([np.asarray(x[KEY_ACTION], dtype=np.float32) for x in batch], axis=0)  # [B,16,62]
+        actions = np.stack([x["action_chunk"] for x in batch], axis=0)          # [B, chunk, D]
         norm_actions = torch.tensor(
             _normalize(actions, self.action_mask, self.action_min, self.action_max),
             dtype=torch.bfloat16)
@@ -199,55 +516,46 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         time_r = (beta.sample((B,)) * 0.999 + 0.001).to(torch.bfloat16)
         eps_r = torch.randn_like(norm_actions)
 
-        # ── tactile ──
+        # ── tactile (already at t+delay) ──
         norm_tacf6 = None
         tactile_f6_history_tensor = None
-        if self.has_tactile and KEY_TACF6 in batch[0]:
-            f6_hist = torch.stack([x[KEY_TACF6].float() for x in batch], dim=0)   # [B,W,10,6]
+        if "f6_hist" in batch[0]:
+            f6_hist = torch.stack([x["f6_hist"] for x in batch], dim=0)          # [B,W,10,6]
             if self.use_tactile_vqvae:
                 tactile_f6_history_tensor = f6_hist                              # raw, model normalizes
             if self.use_tactile_vec:
-                cur = f6_hist[:, -1].reshape(B, -1).numpy()                       # current frame [B,60]
+                cur = f6_hist[:, -1].reshape(B, -1).numpy()                       # [B,60]
                 norm_tacf6 = torch.tensor(
                     _normalize(cur, self.tacf6_mask, self.tacf6_min, self.tacf6_max).reshape(B, -1, 6),
                     dtype=torch.bfloat16)
 
         deforms_tensor = None
-        if self.use_tactile_deform and self.has_deform:
-            # each deform key is [3,H,W] float[0,1]; take channel 0 → [H,W].
-            per_sample = []
-            for x in batch:
-                fingers = [x[k][0] for k in DEFORM_KEYS]      # 10 × [H,W]
-                per_sample.append(torch.stack(fingers, dim=0))  # [10,H,W]
-            deforms_tensor = torch.stack(per_sample, dim=0).unsqueeze(2).float()  # [B,10,1,H,W]
+        if "deform" in batch[0]:
+            deforms_tensor = torch.stack([x["deform"] for x in batch], dim=0).unsqueeze(2).float()  # [B,10,1,H,W]
 
         # ── robot state ──
         state_raw = None
         if self.use_robot_state:
             sl = []
             for x in batch:
-                s = np.asarray(x[KEY_STATE], dtype=np.float32)
-                s = add_tracking_error_noise(s, self.te_mean, self.te_std, self.action_dim)
+                s = add_tracking_error_noise(x["state"], self.te_mean, self.te_std,
+                                             self.action_dim, self.hand_dim)
                 sl.append(torch.tensor(_normalize(s, self.state_mask, self.state_min, self.state_max),
                                        dtype=torch.bfloat16))
             state_raw = torch.stack(sl)
 
-        # ── images → Qwen processor (slow=head[0], fast=[wrist_right, wrist_left]) ──
+        # ── images → Qwen processor: [head (slow) | text | fast images] ──
         all_input_ids, all_pixel_values, all_grid_thw = [], [], []
         n_slow_images = 1
         for x in batch:
-            head_seq = x[KEY_HEAD]                      # [1+S, 3, H, W]
-            pil_slow = [self._img_to_pil(head_seq[0])]
-            pil_fast = []
-            if self.has_wrist:
-                pil_fast = [self._img_to_pil(x[KEY_WRIST_R]), self._img_to_pil(x[KEY_WRIST_L])]
-            all_pil = pil_slow + pil_fast
+            pil_slow = [self._img_to_pil(x["head"][0])]
+            pil_fast = [self._img_to_pil(f) for f in x["fast"]]
             content = [{"type": "image"} for _ in pil_slow]
             content.append({"type": "text", "text": x.get("task", "")})
             content += [{"type": "image"} for _ in pil_fast]
             text = self.processor.apply_chat_template(
                 [{"role": "user", "content": content}], tokenize=False, add_generation_prompt=True)
-            inp = self.processor(text=text, images=all_pil, return_tensors="pt", padding=False)
+            inp = self.processor(text=text, images=pil_slow + pil_fast, return_tensors="pt", padding=False)
             all_input_ids.append(inp.input_ids[0])
             if "pixel_values" in inp and inp.pixel_values is not None:
                 all_pixel_values.append(inp.pixel_values)
@@ -258,8 +566,7 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         if self.n_flare_steps > 0:
             flare_pil = []
             for x in batch:
-                head_seq = x[KEY_HEAD]                               # [1+S,3,H,W]
-                is_pad = x.get(f"{KEY_HEAD}_is_pad")
+                head_seq, is_pad = x["head"], x.get("head_is_pad")
                 for k in range(self.n_flare_steps):
                     fi = 1 + k
                     if is_pad is not None and bool(is_pad[fi]):
@@ -298,10 +605,11 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
             "norm_actions": norm_actions,
             "tactile_f6s": norm_tacf6,
             "tactile_deforms": deforms_tensor,
-            "tactile_f6s_delayed": norm_tacf6,            # delay_k=0 (parity with posttrain JSON path)
+            "tactile_f6s_delayed": norm_tacf6,            # sampled at t + delay_k
             "tactile_deforms_delayed": deforms_tensor,
             "tactile_codes": None,                        # embedded VQ-VAE encodes the history
             "tactile_f6_history": tactile_f6_history_tensor,
+            "delay_k": torch.tensor([x["delay_k"] for x in batch], dtype=torch.long),
             "time_r": time_r,
             "eps_r": eps_r,
             "state_raw": state_raw,

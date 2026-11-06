@@ -1,6 +1,11 @@
 #!/bin/bash
 # Stage 3 / post-train — task-specific fine-tune, resuming from a midtrain ckpt.
-# Two data formats: DATA_FORMAT=json (task JSON) or DATA_FORMAT=lerobot (LeRobot v3.0 dir).
+# Two data formats: DATA_FORMAT=lerobot (default, LeRobot v3.0 dirs) or
+# DATA_FORMAT=json (task JSON from utils/gen_json_tac_deltabase_eef_bimanual_parallel.py).
+#
+# The LeRobot defaults read single Panda arm + right XHand recordings (TAPTIC
+# layout, see midtrain.sh); the loader builds the 21-D delta-base chunk and the
+# [Fx, Fy, Fz, 0, 0, 0] F6 tokens on the fly.
 set -e
 
 PROJECT_ROOT=/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/code/T-Rex
@@ -14,27 +19,33 @@ export WANDB_MODE=offline
 export CUDA_VISIBLE_DEVICES=0,1,2,3,4,5,6,7
 
 ORIGIN_MODEL_PATH="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/Qwen3-VL-2B-Instruct"
-DEFORM_ENCODER_PATH="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/dex_mot_qwen/deform/sharpa_wave_deform_encoder.pth"
-# Tactile codes are encoded ON THE FLY by the embedded VQ-VAE — no pre-baked
-# codes needed.  If RESUME_CHECKPOINT was merged with an embedded VQ-VAE the
-# trainer auto-detects it (VQVAE_CKPT then optional); otherwise it builds the
-# module from VQVAE_CKPT.
-VQVAE_CKPT="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/dex_mot_qwen/vqvae/vqvae_f6_w16_k64_finger/latest.pt"
-RESUME_CHECKPOINT="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/dex_mot_expert/exp/qwen3vl_midtrain_flare/checkpoint-5-19464"
+RESUME_CHECKPOINT="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/dex_mot_expert/exp/trex_midtrain_flare/checkpoint-9-latest"
 RESUME_SOURCE="midtrain"
 OUTPUT_DIR="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/ckpts/dex_mot_expert/exp"
 
 EXPERIMENT_NAME="t-rex_posttrain_flare"
 RUN_NAME="${EXPERIMENT_NAME}_$(date +%m%d_%H%M)"
 
-ACTION_DIM=62
+# ── embodiment: single Panda arm + right XHand ──
+ACTION_DIM=21
+HAND_DIM=12
 
-# ── data source: "json" or "lerobot" ──
-DATA_FORMAT="json"
-DATA_JSON="/mnt/amlfs-02/shared/human_egocentric/dniu/Dex-MoT/mot_arch/data/bkl_inlab/training_data/three_full_json/remove_card_0413_deltabase_axis_eef_lr_bimanual_crop_stride1_train_vqvae_k64.json"
-LEROBOT_ROOT="/path/to/lerobot/place_card"
+# ── time constants, in dataset frames (10 Hz recordings; keep equal to midtrain) ──
+ACTION_CHUNK=16
+FLARE_STRIDE=1
+
+# ── data source: "lerobot" (default) or "json" ──
+DATA_FORMAT="lerobot"
+LEROBOT_ROOT="/path/to/lerobot/split_cups"      # one or more dataset dirs, space-separated
+DATA_JSON="/path/to/task_deltabase_eef.json"
 if [ "${DATA_FORMAT}" = "lerobot" ]; then
-    DATA_ARG="--data_format lerobot --lerobot_root ${LEROBOT_ROOT}"
+    DATA_ARG="--data_format lerobot --lerobot_root ${LEROBOT_ROOT} \
+        --lerobot_head_key observation.images.left \
+        --lerobot_fast_keys observation.images.wrist \
+        --lerobot_base state --lerobot_state_ee_index 34 --lerobot_state_hand_index 7 \
+        --lerobot_tactile_key observation.state --lerobot_tactile_index 19 \
+        --lerobot_tactile_fingers 5 --lerobot_tactile_axes 3 \
+        --image_fit crop"
 else
     DATA_ARG="--data_format json --data_path ${DATA_JSON}"
 fi
@@ -48,6 +59,7 @@ NUM_PROCESSES=$((NUM_MACHINES * 8))
 TRAIN_BSZ=16
 LR=1e-4
 
+# Tactile inputs: F6 tokens only (no XHand VQ-VAE or deformation encoder yet).
 accelerate launch \
     --config_file ../config/sft_qwen.yaml \
     --num_processes ${NUM_PROCESSES} \
@@ -62,7 +74,8 @@ accelerate launch \
     --n_epochs 100 \
     --save_freq 50 \
     --action_dim ${ACTION_DIM} \
-    --action_chunk 16 \
+    --hand_dim ${HAND_DIM} \
+    --action_chunk ${ACTION_CHUNK} \
     --train_bsz_per_gpu ${TRAIN_BSZ} \
     --learning_rate ${LR} \
     --min_lr_ratio 0 \
@@ -74,10 +87,8 @@ accelerate launch \
     --run_name ${RUN_NAME} \
     --use_robot_state 0 \
     --use_tactile_vec 1 \
-    --use_tactile_deform 1 \
-    --use_tactile_vqvae 1 \
-    --vqvae_ckpt ${VQVAE_CKPT} \
-    --deform_encoder_ckpt ${DEFORM_ENCODER_PATH} \
+    --use_tactile_deform 0 \
+    --use_tactile_vqvae 0 \
     --tactile_intermediate_size 1536 \
     --training_stage 2 \
     --tactile_loss_weight 1.0 \
@@ -91,7 +102,7 @@ accelerate launch \
     --n_flare_tokens_per_frame 4 \
     --n_flare_steps 8 \
     --flare_loss_weight 0.5 \
-    --flare_frame_stride 4 \
+    --flare_frame_stride ${FLARE_STRIDE} \
     --flare_layer_index -1 \
     --image_size 384 288 \
     --val_ratio 0.05 \
