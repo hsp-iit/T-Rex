@@ -33,7 +33,7 @@ export TREX_DEBUGPY_RANKS=${DEBUG_RANKS:-0}
 export TREX_DEBUGPY_WAIT=${DEBUG_WAIT:-1}
 
 export NUM_GPUS=${NUM_GPUS:-1}
-export LEROBOT_ROOT=${LEROBOT_ROOT:-/home/lgori/egomix/egomix_data/sample/retarget}
+export LEROBOT_ROOT=${LEROBOT_ROOT:-/home/iit.local/lgori/egomix_100gb/retarget}
 export TRAIN_BSZ=${TRAIN_BSZ:-2}
 export NUM_WORKERS=${NUM_WORKERS:-0}
 export N_EPOCHS=${N_EPOCHS:-1}
@@ -41,7 +41,7 @@ export SAVE_STEPS=${SAVE_STEPS:-0}          # no mid-epoch checkpoints while deb
 export MAX_CKPTS=${MAX_CKPTS:-1}
 export VAL_FREQ=${VAL_FREQ:-0}              # no validation while debugging
 export MAX_VAL_BATCHES=${MAX_VAL_BATCHES:-2}
-export OUTPUT_DIR=${OUTPUT_DIR:-/fastwork/lgori/trex_runs/debug}
+export OUTPUT_DIR=${OUTPUT_DIR:-/home/iit.local/lgori/trex-mod/trex_runs/debug}
 export EXPERIMENT_NAME=${EXPERIMENT_NAME:-debug}
 export MASTER_PORT=${MASTER_PORT:-29531}    # avoid clashing with a real run on the node
 # Synchronous CUDA calls: errors point at the line that caused them (slower).

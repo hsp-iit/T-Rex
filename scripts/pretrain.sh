@@ -12,33 +12,32 @@
 #SBATCH --cpus-per-task=44
 #SBATCH --mem=400G
 #SBATCH --time=3-00:00:00
-#SBATCH --output=/fastwork/lgori/trex_runs/slurm-%x-%j.out
+#SBATCH --output=/home/iit.local/lgori/trex-mod/trex_runs/slurm-%x-%j.out
 set -e
 # Settings marked ${VAR:-default} below can be overridden from the environment,
 # e.g. a short smoke test:  N_EPOCHS=1 SAVE_STEPS=40 VAL_FREQ=30 sbatch scripts/pretrain.sh
 
-PROJECT_ROOT=/home/lgori/T-Rex
+PROJECT_ROOT=${PROJECT_ROOT:-/home/iit.local/lgori/trex-mod}
 cd ${PROJECT_ROOT}/scripts
 
-# Env: torch 2.6 (cu124) + transformers 4.57.3 + lerobot 0.4.4 (newest lerobot
-# compatible with transformers 4.57). Build it with
-# /fastwork/lgori/trex_smoke/setup_env.sh.
-source /opt/share/sw/intel/gcc-11.4.1/miniforge3-24.11.3-2/etc/profile.d/conda.sh
-conda activate /fastwork/lgori/envs/trex
-export HF_HOME=/fastwork/lgori/huggingface
+# Env: pixi environment defined in ${PROJECT_ROOT}/pixi.toml (torch 2.6 cu124 +
+# transformers 4.57.3 + lerobot 0.4.4). Build it once with `pixi install`.
+PIXI=$(command -v pixi || echo "${HOME}/.pixi/bin/pixi")
+eval "$(${PIXI} shell-hook --manifest-path ${PROJECT_ROOT}/pixi.toml)"
+export HF_HOME=${HF_HOME:-${HOME}/.cache/huggingface}
 export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
 export WANDB_MODE=offline
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 # Slurm sets CUDA_VISIBLE_DEVICES to the allocated GPUs.
 NUM_GPUS=${NUM_GPUS:-${SLURM_GPUS_ON_NODE:-$(nvidia-smi -L | wc -l)}}
 
-ORIGIN_MODEL_PATH="/fastwork/lgori/ckpts/Qwen3-VL-2B-Instruct"
+ORIGIN_MODEL_PATH=${ORIGIN_MODEL_PATH:-"/home/iit.local/lgori/ckpts/Qwen3-VL-2B-Instruct"}
 # egomix retargets (LeRobot v3.0, one dataset per source, 30 fps): single Panda
 # arm + right XHand. `action` is [ee xyz, rotation vector, 12 XHand joints]; the
 # loader builds 21-D = [arm 9D delta-base eef | hand 12D] on the fly. Each source
 # has one camera, used as head; it is also passed as the single fast image.
-LEROBOT_ROOT=${LEROBOT_ROOT:-"/fastwork/lgori/egomix_100gb/retarget"}   # one or more dirs, space-separated
-OUTPUT_DIR=${OUTPUT_DIR:-"/fastwork/lgori/trex_runs"}
+LEROBOT_ROOT=${LEROBOT_ROOT:-"/home/iit.local/lgori/egomix_100gb/retarget"}   # one or more dirs, space-separated
+OUTPUT_DIR=${OUTPUT_DIR:-"/home/iit.local/lgori/trex-mod/trex_runs"}
 RESUME_CHECKPOINT=""
 
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-"trex_pretrain_egomix_panda_xhand"}

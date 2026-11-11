@@ -419,7 +419,10 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         # Frames become image_size PILs here, not in collate_fn: a raw decoded
         # frame is float32 at full resolution (~33 MB at 1920x1456), and a worker
         # holds a whole batch of items before collating.
-        head = [self._img_to_pil(f) for f in item[s.head_key]]   # 1+S PILs
+        head_t = item[s.head_key]
+        if head_t.dim() == 3:              # a single timestamp comes back as [3, H, W]
+            head_t = head_t.unsqueeze(0)
+        head = [self._img_to_pil(f) for f in head_t]             # 1+S PILs
         out = {
             "head": head,
             "head_is_pad": item.get(f"{s.head_key}_is_pad"),

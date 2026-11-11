@@ -1,0 +1,47 @@
+[workspace]
+name = "t-rex"
+channels = ["conda-forge"]
+platforms = [{ name = "linux-64-cuda-12-4", platform = "linux-64", cuda = "12.4" }]
+
+[dependencies]
+python = "3.10.*"
+pip = "*"
+packaging = ">=24.2,<26"      # lerobot constraint
+setuptools = ">=71,<81"       # lerobot constraint
+# torchcodec (used by lerobot to decode LeRobot v3.0 videos) needs FFmpeg shared libs
+ffmpeg = ">=6,<8"
+
+[pypi-options]
+# deepspeed's setup.py imports torch, so build it against the env's torch
+no-build-isolation = ["deepspeed"]
+
+[pypi-dependencies]
+torch = { version = "==2.6.0", index = "https://download.pytorch.org/whl/cu124" }
+torchvision = { version = "==0.21.0", index = "https://download.pytorch.org/whl/cu124" }
+torchcodec = "==0.2.1"           # matches torch 2.6
+transformers = "==4.57.3"
+tokenizers = "==0.22.2"
+# relaxed from pyproject.toml pins to satisfy lerobot 0.4.x
+accelerate = "==1.10.1"          # pyproject: 1.8.1 (lerobot needs >=1.10)
+huggingface-hub = "==0.35.3"     # pyproject: 0.36.2 (lerobot needs <0.36)
+wandb = "==0.24.2"               # pyproject: 0.18.3 (lerobot 0.4.4 needs >=0.24,<0.25)
+deepspeed = "==0.15.4"
+datasets = "==4.0.0"
+safetensors = "==0.5.3"
+pyarrow = "==20.0.0"
+numpy = "==2.2.6"
+h5py = "==3.16.0"
+pillow = "==12.1.1"
+opencv-python-headless = "==4.12.0.88"
+matplotlib = "==3.10.3"
+timm = "==1.0.17"
+pyzmq = "==27.1.0"
+tqdm = "==4.67.1"
+pandas = "*"
+# LeRobot v3.0 data path (DATA_FORMAT=lerobot, the train.sh default)
+lerobot = "==0.4.4"              # what scripts/pretrain.sh was written against
+debugpy = "*"                    # scripts/pretrain_debug.sh
+
+[activation.env]
+PYTHONPATH = "$PIXI_PROJECT_ROOT"
+WANDB_MODE = "offline"
