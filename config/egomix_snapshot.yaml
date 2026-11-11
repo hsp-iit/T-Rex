@@ -1,0 +1,17 @@
+# Snapshot views of the egomix outputs the conversion jobs are still writing (utils/egomix_snapshot.py).
+#   python -m utils.egomix_snapshot config/egomix_snapshot.yaml --dry-run
+#   sbatch scripts/egomix_snapshot.sh                          # build / refresh the views on a cpu node
+#   LEROBOT_ROOT=/fastwork/lgori/egomix_snapshot/retarget sbatch scripts/pretrain.sh
+sources:                                          # egomix output folders (read only)
+  - /fastwork/lgori/egomix_10tb                   # main GPU run (hoi4d, egodex, egopro, egostandard)
+  - /fastwork/lgori/egomix_10tb_egoverse_gpu      # EgoVerse A (half 0)
+  - /fastwork/lgori/egomix_10tb_egoverse_gpu_b    # EgoVerse B (half 1)
+view_dir: /fastwork/lgori/egomix_snapshot         # views land in <view_dir>/<mode>/<output>__<dataset>/
+modes: [retarget]                                 # add lerobot for the human-hand versions (30 fps; only
+                                                  # episodes whose retargeting is ok are taken)
+settle_seconds: 300                               # also leave files written in the last 5 minutes for later
+world_up:                                         # skip what egomix's drop_episodes.py would drop (EgoVerse
+  recheck: true                                   # worlds not gravity up); runs egomix's convert_worker
+  python: /home/lgori/.conda/envs/egomix/bin/python
+  egomix_dir: /home/lgori/egomix
+  sim_repo: /home/lgori/panda-sim

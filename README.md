@@ -131,7 +131,8 @@ T-Rex/
 │   ├── lerobot_common.py             shared schema + pose math + norm stats
 │   ├── encode_vqvae_codes_to_json.py (+ .sh)   optional code pre-baker
 │   ├── merge_vqvae_into_ckpt.py      (+ .sh)   bake VQ-VAE into a checkpoint
-│   └── analyze_episode.py            per-episode visualization
+│   ├── analyze_episode.py            per-episode visualization
+│   └── egomix_snapshot.py            optional: views of egomix outputs still being converted
 ├── config/sft_qwen.yaml            accelerate + DeepSpeed config
 ├── dataset_quickstart/             standalone companion: browse / inspect / replay the dataset
 ├── hardware_code/                  teleoperation + data-collection stack (robot hardware code)
@@ -250,6 +251,27 @@ cascaded-flow loss, and training loop are unchanged — the loader
 (`qwen_vla/lerobot_dataset.py`) emits the same batch dict as the JSON dataset and
 the embedded VQ-VAE tokenizes the raw F6 history that LeRobot `delta_timestamps`
 supplies. Requires the `lerobot` package importable (`pip install -e /path/to/lerobot`).
+
+### egomix outputs still being converted (optional)
+
+The egomix conversion jobs append to their LeRobot datasets for days, and LeRobot cannot open a
+dataset while it is written (half-written files, metadata of crashed writer sessions).
+[`utils/egomix_snapshot.py`](utils/egomix_snapshot.py) builds *snapshot views* of them: per source
+dataset, a LeRobot v3.0 dataset of only the episodes that are complete and fit to train on
+(retargeting ok, video complete, world gravity-up), with data/meta tables rewritten and the videos
+symlinked to the sources (nothing large is copied). Nothing else changes: the loader reads the views
+like any LeRobot root. Set the egomix output folders and `view_dir` in
+[`config/egomix_snapshot.yaml`](config/egomix_snapshot.yaml), then:
+
+```bash
+sbatch --export=ALL,SNAPSHOT_ARGS=--dry-run scripts/egomix_snapshot.sh   # what would be taken, and why not the rest
+sbatch scripts/egomix_snapshot.sh                                        # build; rerun to append what finished since
+LEROBOT_ROOT=/fastwork/lgori/egomix_snapshot/retarget sbatch scripts/pretrain.sh
+```
+
+A refresh only appends to the views (a running training keeps what it loaded).
+`SNAPSHOT_ARGS=--verify` checks the views still match their sources: after egomix's
+`drop_episodes.py --apply` they do not, and `--rebuild` builds them again.
 
 ### VQ-VAE tactile codes (optional — on-the-fly is the default)
 
