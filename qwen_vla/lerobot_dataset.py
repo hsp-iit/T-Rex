@@ -31,6 +31,10 @@ Design:
     episode like the JSON pipelines.
   * Normalization uses the q01/q99 `meta/trex_norm_stats.json` sidecar of a
     single root, or is computed from the parquet tables (no video) otherwise.
+    Computed stats are cached in a JSON file (`--lerobot_stats_path`, default
+    <output_dir>/lerobot_norm_stats.json) together with the data and settings
+    they were built from; a later run with the same ones loads the file. Only
+    one process per node computes, the others wait for the file.
   * `_cum_frames` / `_num_episodes` follow episode order, so EpisodeGroupedSampler
     (pretrain, midtrain) groups frames by episode.
   * The LeRobot import is lazy and `collate_fn` consumes plain item dicts, so this
@@ -42,7 +46,9 @@ import copy
 import glob
 import json
 import os
-from typing import Dict, List, Optional
+import socket
+import time
+from typing import Dict, List, Optional, Tuple
 
 import numpy as np
 import PIL.Image
@@ -90,6 +96,11 @@ def add_lerobot_args(parser):
                         "Use pyav when FFmpeg shared libraries are not available for torchcodec.")
     g.add_argument("--image_fit", choices=["stretch", "crop", "pad"], default="stretch",
                    help="How frames reach --image_size: stretch, centre crop, or letterbox.")
+    g.add_argument("--lerobot_stats_path", type=str, default="",
+                   help="Normalization-stats cache (JSON). Loaded when it was built from the same "
+                        "data and settings, otherwise computed and written there. Overrides a "
+                        "root's meta/trex_norm_stats.json. Default: <output_dir>/"
+                        f"{STATS_CACHE_NAME} (none when there is no --output_dir).")
     if not any(a.dest == "hand_dim" for a in parser._actions):
         parser.add_argument("--hand_dim", type=int, default=22,
                             help="Hand joints per arm (22 Sharpa Wave, 12 XHand).")
@@ -147,10 +158,81 @@ def _normalize(values, mask, vmin, vmax):
     return np.where(mask, np.clip(2 * (values - vmin) / (vmax - vmin + 1e-8) - 1, -1, 1), values)
 
 
-def _read_table(root: str, columns: List[str]):
-    import pandas as pd
+# ── normalization-stats computation and cache ────────────────────────────────
+STATS_CACHE_NAME = "lerobot_norm_stats.json"
+# Bump when the stats math changes, so caches built by older code are rebuilt.
+STATS_CACHE_VERSION = 1
+# Frames converted per vectorized call when building chunk steps (bounds the
+# float64 temporaries of the pose math to a few MB).
+_STATS_BLOCK = 1 << 16
+# How long the processes that don't compute wait for the cache file.
+_STATS_WAIT_S = 3 * 3600
+
+
+def _fill_from_arrow(dest: np.ndarray, column) -> None:
+    """Copy an Arrow column of (nested) lists into dest [rows, *shape].
+
+    Goes through the flat value buffer, so no per-row Python objects are made
+    (pandas would hold one numpy array per row and cell)."""
+    import pyarrow as pa
+    pos = 0
+    for arr in column.chunks:
+        m = len(arr)
+        while True:
+            if isinstance(arr, pa.ExtensionArray):          # e.g. HF datasets Array2D
+                arr = arr.storage
+            elif (pa.types.is_list(arr.type) or pa.types.is_large_list(arr.type)
+                  or pa.types.is_fixed_size_list(arr.type)):
+                arr = arr.flatten()                          # honours slice offsets
+            else:
+                break
+        dest[pos:pos + m] = arr.to_numpy(zero_copy_only=False).reshape(dest[pos:pos + m].shape)
+        pos += m
+
+
+def _read_columns(root: str, spec: Dict[str, Tuple[tuple, np.dtype]]) -> Dict[str, np.ndarray]:
+    """Read `spec` = {column: (per-row shape, dtype)} from every parquet file of a
+    root into preallocated numpy arrays, one file at a time."""
+    import pyarrow.parquet as pq
     files = sorted(glob.glob(os.path.join(root, "data", "*", "*.parquet")))
-    return pd.concat([pd.read_parquet(p, columns=columns) for p in files], ignore_index=True)
+    n_rows = sum(pq.ParquetFile(p).metadata.num_rows for p in files)
+    out = {c: np.empty((n_rows,) + tuple(shape), dtype=dtype) for c, (shape, dtype) in spec.items()}
+    pos = 0
+    for p in files:
+        table = pq.read_table(p, columns=list(spec))
+        m = table.num_rows
+        for c in spec:
+            _fill_from_arrow(out[c][pos:pos + m], table.column(c))
+        pos += m
+        del table
+    return out
+
+
+def _read_stats_cache(path: str, settings: dict):
+    """(stats, None) when `path` holds stats built with `settings`, else (None, reason)."""
+    try:
+        with open(path) as f:
+            data = json.load(f)
+        saved = data[next(iter(data))].get("settings")
+    except FileNotFoundError:
+        return None, "missing"
+    except (OSError, ValueError, StopIteration, AttributeError, TypeError) as e:
+        return None, f"is unreadable ({e})"
+    want = json.loads(json.dumps(settings))                 # tuples -> lists, like the file
+    if saved != want:
+        saved = saved if isinstance(saved, dict) else {}
+        diff = sorted(k for k in set(saved) | set(want) if saved.get(k) != want.get(k))
+        return None, f"was built with other data/settings ({', '.join(diff)})"
+    return data, None
+
+
+def _write_json_atomic(path: str, obj) -> None:
+    """Write via a temp file + rename, so a reader never sees a partial file."""
+    os.makedirs(os.path.dirname(os.path.abspath(path)), exist_ok=True)
+    tmp = f"{path}.tmp.{socket.gethostname()}.{os.getpid()}"
+    with open(tmp, "w") as f:
+        json.dump(obj, f, indent=2)
+    os.replace(tmp, path)
 
 
 class _Source:
@@ -163,6 +245,9 @@ class _Source:
             info = json.load(f)
         self.fps = int(info["fps"])
         self.feats = info["features"]
+        # Recorded in the stats cache, so a dataset that changed is not matched.
+        self.total_frames = info.get("total_frames")
+        self.total_episodes = info.get("total_episodes")
         videos = [k for k, v in self.feats.items() if v["dtype"] == "video"]
         if cfg.head_key in self.feats:
             self.head_key = cfg.head_key
@@ -253,10 +338,11 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         self.n_fast = len(src_cfg.fast_keys)
 
         # ── normalization stats ──
-        if len(roots) == 1 and os.path.isfile(os.path.join(roots[0], NORM_STATS_FILENAME)):
+        if (not getattr(config, "lerobot_stats_path", "") and len(roots) == 1
+                and os.path.isfile(os.path.join(roots[0], NORM_STATS_FILENAME))):
             self.stats_data = load_norm_stats(roots[0])
         else:
-            self.stats_data = self._compute_stats()
+            self.stats_data = self._load_or_compute_stats()
         block = self.stats_data[next(iter(self.stats_data))]
         def _arr(key, sub):
             return np.array(block[key][sub])
@@ -339,60 +425,199 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
             v = v[self.vqvae_window - 1]
         return v
 
-    def _compute_stats(self) -> dict:
-        """q01/q99 over every frame of every root, from the parquet tables only."""
-        states, chunks, tac = [], [], []
-        for s in self.sources:
-            cols = ["episode_index", "frame_index", KEY_ACTION]
-            if KEY_STATE in s.feats:
-                cols.append(KEY_STATE)
-            if s.has_tactile and self.tac_key not in cols:
-                cols.append(self.tac_key)
-            df = _read_table(s.root, cols).sort_values(["episode_index", "frame_index"])
-            for _, ep in df.groupby("episode_index", sort=True):
-                A = np.stack(ep[KEY_ACTION].to_numpy()).astype(np.float64)
-                if s.action_format == "chunk":
-                    chunks.append(A.reshape(len(A), -1, self.action_dim).astype(np.float32))
-                    states.append(np.stack(ep[KEY_STATE].to_numpy()).astype(np.float32))
-                else:
-                    st, ch = self._eef_episode(A, np.stack(ep[KEY_STATE].to_numpy()).astype(np.float64)
-                                               if KEY_STATE in ep else None)
-                    states.append(st)
-                    chunks.append(ch)
-                if s.has_tactile:
-                    rows = self._tactile_rows(np.stack(ep[self.tac_key].to_numpy()), s)
-                    tac.append(rows.reshape(len(ep), -1))
-        S = np.concatenate(states)
-        C = np.concatenate(chunks)
-        if S.shape[-1] != self.action_dim or C.shape[-1] != self.action_dim:
-            raise ValueError(f"data gives {S.shape[-1]}-D states / {C.shape[-1]}-D actions, "
-                             f"but --action_dim is {self.action_dim}")
-        block = {
-            "action": calculate_stats(C, [True] * self.action_dim),     # per (step, dim)
-            "state": calculate_stats(S, [True] * self.action_dim),
-            "num_transitions": int(len(S)),
+    # ── normalization stats ──
+    def _stats_cache_path(self) -> str:
+        path = getattr(self.config, "lerobot_stats_path", "") or ""
+        if path:
+            return path
+        out_dir = getattr(self.config, "output_dir", "") or ""
+        return os.path.join(out_dir, STATS_CACHE_NAME) if out_dir else ""
+
+    def _stats_settings(self) -> dict:
+        """Everything `_compute_stats` depends on. A cache recorded with other
+        settings is rebuilt instead of reused."""
+        settings = {
+            "version": STATS_CACHE_VERSION,
+            "roots": sorted(({"root": os.path.realpath(s.root), "action_format": s.action_format,
+                              "total_frames": s.total_frames, "total_episodes": s.total_episodes}
+                             for s in self.sources), key=lambda r: r["root"]),
+            "action_dim": self.action_dim,
         }
-        if tac and self.has_tactile:
-            T = np.concatenate(tac)
+        if any(s.action_format == "eef" for s in self.sources):
+            settings.update(action_chunk=self.action_chunk, hand_dim=self.hand_dim, base=self.base)
+            if self.base == "state":
+                settings.update(state_ee_index=self.state_ee_index,
+                                state_hand_index=self.state_hand_index)
+        if self.has_tactile:
+            settings["tactile"] = {"key": self.tac_key, "index": self.tac_index,
+                                   "fingers": self.tac_fingers, "axes": self.tac_axes}
+        return settings
+
+    def _load_or_compute_stats(self) -> dict:
+        """Stats from the cache file when it matches, else computed and cached.
+
+        Only the local main process of each node computes; the other processes
+        poll for the file it writes (no NCCL barrier, so a long computation can't
+        hit the collective timeout). With a shared filesystem a second node finds
+        the file if it was already written, otherwise it computes too."""
+        acc = self.accelerator
+        path = self._stats_cache_path()
+        if not path:
+            return self._compute_stats()
+        settings = self._stats_settings()
+        stats, why = _read_stats_cache(path, settings)
+        if stats is not None:
+            acc.print(f"[LeRobot] normalization stats loaded from {path}")
+            return stats
+
+        if getattr(acc, "is_local_main_process", True):
+            if why != "missing":
+                acc.print(f"[LeRobot] stats cache {path} {why}; recomputing")
+            stats = self._compute_stats()
+            stats[next(iter(stats))]["settings"] = settings
+            try:
+                _write_json_atomic(path, stats)
+            except OSError as e:
+                if getattr(acc, "num_processes", 1) > 1:     # the others are waiting for it
+                    raise RuntimeError(f"cannot write the stats cache {path} ({e}); "
+                                       "pass a writable --lerobot_stats_path") from e
+                acc.print(f"[LeRobot] WARNING: cannot write the stats cache {path} ({e})")
+                return stats
+            acc.print(f"[LeRobot] normalization stats cached to {path}")
+            return stats
+
+        deadline = time.time() + _STATS_WAIT_S
+        while True:
+            time.sleep(5)
+            stats, _ = _read_stats_cache(path, settings)
+            if stats is not None:
+                return stats
+            if time.time() > deadline:
+                raise TimeoutError(f"no matching stats cache at {path} after {_STATS_WAIT_S} s; "
+                                   "is it on storage this node's main process writes to?")
+
+    def _stats_columns(self, s: _Source) -> dict:
+        """One root's raw parquet columns for the stats, sorted by (episode, frame),
+        plus `ep_last` [frames]: the row index of each frame's episode end."""
+        def feat(key):
+            f = s.feats[key]
+            return tuple(f["shape"]), np.dtype(f["dtype"])
+
+        spec = {"episode_index": ((), np.int64), "frame_index": ((), np.int64),
+                KEY_ACTION: feat(KEY_ACTION)}
+        if s.action_format == "chunk" or self.base == "state":
+            if KEY_STATE not in s.feats:
+                raise ValueError(f"{s.root}: the stats need {KEY_STATE}, which this dataset lacks")
+            spec[KEY_STATE] = feat(KEY_STATE)
+        if self.has_tactile:
+            spec.setdefault(self.tac_key, feat(self.tac_key))
+        cols = _read_columns(s.root, spec)
+
+        ep, fr = cols.pop("episode_index"), cols.pop("frame_index")
+        if len(ep) > 1 and not np.all((ep[1:] > ep[:-1]) | ((ep[1:] == ep[:-1]) & (fr[1:] > fr[:-1]))):
+            order = np.lexsort((fr, ep))
+            ep = ep[order]
+            for k in cols:
+                cols[k] = cols[k][order]
+        starts = np.flatnonzero(np.r_[True, ep[1:] != ep[:-1]]) if len(ep) else np.zeros(0, np.int64)
+        ends = np.r_[starts[1:], len(ep)].astype(np.int64)
+        cols["ep_last"] = np.repeat(ends - 1, ends - starts)
+        return cols
+
+    def _eef_rows(self, d: dict, k: int, lo: int, hi: int):
+        """States [n, D] and chunk step k [n, D] for rows [lo, hi) of one eef root.
+        Same math as __getitem__: targets past the episode end repeat its last row."""
+        A = d[KEY_ACTION]
+        t = np.arange(lo, hi)
+        if self.base == "action":
+            base_ee, base_hand = self._split_src(A[lo:hi].astype(np.float64))
+            tgt = np.minimum(t + 1 + k, d["ep_last"][lo:hi])
+        else:
+            base_ee, base_hand = self._split_state(d[KEY_STATE][lo:hi].astype(np.float64))
+            tgt = np.minimum(t + k, d["ep_last"][lo:hi])
+        st, ch = eef_to_trex(base_ee, base_hand, A[tgt][:, None].astype(np.float64), self.hand_dim)
+        return st, ch[:, 0]
+
+    def _compute_stats(self) -> dict:
+        """q01/q99 over every frame of every root, from the parquet tables only.
+
+        Only the raw per-frame columns are kept in memory. The action chunk is
+        never built whole as [frames, chunk, D]: each (step, dim) stat only needs
+        that step over all frames, so steps are built and reduced one at a time
+        on a single reused [frames, D] buffer. The result is the same."""
+        D = self.action_dim
+        data = [self._stats_columns(s) for s in self.sources]
+        sizes = [len(d["ep_last"]) for d in data]
+        n = int(sum(sizes))
+        if n == 0:
+            raise ValueError(f"no frames in {self.roots}")
+
+        # Chunk length and output width per root; all roots must agree.
+        n_steps = set()
+        for s, d, m in zip(self.sources, data, sizes):
+            if m == 0:
+                continue
+            if s.action_format == "chunk":
+                if d[KEY_ACTION].size % (m * D) or d[KEY_STATE].size != m * D:
+                    raise ValueError(f"{s.root}: action {list(d[KEY_ACTION].shape[1:])} / state "
+                                     f"{list(d[KEY_STATE].shape[1:])} don't fit --action_dim {D}")
+                d[KEY_ACTION] = d[KEY_ACTION].reshape(m, -1, D)
+                n_steps.add(d[KEY_ACTION].shape[1])
+            else:
+                st, ch = self._eef_rows(d, 0, 0, 1)
+                if st.shape[-1] != D or ch.shape[-1] != D:
+                    raise ValueError(f"data gives {st.shape[-1]}-D states / {ch.shape[-1]}-D actions, "
+                                     f"but --action_dim is {D}")
+                n_steps.add(self.action_chunk)
+        if len(n_steps) != 1:
+            raise ValueError(f"roots give different action chunk lengths {sorted(n_steps)}")
+        n_steps = n_steps.pop()
+
+        # Action steps, one at a time; the eef states come out of the step-0 pass.
+        S = np.empty((n, D), np.float32)
+        C = np.empty((n, D), np.float32)
+        action = {}
+        for k in range(n_steps):
+            pos = 0
+            for s, d, m in zip(self.sources, data, sizes):
+                if s.action_format == "chunk":
+                    C[pos:pos + m] = d[KEY_ACTION][:, k]
+                    if k == 0:
+                        S[pos:pos + m] = d[KEY_STATE].reshape(m, D)
+                else:
+                    for lo in range(0, m, _STATS_BLOCK):
+                        hi = min(lo + _STATS_BLOCK, m)
+                        st, ch = self._eef_rows(d, k, lo, hi)
+                        C[pos + lo:pos + hi] = ch
+                        if k == 0:
+                            S[pos + lo:pos + hi] = st
+                pos += m
+            for name, v in calculate_stats(C, [True] * D).items():
+                if name != "mask":
+                    action.setdefault(name, []).append(v)
+            if k == 0:
+                state = calculate_stats(S, [True] * D)
+                del S
+        del C
+        action["mask"] = [True] * D
+        block = {"action": action, "state": state, "num_transitions": n}   # action is per (step, dim)
+
+        if self.has_tactile:
+            T = np.empty((n, self.tac_fingers * 6), np.float32)
+            pos = 0
+            for s, d, m in zip(self.sources, data, sizes):
+                for lo in range(0, m, _STATS_BLOCK):
+                    hi = min(lo + _STATS_BLOCK, m)
+                    T[pos + lo:pos + hi] = self._tactile_rows(d[self.tac_key][lo:hi], s).reshape(hi - lo, -1)
+                pos += m
+            del data
             # Channels with no spread (padded moments, fingers that never touch)
             # stay unnormalized instead of collapsing to -1.
             live = (np.quantile(T, 0.99, axis=0) - np.quantile(T, 0.01, axis=0)) > 1e-6
             block["tactile_f6"] = calculate_stats(T, live.tolist())
             self.accelerator.print(f"[LeRobot] tactile channels normalized: {int(live.sum())}/{T.shape[-1]}")
-        self.accelerator.print(f"[LeRobot] normalization stats computed over {len(S)} frames")
+        self.accelerator.print(f"[LeRobot] normalization stats computed over {n} frames")
         return {STATS_KEY: block}
-
-    def _eef_episode(self, A, S):
-        """A whole eef episode -> states [N, D], chunks [N, chunk, D] (clamped at the end)."""
-        n = len(A)
-        t = np.arange(n)[:, None]
-        if self.base == "action":
-            fut = np.minimum(t + 1 + np.arange(self.action_chunk)[None], n - 1)
-            base_ee, base_hand = self._split_src(A)
-        else:
-            fut = np.minimum(t + np.arange(self.action_chunk)[None], n - 1)
-            base_ee, base_hand = self._split_state(S)
-        return eef_to_trex(base_ee, base_hand, A[fut], self.hand_dim)
 
     def _split_src(self, rows):
         """Source rows [..., n_arms*(6+hand)] -> EE [..., n_arms*6], hand [..., n_arms*hand]."""
