@@ -70,12 +70,16 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_codebook_size:     int  = 64,
         use_tactile_vqvae:       bool = False,
         vqvae_config:            dict = None,
+        n_tactile_fingers:       int  = 10,
     ):
         super().__init__()
         self.config             = config
         self.action_dim         = action_dim
         self.action_chunk       = action_chunk
         self.tacf6_dim          = tacf6_dim
+        # [XHand adaptation] total fingertips across hands (10 = official
+        # bimanual F6; 5 = single XHand).  Sizes the VQ-VAE stats buffers.
+        self.n_tactile_fingers  = n_tactile_fingers
         self.use_tactile_deform = use_tactile_deform
         self.use_robot_state    = use_robot_state
         self.image_token_id     = image_token_id
@@ -134,14 +138,24 @@ class Qwen3VLVLAModel(nn.Module):
             self.tactile_vqvae.eval()
             for p in self.tactile_vqvae.parameters():
                 p.requires_grad = False
-            # F6 min-max normalization stats ([60] = 10 fingers × 6 dims),
-            # registered as buffers so they travel with the checkpoint.
+            # F6 min-max normalization stats ([60] = 10 fingers × 6 dims in the
+            # official setup; [15] = 5 XHand tips × 3 forces), registered as
+            # buffers so they travel with the checkpoint.
+            _vq_cfg = self.tactile_vqvae.cfg
+            if _vq_cfg.per_finger_dim != tacf6_dim:
+                raise ValueError(
+                    f"VQ-VAE per_finger_dim={_vq_cfg.per_finger_dim} != tacf6_dim={tacf6_dim}")
+            if n_tactile_fingers % _vq_cfg.n_fingers != 0:
+                raise ValueError(
+                    f"n_tactile_fingers={n_tactile_fingers} is not a multiple of the "
+                    f"VQ-VAE's n_fingers={_vq_cfg.n_fingers}")
+            n_flat = n_tactile_fingers * tacf6_dim
             self.register_buffer("tacf6_vqvae_min",
-                                 torch.zeros(60, dtype=torch.float32), persistent=True)
+                                 torch.zeros(n_flat, dtype=torch.float32), persistent=True)
             self.register_buffer("tacf6_vqvae_max",
-                                 torch.ones(60, dtype=torch.float32), persistent=True)
+                                 torch.ones(n_flat, dtype=torch.float32), persistent=True)
             self.register_buffer("tacf6_vqvae_mask",
-                                 torch.ones(60, dtype=torch.bool), persistent=True)
+                                 torch.ones(n_flat, dtype=torch.bool), persistent=True)
 
         if use_robot_state:
             self.state_embedder = ActionEmbedder(action_dim, H)
@@ -176,6 +190,7 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_codebook_size:      int  = 64,
         use_tactile_vqvae:        bool = False,
         vqvae_config:             dict = None,
+        n_tactile_fingers:        int  = 10,
     ) -> "Qwen3VLVLAModel":
         """
         Build a Qwen3VLVLAModel by:
@@ -221,6 +236,7 @@ class Qwen3VLVLAModel(nn.Module):
             vqvae_codebook_size = vqvae_codebook_size,
             use_tactile_vqvae = use_tactile_vqvae,
             vqvae_config = vqvae_config,
+            n_tactile_fingers = n_tactile_fingers,
         )
         # Capture only the get_rope_index function — do NOT store the full
         # base model as an attribute, because nn.Module.__setattr__ would
@@ -320,6 +336,10 @@ class Qwen3VLVLAModel(nn.Module):
         if unexpected:
             print(f"  [tactile_vqvae] unexpected keys: {unexpected[:6]} ...")
         stats = blob["stats"]
+        if len(stats["tacf6_min"]) != self.tacf6_vqvae_min.numel():
+            raise ValueError(
+                f"VQ-VAE stats width {len(stats['tacf6_min'])} != model tactile layout "
+                f"{self.n_tactile_fingers}x{self.tacf6_dim}={self.tacf6_vqvae_min.numel()}")
         self.tacf6_vqvae_min.copy_(torch.as_tensor(stats["tacf6_min"], dtype=torch.float32))
         self.tacf6_vqvae_max.copy_(torch.as_tensor(stats["tacf6_max"], dtype=torch.float32))
         self.tacf6_vqvae_mask.copy_(torch.as_tensor(stats["tacf6_mask"], dtype=torch.bool))
@@ -335,7 +355,9 @@ class Qwen3VLVLAModel(nn.Module):
     def encode_tactile_f6_history(self, f6_history_raw: torch.Tensor) -> torch.Tensor:
         """Encode a raw (un-normalized) F6 history window into per-hand codes.
 
-        f6_history_raw : [B, T, 10, 6]  (two hands × 5 fingers; T = VQ-VAE window).
+        f6_history_raw : [B, T, NF, D]  official: [B, T, 10, 6] (two hands × 5
+                         fingers × F6); XHand: [B, T, 5, 3] (one hand × 5 tips ×
+                         Fx,Fy,Fz).  T = VQ-VAE window.
                          Normalized internally with the embedded VQ-VAE stats,
                          so callers pass raw F6 — exactly what the dataloader /
                          robot reads off the sensor.
@@ -353,18 +375,23 @@ class Qwen3VLVLAModel(nn.Module):
         w_dtype = next(vq.parameters()).dtype
         x = f6_history_raw.to(device=self.tacf6_vqvae_min.device, dtype=torch.float32)
         B, T, NF, D = x.shape
+        if NF * D != self.tacf6_vqvae_min.numel() or D != vq.cfg.per_finger_dim:
+            raise ValueError(
+                f"tactile history [*, {T}, {NF}, {D}] does not match the VQ-VAE layout "
+                f"({self.n_tactile_fingers} fingers x {vq.cfg.per_finger_dim})")
         # Min-max normalize to [-1, 1] (matches TacF6Stats.normalize).
-        flat = x.reshape(B, T, NF * D)                                  # [B, T, 60]
+        flat = x.reshape(B, T, NF * D)                                  # [B, T, NF*D]
         denom = (self.tacf6_vqvae_max - self.tacf6_vqvae_min) + 1e-8
         normed = torch.clamp(
             2.0 * (flat - self.tacf6_vqvae_min) / denom - 1.0, -1.0, 1.0)
         normed = torch.where(self.tacf6_vqvae_mask, normed, flat)
         normed = normed.reshape(B, T, NF, D)
 
-        n_hands = NF // 5
+        nf_hand = vq.cfg.n_fingers
+        n_hands = NF // nf_hand
         per_hand_codes = []
         for h in range(n_hands):
-            wh = normed[:, :, h * 5:(h + 1) * 5, :].to(w_dtype)         # [B, T, 5, 6]
+            wh = normed[:, :, h * nf_hand:(h + 1) * nf_hand, :].to(w_dtype)   # [B, T, 5, D]
             idx = vq.encode(wh)                                          # [B] or [B, 5]
             if idx.dim() == 1:
                 idx = idx.unsqueeze(1)                                   # [B, 1]

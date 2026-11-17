@@ -42,10 +42,19 @@ class F6Decoder(nn.Module):
         bottleneck_channels: int = 256,
         embed_dim: int = 256,
         n_strided_blocks: int = 2,
+        n_fingers: int = 5,
+        per_finger_dim: int = 6,
     ):
         super().__init__()
         self.window = window
         self.embed_dim = embed_dim
+        # [XHand adaptation] output layout is [n_fingers, per_finger_dim]
+        # (5x6 = 30 for F6, 5x3 = 15 for XHand fingertip forces).
+        if n_fingers * per_finger_dim != out_channels:
+            raise ValueError(f"out_channels={out_channels} != n_fingers*per_finger_dim="
+                             f"{n_fingers}*{per_finger_dim}")
+        self.n_fingers = n_fingers
+        self.per_finger_dim = per_finger_dim
 
         # Reproduce the encoder's strides to recover bottleneck length.
         cur_T = window
@@ -97,7 +106,7 @@ class F6Decoder(nn.Module):
                 x = torch.nn.functional.pad(x, (0, pad))
 
         x = x.transpose(1, 2).contiguous()                        # [B, T, 30]
-        x = x.reshape(B, self.window, 5, 6)
+        x = x.reshape(B, self.window, self.n_fingers, self.per_finger_dim)
         return x
 
 

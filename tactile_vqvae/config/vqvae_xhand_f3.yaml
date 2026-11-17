@@ -1,0 +1,38 @@
+# XHand fingertip-force tactile VQ-VAE (Panda + RobotEra XHand, TAPTIC data).
+# Reproduce with tactile_vqvae/scripts/train_vqvae_xhand.sh (CLI flags are authoritative).
+# Differences from vqvae_f6.yaml are dimensional only, except where marked.
+data:
+  data_format: taptic           # derived set from `python -m taptic.convert`
+  window: 16                    # native XHand samples (~76.4 Hz measured) -> ~209 ms
+  stride: 4                     # window-end spacing in samples
+  split: split.json             # episode-level, written by taptic.convert (seed 42, 10% val)
+  stats: norm_stats.json        # q01/q99 over TRAIN episodes only (tactile_f6 block)
+model:
+  granularity: hand             # one code per 5-finger window
+  n_fingers: 5
+  per_finger_dim: 3             # (Fx, Fy, Fz) calc_force, raw counts
+  in_channels: 15               # 5 x 3   (official: 30 = 5 x 6)
+  hidden_channels: 128
+  bottleneck_channels: 256
+  embed_dim: 256
+  n_strided_blocks: 2
+  codebook_size: 64             # as the official midtrain VQ-VAE (vqvae_f6_w16_k64_*)
+  commitment_weight: 0.25
+  decay: 0.99
+  revive_freq: 200
+  revive_threshold: 1.0
+loss:
+  use_magnitude_weight: true
+  weight_alpha: 2.0
+  weight_tau: auto              # CHANGED: forces are raw counts, not N; tau = median raw
+                                # magnitude of training windows with contact (50.76 here)
+train:
+  epochs: 30
+  batch_size: 256
+  lr: 3.0e-4
+  min_lr_ratio: 0.05
+  warmup_steps: 500
+  weight_decay: 1.0e-4
+  grad_clip: 1.0
+  mixed_precision: bf16
+  seed: 42

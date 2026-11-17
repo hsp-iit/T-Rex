@@ -863,7 +863,27 @@ class MidtrainTacFlareDataset(Dataset):
         cfg = self.config
         B = len(batch)
 
-        # ── action chunk (already 16×D from preprocessing) ──
+        # Azioni ground truth normalizzate
+        # a = action_chunk              # [B, 16, 21]
+
+        # # Rumore gaussiano
+        # noise = torch.randn_like(a)   # [B, 16, 21]
+
+        # # Campionamento del tempo di flow
+        # time = torch.distributions.Beta(
+        #     1.5, 1.0
+        # ).sample((B,))                # [B]
+
+        # # Broadcasting
+        # tau = time[:, None, None]     # [B, 1, 1]
+
+        # # Input rumoroso
+        # noisy_actions = tau * noise + (1 - tau) * a
+
+        # # Target della rete
+        # target = noise - a
+
+        # ── action chunk (already 16×D from preprocessing) ── # [B, 16, 21]
         actions = np.stack([x["action_chunk"] for x in batch], axis=0).astype(np.float32)
         norm_actions = self._normalize(
             actions, self.action_mask, self.action_min, self.action_max)
@@ -1087,6 +1107,14 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
                 "cascaded_total_steps": getattr(args, "cascaded_total_steps", 10),
                 "cascaded_split_step":  getattr(args, "cascaded_split_step", 6),
                 "flare_frame_stride": getattr(args, "flare_frame_stride", 2),
+                "tacf6_dim": getattr(args, "tacf6_dim", 6),
+                "n_tactile_fingers": getattr(args, "n_tactile_fingers", 10),
+                "tactile_delay_offsets": list(getattr(args, "tactile_delay_offsets", [0, 4, 8, 12])),
+                "data_format": getattr(args, "data_format", "json"),
+                "taptic_dirs": list(getattr(args, "taptic_dirs", []) or []),
+                "image_size": list(args.image_size) if args.image_size else None,
+                "resume_checkpoint": getattr(args, "resume_checkpoint", ""),
+                "tactile_norm_init": getattr(args, "tactile_norm_init", "zeros"),
             }, f, indent=2)
 
         with open(os.path.join(save_dir, "stats_data.json"), "w") as f:
@@ -1103,7 +1131,7 @@ class TrainingMetrics:
         self.tactile_loss = torch.tensor(0.0, device=device)
         self.flare_loss  = torch.tensor(0.0, device=device)
         self.total_loss   = torch.tensor(0.0, device=device)
-        self.world_size   = dist.get_world_size()
+        self.world_size   = dist.get_world_size() if dist.is_initialized() else 1
 
     def update(self, total, action, tactile=0.0, flare=0.0):
         self.n_step += 1
@@ -1114,7 +1142,8 @@ class TrainingMetrics:
 
     def get_metric(self, reset=True):
         for t in [self.total_loss, self.action_loss, self.tactile_loss, self.flare_loss]:
-            dist.all_reduce(t, op=dist.ReduceOp.SUM)
+            if dist.is_initialized():
+                dist.all_reduce(t, op=dist.ReduceOp.SUM)
         denom = self.world_size * max(self.n_step, 1)
         m = {
             "total_loss":   self.total_loss.item() / denom,
@@ -1308,8 +1337,10 @@ def train(args):
                    dir=args.log_dir
                 )
 
-    accelerator.state.deepspeed_plugin.deepspeed_config["train_micro_batch_size_per_gpu"] = args.train_bsz_per_gpu
-    accelerator.state.deepspeed_plugin.deepspeed_config["train_batch_size"] = (args.train_bsz_per_gpu * dist.get_world_size() * accelerator.gradient_accumulation_steps)
+    # [XHand adaptation] guard: allow single-process (non-DeepSpeed) smoke runs.
+    if getattr(accelerator.state, "deepspeed_plugin", None) is not None:
+        accelerator.state.deepspeed_plugin.deepspeed_config["train_micro_batch_size_per_gpu"] = args.train_bsz_per_gpu
+        accelerator.state.deepspeed_plugin.deepspeed_config["train_batch_size"] = (args.train_bsz_per_gpu * accelerator.num_processes * accelerator.gradient_accumulation_steps)
 
     processor = AutoProcessor.from_pretrained(args.model_path, trust_remote_code=True)
 
@@ -1363,6 +1394,9 @@ def train(args):
         vqvae_codebook_size=getattr(args, "vqvae_codebook_size", 64),
         use_tactile_vqvae=bool(getattr(args, "use_tactile_vqvae", 0)),
         vqvae_config=vqvae_config,
+        # [XHand adaptation] tactile layout: official 10 fingers x F6, XHand 5 x 3.
+        tacf6_dim=args.tacf6_dim,
+        n_tactile_fingers=args.n_tactile_fingers,
     )
     if args.use_tactile_deform:
         model.load_deform_encoder_weights(args.deform_encoder_ckpt)
@@ -1388,6 +1422,7 @@ def train(args):
                     param.data.copy_(named_params[base].data)
         accelerator.print("Action expert initialized from latent expert.")
 
+    resumed_tactile = bool(args.resume_checkpoint) and args.resume_source == "midtrain"
     if args.resume_checkpoint:
         ckpt_path = args.resume_checkpoint
         if os.path.isdir(ckpt_path):
@@ -1408,8 +1443,20 @@ def train(args):
             accelerator.print(f"Skipped {len(skipped)} keys with shape mismatch (e.g. {skipped[0]})")
         missing, unexpected = model.load_state_dict(filtered_sd, strict=False)
         accelerator.print(f"Resumed: missing={len(missing)}, unexpected={len(unexpected)}")
+        # [XHand adaptation] full, non-silent loading report (same semantics as above).
+        from taptic.ckpt_report import classify, summarize
+        _rep = classify({k: tuple(v.shape) for k, v in model_sd.items()},
+                        {k: tuple(v.shape) for k, v in resume_sd.items() if torch.is_tensor(v)},
+                        reinit_tactile=bool(args.use_tactile_vec or args.use_tactile_deform) and not resumed_tactile,
+                        vqvae_loaded_separately=vqvae_blob is not None)
+        _rep["checkpoint"] = ckpt_path
+        if accelerator.is_main_process:
+            with open(os.path.join(args.output_dir, "checkpoint_load_report.json"), "w") as _f:
+                json.dump(_rep, _f, indent=1)
+            for _line in summarize(_rep):
+                accelerator.print("[ckpt] " + _line)
+        del resume_sd, filtered_sd
 
-    resumed_tactile = bool(args.resume_checkpoint) and args.resume_source == "midtrain"
     if not freeze_tactile and not resumed_tactile:
         # Tactile expert is a velocity predictor under cascaded flow matching,
         # so the head must start non-trivial (no final-layer zero-init here).
@@ -1418,8 +1465,16 @@ def train(args):
                 if param.ndim >= 2:
                     nn.init.xavier_uniform_(param)
                 elif param.ndim == 1:
-                    nn.init.zeros_(param)
-        accelerator.print("Tactile expert re-initialized (resume_source=pretrain or no resume).")
+                    # [XHand adaptation, opt-in] all 1-D `_tactile` params are RMSNorm
+                    # weights.  Official: zeros, which leaves every mlp_tactile at an
+                    # exact zero-gradient point (its input is 0).  --tactile_norm_init
+                    # ones uses the standard RMSNorm init instead.  Default: official.
+                    if args.tactile_norm_init == "ones" and "norm" in name:
+                        nn.init.ones_(param)
+                    else:
+                        nn.init.zeros_(param)
+        accelerator.print("Tactile expert re-initialized (resume_source=pretrain or no resume); "
+                          f"tactile RMSNorm init = {args.tactile_norm_init}.")
     elif resumed_tactile:
         accelerator.print("Tactile expert weights kept from resumed midtrain checkpoint.")
 
@@ -1431,6 +1486,20 @@ def train(args):
             param.requires_grad = (not freeze_tactile)
         else:
             param.requires_grad = True
+
+    # [XHand adaptation] single-process runs without DeepSpeed (smoke tests): the
+    # flow methods hard-code bf16 activations, which DeepSpeed's bf16 engine
+    # provides.  Here we keep fp32 master weights and run each step under bf16
+    # autocast instead (see `_step_autocast` in the loop).
+    _no_ds = getattr(accelerator.state, "deepspeed_plugin", None) is None
+    if _no_ds:
+        accelerator.print("[warn] DeepSpeed not active: fp32 weights + bf16 autocast per step.")
+        model.float()
+
+    def _step_autocast():
+        import contextlib
+        return (torch.autocast("cuda", dtype=torch.bfloat16) if _no_ds
+                else contextlib.nullcontext())
 
     if getattr(model, "tactile_vqvae", None) is not None:
         model.tactile_vqvae.float().eval()
@@ -1455,6 +1524,10 @@ def train(args):
     if getattr(args, "data_format", "json") == "lerobot":
         from qwen_vla.lerobot_dataset import TRexLeRobotDataset
         dataset = TRexLeRobotDataset(args, processor, accelerator)
+    elif args.data_format == "taptic":
+        # [XHand adaptation] primitive-annotated TAPTIC data (taptic.convert).
+        from qwen_vla.taptic_dataset import TRexTapticDataset
+        dataset = TRexTapticDataset(args, processor, accelerator, split="train")
     else:
         dataset = MidtrainTacFlareDataset(args, processor, accelerator)
 
@@ -1483,7 +1556,8 @@ def train(args):
         )
 
     train_sampler = EpisodeGroupedSampler(
-        dataset, shuffle=True, seed=args.seed, drop_last=True)
+        dataset, num_replicas=accelerator.num_processes, rank=accelerator.process_index,
+        shuffle=True, seed=args.seed, drop_last=True)
     dataloader = DataLoader(
         dataset, batch_size=args.train_bsz_per_gpu, sampler=train_sampler,
         drop_last=True,
@@ -1550,6 +1624,8 @@ def train(args):
             batch = {k: (v.to(device) if torch.is_tensor(v) else v)
                      for k, v in batch.items()}
             raw_model = accelerator.unwrap_model(model)
+            _ac = _step_autocast()          # no-op under DeepSpeed (official path)
+            _ac.__enter__()
 
             inputs_embeds = raw_model.prepare_inputs_embeds(
                 input_ids=batch["input_ids"],
@@ -1764,13 +1840,50 @@ def train(args):
             if torch.is_tensor(loss_flare):
                 loss = loss + args.flare_loss_weight * loss_flare
 
+            _ac.__exit__(None, None, None)
             metric.update(loss, loss_act, loss_tac, loss_flare)
             accelerator.backward(loss)
 
             if (global_step + 1) % accelerator.gradient_accumulation_steps == 0:
+                if args.debug_checks:
+                    # [XHand adaptation] smoke-test assertions (no effect on training).
+                    _losses = {"total": loss, "action": loss_act, "tactile": loss_tac, "flare": loss_flare}
+                    _vals = {k: float(v.detach().float()) for k, v in _losses.items() if torch.is_tensor(v)}
+                    _gn = {}
+                    for _n, _p in raw_model.named_parameters():
+                        if _p.requires_grad and _p.grad is not None:
+                            _g = _p.grad.detach().float()
+                            assert torch.isfinite(_g).all(), f"non-finite grad in {_n}"
+                            for _key in ("x_embedder", "final_layer.", "final_layer_tactile", "tacf6_embedder",
+                                         "tactile_code_embedder", "_tactile", "_action", "flare_"):
+                                if _key in _n:
+                                    _gn[_key] = _gn.get(_key, 0.0) + float(_g.norm()) ** 2
+                    assert all(np.isfinite(v) for v in _vals.values()), _vals
+                    _watch = {n: p.detach().float().clone() for n, p in raw_model.named_parameters()
+                              if p.requires_grad and any(s in n for s in (
+                                  "x_embedder.mlp.fc1.weight", "final_layer.mlp.fc2.weight",
+                                  "final_layer_tactile.mlp.fc2.weight", "tacf6_embedder.mlp.fc1.weight",
+                                  "tactile_code_embedder.weight", "layers.0.mlp_tactile.up_proj.weight",
+                                  "layers.0.mlp_action.up_proj.weight"))}
+                    _wgrad = {n: float(p.grad.detach().float().norm()) if p.grad is not None else 0.0
+                              for n, p in raw_model.named_parameters() if n in _watch}
+                    _frozen = {n: p.detach().float().clone() for n, p in raw_model.named_parameters()
+                               if n.startswith("tactile_vqvae.encoder.stem")}
+                    accelerator.print(f"[debug step {global_step}] losses={_vals} "
+                                      f"grad_norm={{{', '.join(f'{k}: {v ** 0.5:.3e}' for k, v in _gn.items())}}}")
                 if args.max_grad_norm > 0:
                     accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
                 optimizer.step()
+                if args.debug_checks:
+                    _delta = {n: float((p.detach().float() - _watch[n]).abs().max())
+                              for n, p in raw_model.named_parameters() if n in _watch}
+                    assert all(_delta[n] > 0 for n in _delta if _wgrad[n] > 0), \
+                        f"optimizer did not update a param with non-zero grad: {_delta} {_wgrad}"
+                    assert all(torch.equal(p.detach().float(), _frozen[n])
+                               for n, p in raw_model.named_parameters() if n in _frozen), "frozen VQ-VAE changed"
+                    for _n in _delta:
+                        accelerator.print(f"[debug step {global_step}]   {_n}: |grad|={_wgrad[_n]:.3e} "
+                                          f"max|dW|={_delta[_n]:.3e}")
                 lr_scheduler.step()
                 optimizer.zero_grad()
 
@@ -1799,9 +1912,10 @@ def train(args):
             if (val_dataloader is not None
                     and getattr(args, "val_freq", 0) > 0
                     and (global_step + 1) % args.val_freq == 0):
-                val_m = run_validation(
-                    model, val_dataloader, accelerator, args,
-                    is_stage1, use_flare, K, T_per_frame, flare_layer_idx)
+                with _step_autocast():
+                    val_m = run_validation(
+                        model, val_dataloader, accelerator, args,
+                        is_stage1, use_flare, K, T_per_frame, flare_layer_idx)
                 if accelerator.is_main_process:
                     accelerator.print(
                         f"  [Val step={global_step}] "
@@ -1810,11 +1924,16 @@ def train(args):
                     wandb.log(val_m, step=global_step)
 
             global_step += 1
+            if args.max_train_steps and global_step >= args.max_train_steps:
+                break
 
-        if (epoch + 1) % args.save_freq == 0 or epoch == args.n_epochs - 1:
+        _stop = bool(args.max_train_steps and global_step >= args.max_train_steps)
+        if (epoch + 1) % args.save_freq == 0 or epoch == args.n_epochs - 1 or _stop:
             accelerator.wait_for_everyone()
             save_checkpoint(model, processor, accelerator, args,
                             epoch, global_step, dataset.stats_data)
+        if _stop:
+            break
 
 
 if __name__ == "__main__":
@@ -1829,7 +1948,24 @@ if __name__ == "__main__":
                              "Required for --data_format json.")
     parser.add_argument("--data_path", type=str, default="",
                         help="(Unused; kept for backwards compatibility.)")
-    parser.add_argument("--data_format", type=str, default="json", choices=["json", "lerobot"])
+    parser.add_argument("--data_format", type=str, default="json", choices=["json", "lerobot", "taptic"])
+    # [XHand adaptation] primitive-annotated TAPTIC datasets (python -m taptic.convert)
+    parser.add_argument("--taptic_dirs", type=str, nargs="+", default=[],
+                        help="<out>/<task> directories written by taptic.convert.")
+    parser.add_argument("--taptic_stats", type=str, default="",
+                        help="Joint normalization stats (required with several --taptic_dirs).")
+    parser.add_argument("--tacf6_dim", type=int, default=6,
+                        help="Tactile channels per fingertip (official F6: 6, XHand forces: 3).")
+    parser.add_argument("--n_tactile_fingers", type=int, default=10,
+                        help="Fingertips across hands (official bimanual: 10, one XHand: 5).")
+    parser.add_argument("--max_train_steps", type=int, default=0,
+                        help="Stop after N optimizer steps (0 = full epochs). For smoke tests.")
+    parser.add_argument("--tactile_norm_init", type=str, default="zeros", choices=["zeros", "ones"],
+                        help="Init of the re-initialised tactile-expert RMSNorm weights. 'zeros' = "
+                             "official (tactile MLPs receive zero input and zero gradient); "
+                             "'ones' = standard RMSNorm init.")
+    parser.add_argument("--debug_checks", type=int, default=0,
+                        help="1: assert finite losses/grads and that the optimizer changes weights.")
     parser.add_argument("--lerobot_root", type=str, default="",
                         help="LeRobot dataset dir (required when --data_format lerobot).")
     parser.add_argument("--lerobot_repo_id", type=str, default="")
@@ -1937,6 +2073,9 @@ if __name__ == "__main__":
     if args.data_format == "lerobot":
         if not args.lerobot_root:
             parser.error("--data_format lerobot requires --lerobot_root")
+    elif args.data_format == "taptic":
+        if not args.taptic_dirs:
+            parser.error("--data_format taptic requires --taptic_dirs")
     elif not args.data_root:
         parser.error("--data_format json requires --data_root")
 

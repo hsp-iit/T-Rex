@@ -45,8 +45,15 @@ from tactile_vqvae.models.tactile_vqvae import TactileVQVAEConfig
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     # Data
-    p.add_argument("--data_root", type=str, required=True,
+    p.add_argument("--data_root", type=str, default="",
                    help="Merged midtrain root (contains */pretrain_manifest.json)")
+    # [XHand adaptation] derived TAPTIC dataset (python -m taptic.convert)
+    p.add_argument("--data_format", type=str, default="manifest", choices=["manifest", "taptic"])
+    p.add_argument("--taptic_dir", type=str, default="",
+                   help="<out>/<task> directory written by taptic.convert (taptic format)")
+    p.add_argument("--n_fingers", type=int, default=5)
+    p.add_argument("--per_finger_dim", type=int, default=6,
+                   help="6 for F6 wrenches, 3 for XHand fingertip forces")
     p.add_argument("--window", type=int, default=16)
     p.add_argument("--stride", type=int, default=4,
                    help="Stride between window starts during training (1 = every frame)")
@@ -65,7 +72,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--revive_threshold", type=float, default=1.0)
     p.add_argument("--use_magnitude_weight", type=int, default=1)
     p.add_argument("--weight_alpha", type=float, default=2.0)
-    p.add_argument("--weight_tau", type=float, default=4.0)
+    p.add_argument("--weight_tau", type=float, default=4.0,
+                   help="<=0: set to the median raw magnitude of training windows with "
+                        "non-zero force (needed when forces are raw sensor counts)")
     p.add_argument("--granularity", type=str, default="hand",
                    choices=["hand", "finger"],
                    help="hand: 1 code per (hand, window).  finger: 5 codes per "
@@ -115,7 +124,9 @@ def cosine_lr(step: int, total: int, warmup: int, base_lr: float, min_ratio: flo
 def _build_config(args) -> TactileVQVAEConfig:
     return TactileVQVAEConfig(
         window=args.window,
-        in_channels=30,
+        in_channels=args.n_fingers * args.per_finger_dim,
+        n_fingers=args.n_fingers,
+        per_finger_dim=args.per_finger_dim,
         hidden_channels=args.hidden_channels,
         bottleneck_channels=args.bottleneck_channels,
         embed_dim=args.embed_dim,
@@ -218,20 +229,34 @@ def main():
     accelerator.print(f"[VQ-VAE] device  = {device}, mixed_precision={args.mixed_precision}")
 
     # ── Stats + datasets ──────────────────────────────────────────────────────
-    accelerator.print(f"[VQ-VAE] Scanning {args.data_root} for episodes …")
-    stats = TacF6Stats.from_data_root(args.data_root)
+    if args.data_format == "taptic":
+        # [XHand adaptation] windows from the derived TAPTIC dataset; stats were
+        # fitted on TRAIN episodes only by taptic.convert; split is episode-level.
+        from tactile_vqvae.data.taptic_windows import build_taptic_train_val
+        train_ds, val_ds, stats = build_taptic_train_val(
+            args.taptic_dir, window=args.window, stride=args.stride)
+        if stats.dim != args.n_fingers * args.per_finger_dim:
+            raise ValueError(f"stats width {stats.dim} != n_fingers*per_finger_dim")
+        if args.weight_tau <= 0:
+            mags = np.array([float(train_ds[i]["magnitude"]) for i in
+                             range(0, len(train_ds), max(1, len(train_ds) // 20000))])
+            args.weight_tau = float(np.median(mags[mags > 0])) if (mags > 0).any() else 1.0
+            accelerator.print(f"[VQ-VAE] weight_tau auto = {args.weight_tau:.2f} "
+                              f"(median raw magnitude of contact windows)")
+    else:
+        accelerator.print(f"[VQ-VAE] Scanning {args.data_root} for episodes …")
+        stats = TacF6Stats.from_data_root(args.data_root)
+        train_ds, val_ds, _ = build_train_val_datasets(
+            data_root=args.data_root,
+            window=args.window,
+            stride=args.stride,
+            val_ratio=args.val_ratio,
+            seed=args.seed,
+            stats=stats,
+        )
     accelerator.print(
         f"[VQ-VAE] tacf6_min[:6] = {stats.tacf6_min[:6]}, "
         f"tacf6_max[:6] = {stats.tacf6_max[:6]}")
-
-    train_ds, val_ds, _ = build_train_val_datasets(
-        data_root=args.data_root,
-        window=args.window,
-        stride=args.stride,
-        val_ratio=args.val_ratio,
-        seed=args.seed,
-        stats=stats,
-    )
     accelerator.print(
         f"[VQ-VAE] train: {train_ds.num_episodes} eps / {len(train_ds)} windows ;"
         f" val: {val_ds.num_episodes} eps / {len(val_ds)} windows")

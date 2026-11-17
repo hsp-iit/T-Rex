@@ -54,6 +54,10 @@ class TactileVQVAE(nn.Module):
             raise ValueError(
                 f"Unknown granularity {cfg.granularity!r}; expected 'hand' or 'finger'.")
         self.is_per_finger = (cfg.granularity == "finger")
+        if not self.is_per_finger and cfg.in_channels != cfg.n_fingers * cfg.per_finger_dim:
+            raise ValueError(
+                f"in_channels={cfg.in_channels} must equal n_fingers*per_finger_dim="
+                f"{cfg.n_fingers}*{cfg.per_finger_dim} (F6: 5*6=30, XHand forces: 5*3=15)")
 
         if self.is_per_finger:
             self.encoder = F6PerFingerEncoder(
@@ -90,6 +94,8 @@ class TactileVQVAE(nn.Module):
                 bottleneck_channels=cfg.bottleneck_channels,
                 embed_dim=cfg.embed_dim,
                 n_strided_blocks=cfg.n_strided_blocks,
+                n_fingers=cfg.n_fingers,
+                per_finger_dim=cfg.per_finger_dim,
             )
 
         self.quantizer = VQEMAQuantizer(

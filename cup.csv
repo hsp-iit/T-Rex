@@ -1,0 +1,92 @@
+episode_index,motor_primitive,object,target,length,caption,seconds
+50,grasp_and_lifting,measuring cup,,745,"Use your right hand to pick up the measuring cup, leaving the left hand in place.",24.8
+64,lift_and_place,measuring cup,clamshell container,1237,Place the measuring cup into the clamshell container with your right hand. Ignore the jewerly box.,41.2
+68,lift_and_place,cup,table,1207,Use your left hand to lift the cup and place it down on the table.,40.2
+278,grasp_and_lifting,measuring cup,,622,"Pick up the measuring cup with your right hand, leaving the hair clip in place.",20.7
+292,lift_and_place,measuring cup,cup,982,"Use your left hand to place the measuring cup into the cup, ignore the block, jewerly box and and phone.",32.7
+296,lift_and_place,cup,table,1353,Use your left hand to place the cup on the table near the front-left edge - leaving the medicine bottle in place.,45.1
+506,grasp_and_lifting,measuring cup,,803,"Pick up the measuring cup with your right hand, leaving the paper clamp and hair clip in place.",26.8
+520,lift_and_place,measuring cup,cup,1157,"Place the measuring cup into the cup with your right hand, ignoring the jewerly box and camera.",38.6
+524,lift_and_place,cup,table,1114,Use your left hand to lift the cup and place it back down on the table - leave the torch in place.,37.1
+550,pour,measuring cup,,839,"Use your left hand to tilt-pour the measuring cup, leaving the cup and clothespins in place.",28.0
+734,grasp_and_lifting,measuring cup,,699,"Past the paper clamp and hair clip, pick up the measuring cup with your right hand.",23.3
+748,lift_and_place,measuring cup,drawer,988,"Into the drawer, place the measuring cup with your left hand.",32.9
+752,lift_and_place,cup,table,1156,"Place the cup on the table with your left hand, besides the torch and past the bandage.",38.5
+778,pour,measuring cup,,922,"Tilt-pour the measuring cup with your right hand, past the beaker and the clothspin.",30.7
+962,grasp_and_lifting,measuring cup,,737,"Past the blister pack, pick up the measuring cup with your right hand.",24.6
+976,lift_and_place,measuring cup,drawer,1169,Right hand: place the measuring cup into the drawer.,39.0
+980,lift_and_place,cup,table,1240,"Use your left hand to place the cup on the table, beside the torch, tape and bandage roll.",41.3
+1003,wipe,glass cup,,959,"Past the bottle cap, use your left hand to wipe the glass cup with a sponge while your right hand steadies the cup.",32.0
+1204,lift_and_place,measuring cup,paper plate,1207,"Place the measuring cup onto the paper plate with your left hand, leaving the block in place.",40.2
+1208,lift_and_place,cup,table,1069,Place the cup on the table with your right hand.,35.6
+1231,wipe,glass cup,,1155,"Use your left hand to hold the glass cup and your right hand to wipe it with the sponge, leaving the block in place.",38.5
+1243,wipe,measuring cup,,743,"Past the white cube, use your right hand to steady the measuring cup while your left hand wipes it with the tissue.",24.8
+1432,lift_and_place,measuring cup,paper plate,1132,"Place the measuring cup onto the paper plate with your right hand, leaving the jewerly box and block in place.",37.7
+1436,lift_and_place,cup,table,1118,"Place the cup on the table with your right hand, leaving the cloth in place.",37.3
+1471,wipe,measuring cup,,860,"Past the toy banana, use your left hand to wipe the measuring cup with a tissue while your right hand steadies it.",28.7
+1664,lift_and_place,cup,table,1024,Place the cup on the table with your right hand beside the cloth.,34.1
+1699,wipe,measuring cup,,892,"Past the toy banana, toy knife and ball hold the measuring cup with your right hand and wipe it with the napkin using your left hand.",29.7
+1838,grasp_and_lifting,cup,,502,Pick up the mug with your left hand.,16.7
+1892,lift_and_place,cup,table,1106,"Use your right hand to place the cup on the table, beside the tape roll and cloth.",36.9
+1927,wipe,measuring cup,,819,"Use your right hand to steady the measuring cup while your left hand wipes it with the napkin, past the pink dish and ball.",27.3
+2066,grasp_and_lifting,cup,,499,"Pick up the mug with your left hand and raise it off the table, ignoring the banana.",16.6
+2120,lift_and_place,cup,table,1124,"Place the cup on the table with your right hand, beside the bottle, glasses, and cloth.",37.5
+2155,wipe,measuring cup,,824,Use your left hand to hold the measuring cup and your right hand to wipe it with the tissue.,27.5
+2181,pour,cup,,806,Tilt-pour the cup with your right hand - leave the TV remote in place.,26.9
+2294,grasp_and_lifting,cup,,454,Pick up the cup with your left hand past the toy banana.,15.1
+2371,wipe,measuring cup,,791,Use your right hand to hold the measuring cup and your left hand to wipe it with the sponge - leaving the package in place.,26.4
+2382,wipe,glass cup,,944,Use your right hand to hold the glass cup while your left hand wipes it with the sponge.,31.5
+2383,wipe,measuring cup,,970,Use your left hand to hold up the measuring cup while your right hand wipes it with the tissue.,32.3
+2409,pour,cup,,933,Tilt-pour the cup with your right hand. Leave the toy piano and TV remote in place.,31.1
+2522,grasp_and_lifting,cup,,511,"Past the toy banana and coiled cable, pick up the cup with your left hand.",17.0
+2599,wipe,measuring cup,,782,"Use your right hand to clean the measuring cup with the sponge, leaving the small spoon in place.",26.1
+2610,wipe,glass cup,,956,Use your left hand to rub the glass with the cloth.,31.9
+2611,wipe,measuring cup,,768,"Hold the measuring cup steady with your left hand and wipe it with the tissue in your right hand, leaving the small box in place.",25.6
+2637,pour,cup,,1099,"Tilt-pour the cup with your right hand, leaving the tablet and puzzle cube in place.",36.6
+2750,grasp_and_lifting,cup,,503,"Pick up the cup with your left hand and raise it off the table, leaving the duck tape and ethernet cable in place.",16.8
+2768,reach,measuring cup,,415,Move your left hand toward the measuring cup.,13.8
+2838,wipe,glass cup,,760,Use your left hand to clean the glass cup with the sponge while your right hand holds the cup steady.,25.3
+2839,wipe,measuring cup,,779,"Use your left hand to steady the measuring cup and your right hand to wipe it with the tissue, ignoring the block and toy knife.",26.0
+2865,pour,cup,,913,"Use your right hand to pick up and tilt-pour the cup over the table, past the keyboard and leave the markers in place.",30.4
+2968,reach,cup,,188,Move your left hand to the cup on the table.,6.3
+2978,grasp_and_lifting,cup,,462,pick up the cup with your right hand.,15.4
+2996,reach,measuring cup,,412,Move your left hand to the measuring cup.,13.7
+3066,wipe,glass cup,,793,Use your left hand to pick up the sponge and wipe the glass cup while your right hand steadies it.,26.4
+3067,wipe,measuring cup,,796,"Use your left hand to hold the measuring cup and your right hand to wipe it with the tissue, ignoring the tennis ball and cube.",26.5
+3093,pour,cup,,1079,"Tilt-pour the cup with your right hand, leaving the yarn in place.",36.0
+3196,reach,cup,,195,move your left hand toward the cup.,6.5
+3206,grasp_and_lifting,cup,,518,"Use your right hand to pick up the cup, leaving the stacking cups in place.",17.3
+3224,reach,measuring cup,,360,"Move your left hand to the measuring cup, leaving the TV remote.",12.0
+3294,wipe,glass cup,,780,"Rub the glass cup with the sponge in your left hand, ignoring the power cable.",26.0
+3424,reach,cup,,238,"Past the package, move your left hand to the cup.",7.9
+3434,grasp_and_lifting,cup,,496,"Pick up the cup with your right hand, past the wallet, and stackable toy.",16.5
+3452,reach,measuring cup,,313,Move your left hand toward the measuring cup.,10.4
+3522,wipe,glass cup,,907,Use your left hand to steady the glass cup while your right hand wipes its rim and sides with the sponge.,30.2
+3652,reach,cup,,261,"Move your left hand to the cup, past the sticker and toy banana.",8.7
+3662,grasp_and_lifting,cup,,514,"Past the package, pick up the cup with your right hand.",17.1
+3680,reach,measuring cup,,335,"Move your left hand to the measuring cup, past the TV remote and headband.",11.2
+3750,wipe,glass cup,,859,"Pick up the cloth with your right hand and wipe the glass cup, leaving the usb cable in place.",28.6
+3879,reach,cup,,225,"Use your left hand to reach toward the cup, past the boxes and pen package.",7.5
+3889,grasp_and_lifting,cup,,532,Pick up the cup with your right hand - past the sticky note and stacking cups.,17.7
+3907,reach,measuring cup,,556,Move your right hand to the measuring cup.,18.5
+3977,wipe,glass cup,,872,Use your left hand to steady the glass cup and your right hand to wipe it with the sponge.,29.1
+4106,reach,cup,,233,Navigate your right hand to the cup.,7.8
+4134,reach,measuring cup,,510,Move your right hand to the glue stick on the table - past the measuring cup.,17.0
+4204,wipe,glass cup,,884,Clean the glass cup with the sponge in your right hand.,29.5
+4333,reach,cup,,250,"Approach the cup with your right hand, leaving the box in place.",8.3
+4361,reach,measuring cup,,366,"Move your right hand to the measuring cup, ignoring the cup.",12.2
+4378,grasp_and_lifting,measuring cup,,484,Pick up the measuring cup with your left hand.,16.1
+4560,reach,cup,,243,"Approach the cup with your right hand, leaving the ball and usb adapter in place.",8.1
+4588,reach,measuring cup,,514,"Past the box and tambourine, move your right hand to the measuring cup.",17.1
+4605,grasp_and_lifting,measuring cup,,627,Pick up the measuring cup with your left hand.,20.9
+4787,reach,cup,,283,"On the right, move your right hand to the cup, leaving the USB cable and box.",9.4
+4815,reach,measuring cup,,453,"Approach the measuring cup with your right hand, past the glue stick, air blower, and tambourine.",15.1
+4832,grasp_and_lifting,measuring cup,,627,"Use your left hand to pick up the measuring cup, leaving the scissors and stapler in place.",20.9
+4846,lift_and_place,measuring cup,bowl,1215,"Place the measuring cup into the bowl with your left hand, past the block.",40.5
+5014,reach,cup,,247,move your right hand toward the cup.,8.2
+5059,grasp_and_lifting,measuring cup,,590,"Beside the scissors and stapler, pick up the measuring cup with your left hand.",19.7
+5073,lift_and_place,measuring cup,bowl,1290,"Place the measuring cup into the bowl with your right hand, ignore the camera, block and jewerly box.",43.0
+5103,pour,cup,,951,"Tilt-pour the cup into the bowl with your left hand, ignoring the marker pen.",31.7
+5286,grasp_and_lifting,measuring cup,,475,"Ignoring the stapler, scissors, blue block and soap box, pick up the measuring cup with your left hand.",15.8
+5300,lift_and_place,measuring cup,clamshell container,1241,"Use your left hand to place the measuring cup into the clamshell container, leaving the jewerly box in place.",41.4
+5330,pour,cup,,833,"Past the bowl and small air pump, use your right hand to tilt-pour the cup into the bowl.",27.8

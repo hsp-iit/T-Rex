@@ -1,0 +1,52 @@
+{
+ "reconstruction": {
+  "pos_err_max_m": 1.3794580094921979e-08,
+  "pos_err_p99_m": 5.714783176004845e-09,
+  "rot_err_max_rad": 3.954238037901303e-08,
+  "rot_err_p99_rad": 2.288312864230047e-08,
+  "n_chunks": 21821
+ },
+ "flare_future_clamped_frac": 0.040419779111864715,
+ "per_primitive": {
+  "push": {
+   "frames": 1256,
+   "kept": 503,
+   "cross": 1131
+  },
+  "lift": {
+   "frames": 1866,
+   "kept": 304,
+   "cross": 1866
+  },
+  "move": {
+   "frames": 3413,
+   "kept": 1566,
+   "cross": 3413
+  },
+  "release": {
+   "frames": 3637,
+   "kept": 1430,
+   "cross": 2386
+  },
+  "approach": {
+   "frames": 5426,
+   "kept": 3589,
+   "cross": 5422
+  },
+  "pinch": {
+   "frames": 5566,
+   "kept": 3711,
+   "cross": 5566
+  },
+  "insert": {
+   "frames": 7015,
+   "kept": 5399,
+   "cross": 6925
+  },
+  "reach": {
+   "frames": 7567,
+   "kept": 5319,
+   "cross": 7537
+  }
+ }
+}
