@@ -1,0 +1,1735 @@
+{
+  "source_identity": "1cb54e3dfd51811f0bdbebf64b0b2e8f532963a55c76b2a9355f0d80d71dc468",
+  "info": {
+    "codebase_version": "v3.0",
+    "fps": 10,
+    "features": {
+      "action": {
+        "dtype": "float32",
+        "names": [
+          "ee.x",
+          "ee.y",
+          "ee.z",
+          "ee.wx",
+          "ee.wy",
+          "ee.wz",
+          "xhand.action.right_hand_thumb_bend_link",
+          "xhand.action.right_hand_thumb_rota_link1",
+          "xhand.action.right_hand_thumb_rota_link2",
+          "xhand.action.right_hand_index_bend_link",
+          "xhand.action.right_hand_index_rota_link1",
+          "xhand.action.right_hand_index_rota_link2",
+          "xhand.action.right_hand_mid_link1",
+          "xhand.action.right_hand_mid_link2",
+          "xhand.action.right_hand_ring_link1",
+          "xhand.action.right_hand_ring_link2",
+          "xhand.action.right_hand_pinky_link1",
+          "xhand.action.right_hand_pinky_link2"
+        ],
+        "shape": [
+          18
+        ]
+      },
+      "observation.state": {
+        "dtype": "float32",
+        "names": [
+          "panda_joint1.pos",
+          "panda_joint2.pos",
+          "panda_joint3.pos",
+          "panda_joint4.pos",
+          "panda_joint5.pos",
+          "panda_joint6.pos",
+          "panda_joint7.pos",
+          "xhand.joint.right_hand_thumb_bend_link",
+          "xhand.joint.right_hand_thumb_rota_link1",
+          "xhand.joint.right_hand_thumb_rota_link2",
+          "xhand.joint.right_hand_index_bend_link",
+          "xhand.joint.right_hand_index_rota_link1",
+          "xhand.joint.right_hand_index_rota_link2",
+          "xhand.joint.right_hand_mid_link1",
+          "xhand.joint.right_hand_mid_link2",
+          "xhand.joint.right_hand_ring_link1",
+          "xhand.joint.right_hand_ring_link2",
+          "xhand.joint.right_hand_pinky_link1",
+          "xhand.joint.right_hand_pinky_link2",
+          "xhand.force.thumb.x",
+          "xhand.force.thumb.y",
+          "xhand.force.thumb.z",
+          "xhand.force.index.x",
+          "xhand.force.index.y",
+          "xhand.force.index.z",
+          "xhand.force.middle.x",
+          "xhand.force.middle.y",
+          "xhand.force.middle.z",
+          "xhand.force.ring.x",
+          "xhand.force.ring.y",
+          "xhand.force.ring.z",
+          "xhand.force.little.x",
+          "xhand.force.little.y",
+          "xhand.force.little.z",
+          "ee.x",
+          "ee.y",
+          "ee.z",
+          "ee.wx",
+          "ee.wy",
+          "ee.wz"
+        ],
+        "shape": [
+          40
+        ]
+      },
+      "observation.haptics.force": {
+        "dtype": "float64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.valid": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.status": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.event_sequence": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.source_time_ns": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.local_time_ns": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.received_time_ns": {
+        "dtype": "int64",
+        "shape": [
+          3
+        ],
+        "names": [
+          "thumb",
+          "index",
+          "middle"
+        ]
+      },
+      "observation.haptics.frame_mono_ns": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.frame_utc_ns": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.source_session": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.recording_id": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.sync_valid": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.sync_uncertainty_ns": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.stream_gaps": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.haptics.aligned": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "timestamp": {
+        "dtype": "float32",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "frame_index": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "episode_index": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "index": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "task_index": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "subtask_index": {
+        "dtype": "int64",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "annotation_review_required": {
+        "dtype": "bool",
+        "shape": [
+          1
+        ],
+        "names": null
+      },
+      "observation.images.wrist": {
+        "dtype": "video",
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "names": [
+          "height",
+          "width",
+          "channels"
+        ],
+        "info": {
+          "is_depth_map": false,
+          "video.height": 480,
+          "video.width": 640,
+          "video.codec": "av1",
+          "video.pix_fmt": "yuv420p",
+          "video.fps": 10,
+          "video.channels": 3,
+          "has_audio": false,
+          "video.g": 2,
+          "video.crf": 30,
+          "video.preset": 12,
+          "video.fast_decode": 0,
+          "video.video_backend": "pyav",
+          "video.extra_options": {}
+        }
+      },
+      "observation.images.left": {
+        "dtype": "video",
+        "shape": [
+          480,
+          640,
+          3
+        ],
+        "names": [
+          "height",
+          "width",
+          "channels"
+        ],
+        "info": {
+          "is_depth_map": false,
+          "video.height": 480,
+          "video.width": 640,
+          "video.codec": "av1",
+          "video.pix_fmt": "yuv420p",
+          "video.fps": 10,
+          "video.channels": 3,
+          "has_audio": false,
+          "video.g": 2,
+          "video.crf": 30,
+          "video.preset": 12,
+          "video.fast_decode": 0,
+          "video.video_backend": "pyav",
+          "video.extra_options": {}
+        }
+      }
+    },
+    "total_episodes": 868,
+    "total_frames": 213507,
+    "total_tasks": 59,
+    "chunks_size": 1000,
+    "data_files_size_in_mb": 100,
+    "video_files_size_in_mb": 200,
+    "data_path": "data/chunk-{chunk_index:03d}/file-{file_index:03d}.parquet",
+    "video_path": "videos/{video_key}/chunk-{chunk_index:03d}/file-{file_index:03d}.mp4",
+    "robot_type": "panda_ee",
+    "splits": {
+      "train": "0:868"
+    }
+  },
+  "feature_schema": {
+    "action": {
+      "dtype": "float32",
+      "names": [
+        "ee.x",
+        "ee.y",
+        "ee.z",
+        "ee.wx",
+        "ee.wy",
+        "ee.wz",
+        "xhand.action.right_hand_thumb_bend_link",
+        "xhand.action.right_hand_thumb_rota_link1",
+        "xhand.action.right_hand_thumb_rota_link2",
+        "xhand.action.right_hand_index_bend_link",
+        "xhand.action.right_hand_index_rota_link1",
+        "xhand.action.right_hand_index_rota_link2",
+        "xhand.action.right_hand_mid_link1",
+        "xhand.action.right_hand_mid_link2",
+        "xhand.action.right_hand_ring_link1",
+        "xhand.action.right_hand_ring_link2",
+        "xhand.action.right_hand_pinky_link1",
+        "xhand.action.right_hand_pinky_link2"
+      ],
+      "shape": [
+        18
+      ]
+    },
+    "observation.state": {
+      "dtype": "float32",
+      "names": [
+        "panda_joint1.pos",
+        "panda_joint2.pos",
+        "panda_joint3.pos",
+        "panda_joint4.pos",
+        "panda_joint5.pos",
+        "panda_joint6.pos",
+        "panda_joint7.pos",
+        "xhand.joint.right_hand_thumb_bend_link",
+        "xhand.joint.right_hand_thumb_rota_link1",
+        "xhand.joint.right_hand_thumb_rota_link2",
+        "xhand.joint.right_hand_index_bend_link",
+        "xhand.joint.right_hand_index_rota_link1",
+        "xhand.joint.right_hand_index_rota_link2",
+        "xhand.joint.right_hand_mid_link1",
+        "xhand.joint.right_hand_mid_link2",
+        "xhand.joint.right_hand_ring_link1",
+        "xhand.joint.right_hand_ring_link2",
+        "xhand.joint.right_hand_pinky_link1",
+        "xhand.joint.right_hand_pinky_link2",
+        "xhand.force.thumb.x",
+        "xhand.force.thumb.y",
+        "xhand.force.thumb.z",
+        "xhand.force.index.x",
+        "xhand.force.index.y",
+        "xhand.force.index.z",
+        "xhand.force.middle.x",
+        "xhand.force.middle.y",
+        "xhand.force.middle.z",
+        "xhand.force.ring.x",
+        "xhand.force.ring.y",
+        "xhand.force.ring.z",
+        "xhand.force.little.x",
+        "xhand.force.little.y",
+        "xhand.force.little.z",
+        "ee.x",
+        "ee.y",
+        "ee.z",
+        "ee.wx",
+        "ee.wy",
+        "ee.wz"
+      ],
+      "shape": [
+        40
+      ]
+    },
+    "observation.haptics.force": {
+      "dtype": "float64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.valid": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.status": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.event_sequence": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.source_time_ns": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.local_time_ns": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.received_time_ns": {
+      "dtype": "int64",
+      "shape": [
+        3
+      ],
+      "names": [
+        "thumb",
+        "index",
+        "middle"
+      ]
+    },
+    "observation.haptics.frame_mono_ns": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.frame_utc_ns": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.source_session": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.recording_id": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.sync_valid": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.sync_uncertainty_ns": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.stream_gaps": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.haptics.aligned": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "timestamp": {
+      "dtype": "float32",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "frame_index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "episode_index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "task_index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "subtask_index": {
+      "dtype": "int64",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "annotation_review_required": {
+      "dtype": "bool",
+      "shape": [
+        1
+      ],
+      "names": null
+    },
+    "observation.images.wrist": {
+      "dtype": "video",
+      "shape": [
+        480,
+        640,
+        3
+      ],
+      "names": [
+        "height",
+        "width",
+        "channels"
+      ],
+      "info": {
+        "is_depth_map": false,
+        "video.height": 480,
+        "video.width": 640,
+        "video.codec": "av1",
+        "video.pix_fmt": "yuv420p",
+        "video.fps": 10,
+        "video.channels": 3,
+        "has_audio": false,
+        "video.g": 2,
+        "video.crf": 30,
+        "video.preset": 12,
+        "video.fast_decode": 0,
+        "video.video_backend": "pyav",
+        "video.extra_options": {}
+      }
+    },
+    "observation.images.left": {
+      "dtype": "video",
+      "shape": [
+        480,
+        640,
+        3
+      ],
+      "names": [
+        "height",
+        "width",
+        "channels"
+      ],
+      "info": {
+        "is_depth_map": false,
+        "video.height": 480,
+        "video.width": 640,
+        "video.codec": "av1",
+        "video.pix_fmt": "yuv420p",
+        "video.fps": 10,
+        "video.channels": 3,
+        "has_audio": false,
+        "video.g": 2,
+        "video.crf": 30,
+        "video.preset": 12,
+        "video.fast_decode": 0,
+        "video.video_backend": "pyav",
+        "video.extra_options": {}
+      }
+    }
+  },
+  "length_summary": {
+    "count": 868.0,
+    "mean": 245.9758064516129,
+    "std": 172.2688494981687,
+    "min": 15.0,
+    "25%": 140.0,
+    "50%": 196.0,
+    "75%": 307.5,
+    "max": 1860.0
+  },
+  "tasks": [
+    "A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack.",
+    "Gently pick up the plastic glass with your right hand and place it on the other box.",
+    "Grasp the blue cloth with your right hand and wipe the whiteboard with it.",
+    "Move your right hand toward the aloe vera bottle.",
+    "Move your right hand toward the apple.",
+    "Move your right hand toward the cleanser bottle.",
+    "Move your right hand toward the cracker box.",
+    "Move your right hand toward the elliptical cylinder.",
+    "Move your right hand toward the mustard bottle.",
+    "Move your right hand toward the orange.",
+    "Move your right hand toward the peach.",
+    "Move your right hand toward the pear.",
+    "Move your right hand toward the plastic glass.",
+    "Move your right hand toward the plush toy.",
+    "Move your right hand toward the softball.",
+    "Move your right hand toward the sponge.",
+    "Move your right hand toward the top cup of the stack.",
+    "Pick up the aloe vera bottle with your right hand.",
+    "Pick up the apple with your right hand.",
+    "Pick up the chips can with your right hand.",
+    "Pick up the cleanser bottle with your right hand.",
+    "Pick up the cracker box with your right hand.",
+    "Pick up the credit card with your right hand and insert it into the wallet.",
+    "Pick up the credit card with your right hand.",
+    "Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.",
+    "Pick up the elliptical cylinder with your right hand.",
+    "Pick up the mustard bottle with your right hand.",
+    "Pick up the orange with your right hand.",
+    "Pick up the pear with your right hand.",
+    "Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle.",
+    "Pick up the pipette with your right hand.",
+    "Pick up the plastic glass with your right hand.",
+    "Pick up the plush toy with your right hand.",
+    "Pick up the softball with your right hand.",
+    "Pick up the tea box with your right hand.",
+    "Pick up the toy drill with your right hand.",
+    "Place the aloe vera bottle into the plastic box with your right hand.",
+    "Place the apple into the plastic box with your right hand.",
+    "Place the baseball into the plastic box with your right hand.",
+    "Place the cereal box into the plastic box with your right hand.",
+    "Place the chips can into the plastic box with your right hand.",
+    "Place the cleanser bottle into the plastic box with your right hand.",
+    "Place the cracker box into the plastic box with your right hand.",
+    "Place the glass jar into the plastic box with your right hand.",
+    "Place the light bulb into the plastic box with your right hand.",
+    "Place the mustard bottle into the plastic box with your right hand.",
+    "Place the orange cup into the plastic box with your right hand.",
+    "Place the orange into the plastic box with your right hand.",
+    "Place the peach into the plastic box with your right hand.",
+    "Place the pear into the plastic box with your right hand.",
+    "Place the plush toy into the plastic box with your right hand.",
+    "Place the screwdriver into the plastic box with your right hand.",
+    "Place the softball into the plastic box with your right hand.",
+    "Place the sponge into the plastic box with your right hand.",
+    "Place the tea box into the plastic box with your right hand.",
+    "Place the toy drill into the plastic box with your right hand.",
+    "Place the white cup into the plastic box with your right hand.",
+    "Place the whiteboard eraser into the plastic box with your right hand.",
+    "Unscrew the bottle cap with your right hand and lift it off."
+  ],
+  "counts": [
+    {
+      "source_task": "clearing_table",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 158,
+      "frames": 21628
+    },
+    {
+      "source_task": "clearing_table",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 13,
+      "frames": 1812
+    },
+    {
+      "source_task": "dosing_pipette",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 45,
+      "frames": 16264
+    },
+    {
+      "source_task": "dosing_pipette",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 5,
+      "frames": 1833
+    },
+    {
+      "source_task": "fruit_in_the_basket",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "train",
+      "episodes": 140,
+      "frames": 24155
+    },
+    {
+      "source_task": "fruit_in_the_basket",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "val",
+      "episodes": 18,
+      "frames": 3721
+    },
+    {
+      "source_task": "grasp_plastic_glass",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 89,
+      "frames": 14865
+    },
+    {
+      "source_task": "grasp_plastic_glass",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 10,
+      "frames": 1763
+    },
+    {
+      "source_task": "insert_credit_card",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 87,
+      "frames": 29110
+    },
+    {
+      "source_task": "insert_credit_card",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 10,
+      "frames": 3312
+    },
+    {
+      "source_task": "insert_game_object_cylinder",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "train",
+      "episodes": 88,
+      "frames": 21613
+    },
+    {
+      "source_task": "insert_game_object_cylinder",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "val",
+      "episodes": 10,
+      "frames": 2990
+    },
+    {
+      "source_task": "split_cups",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 90,
+      "frames": 22792
+    },
+    {
+      "source_task": "split_cups",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 10,
+      "frames": 2182
+    },
+    {
+      "source_task": "unscrew_the_bottle",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "train",
+      "episodes": 42,
+      "frames": 25252
+    },
+    {
+      "source_task": "unscrew_the_bottle",
+      "tactile_raw": "legacy_inline_10hz",
+      "suggested_split": "val",
+      "episodes": 5,
+      "frames": 1461
+    },
+    {
+      "source_task": "wiping_table",
+      "tactile_raw": "native",
+      "suggested_split": "train",
+      "episodes": 43,
+      "frames": 17324
+    },
+    {
+      "source_task": "wiping_table",
+      "tactile_raw": "native",
+      "suggested_split": "val",
+      "episodes": 5,
+      "frames": 1430
+    }
+  ],
+  "action_state": {
+    "action": {
+      "shape": [
+        213507,
+        18
+      ],
+      "dtype": "float32",
+      "nonfinite": 0,
+      "min": [
+        0.22213777899742126,
+        -0.5532848238945007,
+        0.05436287820339203,
+        -1.630631446838379,
+        -0.960153341293335,
+        -1.741364598274231,
+        0.0,
+        0.0,
+        0.0,
+        -0.17399999499320984,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "max": [
+        0.7494707703590393,
+        0.47359341382980347,
+        0.6463016271591187,
+        0.7704566717147827,
+        1.1455885171890259,
+        1.563091516494751,
+        1.8329999446868896,
+        1.4897671937942505,
+        1.5474306344985962,
+        0.17399999499320984,
+        1.9190000295639038,
+        1.7271000146865845,
+        1.7271000146865845,
+        1.7271000146865845,
+        1.7271000146865845,
+        1.7271000146865845,
+        1.7271000146865845,
+        1.7271000146865845
+      ]
+    },
+    "observation.state": {
+      "shape": [
+        213507,
+        40
+      ],
+      "dtype": "float32",
+      "nonfinite": 0,
+      "min": [
+        -35.74126434326172,
+        -56.28418731689453,
+        -101.37899780273438,
+        -170.9008331298828,
+        -164.61753845214844,
+        42.40644836425781,
+        -92.81055450439453,
+        0.07413889467716217,
+        -0.20933334529399872,
+        0.0029074077028781176,
+        -0.11900290846824646,
+        -0.01453703735023737,
+        -0.13374073803424835,
+        -0.02180555649101734,
+        0.02325926162302494,
+        0.005814815405756235,
+        -0.008722222410142422,
+        -0.01162963081151247,
+        -0.02180555649101734,
+        -128.0,
+        -128.0,
+        0.0,
+        -128.0,
+        -128.0,
+        0.0,
+        -110.0,
+        -128.0,
+        0.0,
+        -128.0,
+        -128.0,
+        0.0,
+        -92.0,
+        -128.0,
+        0.0,
+        0.2282285988330841,
+        -0.5507774353027344,
+        0.05749586224555969,
+        -1.611110806465149,
+        -0.9437732100486755,
+        -1.7254844903945923
+      ],
+      "max": [
+        85.27955627441406,
+        74.46703338623047,
+        45.72509002685547,
+        -20.67279624938965,
+        96.7276611328125,
+        187.24168395996094,
+        127.80035400390625,
+        1.8999907970428467,
+        1.4406205415725708,
+        1.4231760501861572,
+        0.15549640357494354,
+        1.7168240547180176,
+        1.6979259252548218,
+        1.7110095024108887,
+        1.7662500143051147,
+        1.7110095024108887,
+        1.7953239679336548,
+        1.7124629020690918,
+        1.790963053703308,
+        127.0,
+        127.0,
+        255.0,
+        93.0,
+        116.0,
+        216.0,
+        111.0,
+        50.0,
+        159.0,
+        117.0,
+        127.0,
+        255.0,
+        127.0,
+        127.0,
+        255.0,
+        0.749017596244812,
+        0.4748973846435547,
+        0.6446726322174072,
+        0.7736083269119263,
+        1.1371121406555176,
+        1.5687618255615234
+      ]
+    }
+  },
+  "haptics": {
+    "observation.haptics.force": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "float64",
+      "nonfinite": 0,
+      "nonzero": 174781,
+      "min": 0.0,
+      "max": 0.6799999999999999
+    },
+    "observation.haptics.valid": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 562517,
+      "min": 0,
+      "max": 1
+    },
+    "observation.haptics.status": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 640521,
+      "min": -1,
+      "max": 1
+    },
+    "observation.haptics.event_sequence": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 640521,
+      "min": -1,
+      "max": 99781
+    },
+    "observation.haptics.source_time_ns": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 640521,
+      "min": -1,
+      "max": 454789480061487
+    },
+    "observation.haptics.local_time_ns": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 640521,
+      "min": -1,
+      "max": 1301249340532595
+    },
+    "observation.haptics.received_time_ns": {
+      "shape": [
+        213507,
+        3
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 640521,
+      "min": -1,
+      "max": 1301249342607225
+    },
+    "observation.haptics.frame_mono_ns": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 1301251455202514
+    },
+    "observation.haptics.frame_utc_ns": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 1793975547044460946
+    },
+    "observation.haptics.source_session": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 9212490027913828556
+    },
+    "observation.haptics.recording_id": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 9218130314668397787
+    },
+    "observation.haptics.sync_valid": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 1
+    },
+    "observation.haptics.sync_uncertainty_ns": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 213507,
+      "min": -1,
+      "max": 1318139
+    },
+    "observation.haptics.stream_gaps": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 24603,
+      "min": -1,
+      "max": 0
+    },
+    "observation.haptics.aligned": {
+      "shape": [
+        213507
+      ],
+      "dtype": "int64",
+      "nonfinite": 0,
+      "nonzero": 188904,
+      "min": 0,
+      "max": 1
+    }
+  },
+  "sampled_sidecars": [
+    {
+      "episode": 553,
+      "task": "clearing_table",
+      "native": true,
+      "recorded_samples": 1250,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        1250,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 61950,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        11.99367,
+        12.097921399999999,
+        13.098754,
+        13.945394,
+        15.792984
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        97.088869,
+        97.51563028,
+        100.066401,
+        102.82779624,
+        103.494824
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.089959,
+        0.15275536,
+        6.424878,
+        13.49953676,
+        13.895209
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        2
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 48,
+      "task": "dosing_pipette",
+      "native": true,
+      "recorded_samples": 4362,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        4362,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 69343,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        10.53255,
+        11.7085052,
+        13.088758,
+        14.660491199999985,
+        547.252978
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        90.242182,
+        95.31586686,
+        100.0864885,
+        105.35156913,
+        1402.352139
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.129402,
+        0.16199960000000002,
+        6.319507,
+        13.191772899999998,
+        13.247623
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0,
+        1
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 15
+    },
+    {
+      "episode": 395,
+      "task": "fruit_in_the_basket",
+      "native": false,
+      "recorded_samples": 160,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "float64",
+        "command_ns": "float64",
+        "command_q": "object",
+        "command_target": "object",
+        "interpolated": "bool",
+        "available_ns": "int64"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        160,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 0,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0
+      ],
+      "frame_force_max_error": null,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 98,
+      "task": "grasp_plastic_glass",
+      "native": true,
+      "recorded_samples": 2331,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        2331,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 9651,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        11.152375,
+        12.07558206,
+        13.0766675,
+        14.008009340000001,
+        546.349669
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        97.41857,
+        98.21836565000001,
+        100.0623,
+        102.38228999,
+        102.528296
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.026985,
+        0.09628548,
+        6.734031,
+        13.49070862,
+        13.917656
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0,
+        1
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 771,
+      "task": "insert_credit_card",
+      "native": true,
+      "recorded_samples": 5785,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        5785,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 89640,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        9.943731,
+        11.5258743,
+        13.085172499999999,
+        14.87124281,
+        17.060785
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        93.6491,
+        96.11810538,
+        100.0667375,
+        105.40249985,
+        9613.031797
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.051162,
+        0.116702,
+        6.635793,
+        13.30851496,
+        13.877841
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        2
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 30
+    },
+    {
+      "episode": 297,
+      "task": "insert_game_object_cylinder",
+      "native": false,
+      "recorded_samples": 310,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "float64",
+        "command_ns": "float64",
+        "command_q": "object",
+        "command_target": "object",
+        "interpolated": "bool",
+        "available_ns": "int64"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        310,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 0,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0
+      ],
+      "frame_force_max_error": null,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 197,
+      "task": "split_cups",
+      "native": true,
+      "recorded_samples": 4578,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        4578,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 23283,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        11.617776,
+        12.07340304,
+        13.081294,
+        13.95493772,
+        17.240771
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        97.179902,
+        97.95196432,
+        100.124485,
+        102.15144116,
+        103.901793
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.166075,
+        0.18602807999999998,
+        6.673337500000001,
+        12.94368481,
+        13.245587
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        2
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 724,
+      "task": "unscrew_the_bottle",
+      "native": false,
+      "recorded_samples": 671,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "float64",
+        "command_ns": "float64",
+        "command_q": "object",
+        "command_target": "object",
+        "interpolated": "bool",
+        "available_ns": "int64"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        671,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 0,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        100.0,
+        100.0,
+        100.0,
+        100.0,
+        100.0
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.0,
+        0.0,
+        0.0,
+        0.0,
+        0.0
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0
+      ],
+      "frame_force_max_error": null,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 0
+    },
+    {
+      "episode": 0,
+      "task": "wiping_table",
+      "native": true,
+      "recorded_samples": 8161,
+      "sample_schema": {
+        "t_rel": "float64",
+        "t_mono": "float64",
+        "frame_index": "int64",
+        "frame_t_rel": "float64",
+        "is_frame_sample": "bool",
+        "sequence": "int64",
+        "read_start_ns": "int64",
+        "read_end_ns": "int64",
+        "reset_sequence": "int64",
+        "read_errors": "int64",
+        "dropped": "int64",
+        "joints": "object",
+        "force": "object",
+        "values": "object",
+        "command_sequence": "int64",
+        "command_ns": "int64",
+        "command_q": "object",
+        "command_target": "object"
+      },
+      "taxel_dtype": "float64",
+      "taxel_shape": [
+        8161,
+        1800
+      ],
+      "taxel_nonfinite": 0,
+      "taxel_nonzero": 55932,
+      "force_nonfinite": 0,
+      "sample_interval_ms_min_p1_p50_p99_max": [
+        10.026828,
+        11.034568629999999,
+        13.0825355,
+        15.19192265,
+        544.00521
+      ],
+      "frame_interval_ms_min_p1_p50_p99_max": [
+        94.341889,
+        94.75282646,
+        100.16693699999999,
+        106.24072675000001,
+        2702.310978
+      ],
+      "causal_age_ms_min_p1_p50_p99_max": [
+        0.017187,
+        0.1083464,
+        6.339287,
+        13.149882920000001,
+        13.555041
+      ],
+      "read_errors_max": 0,
+      "dropped_max": 0,
+      "reset_sequences": [
+        0,
+        1
+      ],
+      "frame_force_max_error": 0.0,
+      "missing_causal_samples": 0,
+      "invalid_action_windows": 30
+    }
+  ],
+  "all_episode_windows": {
+    "invalid_frame_indices": 0,
+    "invalid_nominal_timestamps": 0,
+    "valid_16_frame_chunks": 196645,
+    "invalid_gap_or_short_windows": 3842
+  }
+}

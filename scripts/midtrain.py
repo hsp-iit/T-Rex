@@ -1069,6 +1069,10 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
 
         with open(os.path.join(save_dir, "training_args.json"), "w") as f:
             json.dump({
+                **({"data_format": "taptic", "tacf6_dim": 360,
+                    "tactile_layout": "thumb..little x 120 taxels x xyz",
+                    "tactile_delay_offsets": [0], "taptic_stats": args.taptic_stats}
+                   if getattr(args, "data_format", "json") == "taptic" else {}),
                 "model_path": args.model_path,
                 "action_dim": args.action_dim,
                 "action_chunk": args.action_chunk,
@@ -1293,6 +1297,9 @@ def run_validation(model, val_dataloader, accelerator, args,
 
 
 def train(args):
+    if getattr(args, "data_format", "json") == "taptic":
+        from qwen_vla.taptic_dataset import validate_config
+        validate_config(args)
     # dispatch_batches=False — required because we hand-shard via
     # EpisodeGroupedSampler. With the default (None), accelerate may wrap our
     # batch_sampler in BatchSamplerShard and shard a SECOND time → each rank
@@ -1358,12 +1365,17 @@ def train(args):
         args.vqvae_config_dict = vqvae_config
         args.use_tactile_code = 1
 
+    if args.data_format == "taptic":
+        # Resume auto-detection must not silently enable the incompatible F6 VQ path.
+        validate_config(args)
+
     # Creazione del modello VLA che verrà chiamato
     # Sta soltanto costruendo la struttura dei moduli e caricando i pesi di partenza.
     model = Qwen3VLVLAModel.from_pretrained_qwen3vl(
         pretrained_path=args.model_path,
         action_dim=args.action_dim,
         action_chunk=args.action_chunk,
+        tacf6_dim=360 if args.data_format == "taptic" else 6,
         use_tactile_deform=bool(args.use_tactile_deform),
         use_robot_state=bool(args.use_robot_state),
         torch_dtype=torch.bfloat16,
@@ -1477,6 +1489,9 @@ def train(args):
     if getattr(args, "data_format", "json") == "lerobot":
         from qwen_vla.lerobot_dataset import TRexLeRobotDataset
         dataset = TRexLeRobotDataset(args, processor, accelerator)
+    elif args.data_format == "taptic":
+        from qwen_vla.taptic_dataset import TRexTapticDataset
+        dataset = TRexTapticDataset(args, processor, accelerator)
     else:
         dataset = MidtrainTacFlareDataset(args, processor, accelerator)
 
@@ -1948,9 +1963,10 @@ if __name__ == "__main__":
                              "Required for --data_format json.")
     parser.add_argument("--data_path", type=str, default="",
                         help="(Unused; kept for backwards compatibility.)")
-    parser.add_argument("--data_format", type=str, default="json", choices=["json", "lerobot"])
+    parser.add_argument("--data_format", type=str, default="json", choices=["json", "lerobot", "taptic"])
     parser.add_argument("--lerobot_root", type=str, default="",
                         help="LeRobot dataset dir (required when --data_format lerobot).")
+    parser.add_argument("--taptic_stats", type=str, default="", help="Train-only statistics from python -m taptic.inspect_dataset")
     parser.add_argument("--lerobot_repo_id", type=str, default="")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--output_dir", type=str, default="./outputs")
@@ -2053,11 +2069,17 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
 
-    if args.data_format == "lerobot":
+    if args.data_format in ("lerobot", "taptic"):
         if not args.lerobot_root:
             parser.error("--data_format lerobot requires --lerobot_root")
     elif not args.data_root:
         parser.error("--data_format json requires --data_root")
+
+    if args.data_format == "taptic":
+        from qwen_vla.taptic_dataset import validate_config
+        validate_config(args)
+        if not args.taptic_stats:
+            parser.error("--data_format taptic requires --taptic_stats")
 
     args.log_dir = os.path.join(args.log_dir, args.experiment_name)
     args.output_dir = os.path.join(args.output_dir, args.experiment_name, args.run_name)
