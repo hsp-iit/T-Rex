@@ -923,8 +923,11 @@ class MidtrainTacFlareDataset(Dataset):
         # Same Beta(1.5, 1.0) prior as the action flow; the trainer rescales
         # time_r ∈ (0, 1] to (0, τ_split] before passing it into the tactile
         # expert's flow-matching loss.
-        time_r = (d.sample((B,)) * 0.999 + 0.001).to(torch.bfloat16)
-        eps_r = torch.randn_like(norm_actions)
+
+        # Questa parte è importante perché introduce una nuova coppia tempo-rumore
+        # indipendente da quella usata per la loss action.
+        time_r = (d.sample((B,)) * 0.999 + 0.001).to(torch.bfloat16) # [B]
+        eps_r = torch.randn_like(norm_actions) # [B,16,D]
 
         # ── state (with tracking-error noise when use_robot_state=1) ──
         state_raw_list = []
@@ -1177,6 +1180,7 @@ def run_validation(model, val_dataloader, accelerator, args,
         if use_flare:
             flare_q = raw_model.flare_queries.expand(B, -1, -1).to(
                 device=slow_embeds.device, dtype=slow_embeds.dtype)
+            # I 32 token flare attraversano il Latent Expert insieme al contesto visivo e linguistico.
             slow_embeds_ext = torch.cat([slow_embeds, flare_q], dim=1)
             pos_ids = extend_position_ids_for_flare(pos_ids, K)
             L_latent = slow_embeds_ext.shape[1]
@@ -1293,6 +1297,12 @@ def train(args):
     # EpisodeGroupedSampler. With the default (None), accelerate may wrap our
     # batch_sampler in BatchSamplerShard and shard a SECOND time → each rank
     # sees 1/world_size² of the data (the "5925 → 93 steps" bug at ws=64).
+
+    #mixed_precision="bf16"
+    #Indica che il training utilizza precisione mista BF16 gestita da Accelerate.
+
+    #BF16 usa 16 bit per rappresentare numeri floating-point.
+    #Riduce memoria e costo computazionale rispetto a un training interamente in FP32, pur conservando un intervallo di esponenti ampio.
     accelerator = Accelerator(
         mixed_precision="bf16",
         gradient_accumulation_steps=args.gradient_accumulation_steps,
@@ -1348,6 +1358,8 @@ def train(args):
         args.vqvae_config_dict = vqvae_config
         args.use_tactile_code = 1
 
+    # Creazione del modello VLA che verrà chiamato
+    # Sta soltanto costruendo la struttura dei moduli e caricando i pesi di partenza.
     model = Qwen3VLVLAModel.from_pretrained_qwen3vl(
         pretrained_path=args.model_path,
         action_dim=args.action_dim,
@@ -1366,6 +1378,7 @@ def train(args):
     )
     if args.use_tactile_deform:
         model.load_deform_encoder_weights(args.deform_encoder_ckpt)
+    # Inizializzazione dei pesi    
     model.initialize_vla_weights()
     if vqvae_blob is not None:
         model.load_tactile_vqvae(vqvae_blob)
@@ -1388,6 +1401,8 @@ def train(args):
                     param.data.copy_(named_params[base].data)
         accelerator.print("Action expert initialized from latent expert.")
 
+    # Se è stato specificato un checkpoint da cui fare resume
+    # ripristina parametri del precedente pretraining/midtraining
     if args.resume_checkpoint:
         ckpt_path = args.resume_checkpoint
         if os.path.isdir(ckpt_path):
@@ -1423,9 +1438,10 @@ def train(args):
     elif resumed_tactile:
         accelerator.print("Tactile expert weights kept from resumed midtrain checkpoint.")
 
-    for name, param in model.named_parameters():
+    for name, param in model.named_parameters(): #funzione che restituisce coppie nome, parametro
         if (name.startswith("visual") or name.startswith("deform_encoder")
                 or name.startswith("tactile_vqvae")):
+            # congelano visual encoder, deform encoder e VQ-VAE
             param.requires_grad = False   # embedded VQ-VAE stays frozen
         elif "_tactile" in name or "final_layer_tactile" in name:
             param.requires_grad = (not freeze_tactile)
@@ -1441,6 +1457,11 @@ def train(args):
     trainable = sum(p.numel() for p in model.parameters() if p.requires_grad)
     accelerator.print(f"Model: {total/1e6:.1f}M total, {trainable/1e6:.1f}M trainable")
 
+    #Gli autori creano due gruppi di parametri:
+    #- Parametri ai quali applicare weight decay.
+    #- Parametri ai quali non applicarlo, come bias e determinati pesi di normalizzazione.
+    #L'optimizer aggiornerà soltanto i parametri inseriti nei gruppi, che il codice seleziona tra quelli con requires_grad=True.
+    #Questa parte è comune a molti progetti PyTorch, ma è indispensabile per comprendere cosa viene effettivamente addestrato
     no_decay = ["bias", "norm.weight", "q_norm.weight", "k_norm.weight"]
     param_groups = [
         {"params": [p for n, p in model.named_parameters()
@@ -1452,6 +1473,7 @@ def train(args):
     ]
     optimizer = torch.optim.AdamW(param_groups, lr=args.learning_rate)
 
+    # Loading del dataset che può avere formati differenti
     if getattr(args, "data_format", "json") == "lerobot":
         from qwen_vla.lerobot_dataset import TRexLeRobotDataset
         dataset = TRexLeRobotDataset(args, processor, accelerator)
@@ -1470,6 +1492,7 @@ def train(args):
     # Val dataloader: NO custom sampler — let accelerate add its own
     # DistributedSampler when we prepare it. Keeping the custom sampler
     # here would also trigger the double-shard interaction.
+
     val_dataloader = None
     if getattr(args, "val_ratio", 0) > 0:
         val_dataset = dataset.create_val_split(
@@ -1484,8 +1507,11 @@ def train(args):
 
     train_sampler = EpisodeGroupedSampler(
         dataset, shuffle=True, seed=args.seed, drop_last=True)
+    # 3. Richiedere i campioni e combinarli in batch tramite collate_fn
     dataloader = DataLoader(
-        dataset, batch_size=args.train_bsz_per_gpu, sampler=train_sampler,
+        dataset, # 1. Leggere e costruire i singoli campioni
+        batch_size=args.train_bsz_per_gpu,
+        sampler=train_sampler, # 2. Scegliere gli indici e l'ordine dei campioni
         drop_last=True,
         collate_fn=dataset.collate_fn,
         num_workers=n_workers_train, pin_memory=True,
@@ -1551,6 +1577,11 @@ def train(args):
                      for k, v in batch.items()}
             raw_model = accelerator.unwrap_model(model)
 
+            # viene eseguito il vision encoder
+            # input_ids [B,L] -> text embeddings
+            #                                   ===> input_embeds [B,L,H]
+            # pixel valuse -> vision encoder
+
             inputs_embeds = raw_model.prepare_inputs_embeds(
                 input_ids=batch["input_ids"],
                 pixel_values=batch.get("pixel_values"),
@@ -1568,6 +1599,7 @@ def train(args):
                     int(g[0] * (g[1] // merge) * (g[2] // merge))
                     for g in grid_thw[:n_imgs_per_sample][:n_slow_imgs]
                 )
+                # SEPARAZIONE DELLE DUE CAMERE
                 slow_embeds, fast_embeds = split_slow_fast_embeds(
                     inputs_embeds, batch["input_ids"],
                     raw_model.image_token_id, n_slow_img_tokens)
@@ -1585,6 +1617,10 @@ def train(args):
             # print(fast_embeds.shape)
             # input("pause")
 
+            # Quindi è importante distinguere:
+            # - inputs_embeds: contenuto dei token;
+            # - position_ids: informazioni utilizzate per costruire le rotazioni posizionali di query e key.
+            # I position_ids non vengono concatenati come normali token al tensore inputs_embeds.
             pos_ids, _ = raw_model.get_rope_index(
                 input_ids=batch["input_ids"],
                 image_grid_thw=batch.get("image_grid_thw"),
@@ -1594,6 +1630,7 @@ def train(args):
 
             if use_flare:
                 flare_q = raw_model.flare_queries.expand(B, -1, -1).to(device=slow_embeds.device, dtype=slow_embeds.dtype)
+                # I 32 token flare attraversano il Latent Expert insieme al contesto visivo e linguistico.
                 slow_embeds_ext = torch.cat([slow_embeds, flare_q], dim=1)
                 pos_ids = extend_position_ids_for_flare(pos_ids, K)
                 L_latent = slow_embeds_ext.shape[1]  # L_slow + K
@@ -1606,11 +1643,20 @@ def train(args):
                                                    dtype=slow_embeds.dtype)
                 state_embeds = raw_model.state_embedder(state_vec).unsqueeze(1)
             else:
+                # Se use_robot_state=0, come nella configurazione che stiamo considerando
+                # la rete non riceve un token di stato robotico esplicito.
+                # state_embeds.shape = [B, 0, H]
+                # n_state = 0
                 state_embeds = torch.empty((B, 0, slow_embeds.shape[2]), device=slow_embeds.device, dtype=slow_embeds.dtype)
             n_state = state_embeds.shape[1]
 
+            # Prima dell'embedder batch["noisy_actions"].shape = [B, 16, D]
+            # Dopo batch["noisy_actions"].shape = [B, 16, H]
             noisy_actions = raw_model.x_embedder(
                 batch["noisy_actions"].to(slow_embeds.dtype))
+            # Prima dell'embedder batch["timesteps"].shape = [B]
+            # Dopo batch["timesteps"].shape = [B, H]
+            # Dopo unsqueeze(1) timesteps.shape = [B, 1, H]
             timesteps = raw_model.t_embedder(
                 batch["timesteps"].to(slow_embeds.dtype)).unsqueeze(1)
 
@@ -1622,33 +1668,59 @@ def train(args):
 
             # Cascaded: shared flow split between action + tactile experts.
             # L_flow — action expert single-step (full τ ∈ [0,1] training).
+
+            # Questa singola istruzione costruisce la sequenza finale in ingresso al MoT.
             full_embeds = torch.cat([
                 slow_embeds_ext,
                 fast_embeds, state_embeds, timesteps, noisy_actions,
             ], dim=1)
             L_total = full_embeds.shape[1]
+
+            # Chiamata al transformer
+            # Questa è la prima vera chiamata ai 28 layer MoT.
+            # latent_indexes = [0, ..., L_latent-1]
+            # action_indexes = [L_latent, ..., L_total-1]
+            # tactile_indexes = []
             outputs = model.model(
                 inputs_embeds=full_embeds,
                 position_ids=pos_ids,
                 attention_mask=batch["attention_mask"],
-                use_cache=False,
+                use_cache=False, # use_cache=False
+                                # In questo specifico forward action del training non viene
+                                # costruita una KV cache destinata al Tactile Expert.
+                                # Il motivo è che stiamo addestrando il campo di velocità a un
+                                # tempo \(\tau\) campionato, attraverso un singolo forward con
+                                # gradiente. La cache per il training tattile verrà costruita
+                                # successivamente, tramite un'altra funzione.
                 output_hidden_states=use_flare,
                 latent_indexes=torch.arange(0, L_latent, device=full_embeds.device),
                 action_indexes=torch.arange(L_latent, L_total, device=full_embeds.device),
                 tactile_indexes=torch.arange(0, 0, device=full_embeds.device),
             )
             hidden = outputs.last_hidden_state
+            # Calcola la posizione del primo token corrispondente alle azioni rumorose.
             act_pred_start = L_latent + n_fast + n_state + 1
+            # Estrae  hidden[:, act_pred_start:act_pred_start + 16, :]
+            # v_act.shape = [B, 16, 62]
             v_act = raw_model.final_layer(
                 hidden[:, act_pred_start: act_pred_start + chunk, :])
+            
+            # il calcolo di loss_act non aggiorna ancora alcun peso.
+            # Il grafo di autograd è stato costruito, ma il backward avverrà dopo
+            # che il codice avrà calcolato anche le altre loss.
             loss_act = nn.MSELoss()(v_act, target)
 
             if has_any_tac and not is_stage1:
                 fe = fast_embeds if n_fast > 0 else None
                 se = state_embeds if n_state > 0 else None
+                # Questa istruzione genera nuovo rumore gaussiano.
+                # questo rumore è indipendente da quello utilizzato per calcolare loss_act.
                 ahat_noise = torch.randn_like(batch["noisy_actions"])
                 # cached_kv at τ=tau_split (matches inference).
                 with torch.no_grad():
+                    # Qui gli autori conservano la KV cache e il numero di token action.
+                    #Non conservano x_t per la loss tatttile
+                    #Questo perché, nel training, il Tactile Expert viene supervisionato usando un altro punto rumoroso, costruito direttamente dalle azioni ground truth.
                     _, cached_kv, n_action_in_cache, _ = (
                         raw_model.forward_flow_action_partial(
                             inputs_embeds=slow_embeds_ext,
@@ -1662,17 +1734,31 @@ def train(args):
                             refresh_clean_kv=True,
                         ))
 
+                # INIZIO DELLA PARTE TATTILE
+                # Sono state già eseguite due operazioni:
+                # - 1. Un forward dell'Action Expert con gradiente per calcolare loss_act.
+                # - 2. Un forward dell'Action Expert senza gradiente per costruire la KV cache al passo τ_split.
                 # L_flow_tactile — tactile expert as velocity predictor at τ ∈ [0, τ_split]
+                
+                # AZIONI CORRETTE: sono le azioni provenienti dalle dimostrazioni, dopo la normalizzazione.
+                # a in [B,16,D]
                 norm_actions_gt = batch["norm_actions"].to(slow_embeds.dtype)
+
+                # Nuovo rumore gaussiano (riga 930 collate_fn())
                 eps_r = batch["eps_r"].to(slow_embeds.dtype)
                 tau_split = 1.0 - args.cascaded_split_step / args.cascaded_total_steps
                 tau_t = batch["time_r"].to(slow_embeds.dtype) * tau_split
                 tau_t_b = tau_t[:, None, None]
+                # equazione di flow matching
                 x_tau = (1 - tau_t_b) * norm_actions_gt + tau_t_b * eps_r
+                # target tattile
+                # Il Tactile Expert predice il campo di velocità del flow delle azioni
+                # non un residuo cartesiano da sommare alla traiettoria dell'Action Expert.
                 v_target_r = eps_r - norm_actions_gt
                 r_target_norm = v_target_r.float().abs().mean().detach()
 
                 # Tactile dropout — zero the values, not the tensor shape.
+                # Con il valore predefinito 0.1, ogni training step ha una probabilità del 10% di azzerare gli input tattili interessati.
                 drop = (args.cascaded_tactile_dropout > 0
                         and torch.rand((), device=full_embeds.device).item()
                         < args.cascaded_tactile_dropout)
@@ -1689,7 +1775,10 @@ def train(args):
                         tac_codes_in = torch.zeros_like(tac_codes_in)
                     if tac_hist_in is not None:
                         tac_hist_in = torch.zeros_like(tac_hist_in)
-
+                # Calcolo della loss e chiamata a tactile_flow_train_step
+                # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
+                # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
+                # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
                 loss_tac = nn.MSELoss()(
                     raw_model.tactile_flow_train_step(
                         cached_kv=cached_kv,
@@ -1707,6 +1796,9 @@ def train(args):
             else:
                 loss_tac = 0.0
 
+            # FLARE è un obiettivo ausiliario di previsione di rappresentazioni visive future.
+            # Il modello cerca di predire feature visive future
+            # che vengono calcolate da un vision encoder congelato.
             loss_flare = 0.0
             if use_flare and batch["flare_pixel_values"] is not None:
                 # Extract flare hidden states from intermediate layer or last layer
@@ -1718,6 +1810,13 @@ def train(args):
                     all_hs = outputs.hidden_states
                     # Skip index 0 (embedding), so layer indices are 1..N
                     n_layers = len(all_hs) - 1  # exclude embedding
+
+                    # Il codice permette di scegliere da quale layer del Transformer
+                    # prendere le rappresentazioni.
+                    # Se flare_layer_idx=-1, utilizza l'output finale.
+                    # Se scegliamo, per esempio, un layer intermedio, recupera gli hidden states corrispondenti
+                    # da outputs.hidden_states.
+                    # Questo ci permette di applicare la supervisione visiva a diverse profondità della rete.
                     if flare_layer_idx < 0:
                         layer_i = n_layers + flare_layer_idx  # e.g. 28 + (-7) = 21
                     else:
@@ -1728,10 +1827,13 @@ def train(args):
                 flare_hidden = flare_source[:, L_slow: L_slow + K, :]  # [B, K, H]
                 flare_pred = raw_model.flare_proj(flare_hidden)  # [B, K, H]
 
+                # COSTRUZIONE DEL TARGET FLARE
+                # Il dataset ha già preparato le immagini future e le ha inserite nel batch
                 f_pv = batch["flare_pixel_values"].to(device=flare_pred.device, dtype=flare_pred.dtype)
                 f_thw = batch["flare_grid_thw"].to(device=flare_pred.device)
 
                 with torch.no_grad():
+                    # Questa volta il vision encoder viene eseguito sui frame futuri
                     vit_out = raw_model.visual(f_pv, grid_thw=f_thw)
                     features = vit_out[0] if isinstance(vit_out, (tuple, list)) else vit_out
 
@@ -1742,7 +1844,14 @@ def train(args):
                     for g in f_thw:
                         n_tok = int(g[0] * (g[1] // merge) * (g[2] // merge))
                         frame_tokens = features[offset: offset + n_tok]  # [n_tok, H]
+
                         # Adaptive average pool: [n_tok, H] → [T_per_frame, H]
+                        # Perché serve il pooling?
+                        # Un frame, dopo il vision encoder, può avere molti token visivi.
+                        # Ma il modello utilizza soltanto quattro query FLARE per frame.
+                        # Il codice deve quindi ridurre la rappresentazione del frame a quattro vettori.
+                        # [N_visual, H] -> [4, H]
+                        # con 8 frame futuri --> [32,H]
                         pooled = F.adaptive_avg_pool1d(
                             frame_tokens.unsqueeze(0).permute(0, 2, 1),  # [1, H, n_tok]
                             T_per_frame,
@@ -1750,10 +1859,12 @@ def train(args):
                         frame_feats.append(pooled)
                         offset += n_tok
                     # frame_feats: list of B*S_steps tensors, each [T_per_frame, H]
-                    # Reshape to [B, S_steps * T_per_frame, H] = [B, K, H]
+                    # Reshape to [B, S_steps * T_per_frame, H] = [B, 32, H]
                     flare_targets = torch.stack(frame_feats).view(B, K, -1)
 
-                # Cosine similarity loss
+                # Cosine similarity tra predizione e target FLARE
+                # Cosine perché così la loss si concentra sull'allineamento delle
+                # rappresentazioni, non sulla corrispondenza esatta di ogni componente numerica.
                 pred_norm = F.normalize(flare_pred, dim=-1)
                 tgt_norm = F.normalize(flare_targets.detach(), dim=-1)
                 loss_flare = (1.0 - (pred_norm * tgt_norm).sum(dim=-1)).mean()
@@ -1764,14 +1875,22 @@ def train(args):
             if torch.is_tensor(loss_flare):
                 loss = loss + args.flare_loss_weight * loss_flare
 
+
+            # BACKWARD: calcola e accumula gradienti.
             metric.update(loss, loss_act, loss_tac, loss_flare)
             accelerator.backward(loss)
 
+            # La condizione verifica se abbiamo accumulato il numero richiesto di microbatch.
+            # Se gradient_accumulation_steps=4, il codice entra nel blocco agli step 4, 8, 12 e così via.
             if (global_step + 1) % accelerator.gradient_accumulation_steps == 0:
                 if args.max_grad_norm > 0:
+                    # Limita la norma dei gradienti quando supera la soglia impostata.
                     accelerator.clip_grad_norm_(model.parameters(), args.max_grad_norm)
+                # Aggiornamento dei pesi
                 optimizer.step()
+                # Learning rate scheduler
                 lr_scheduler.step()
+                # Azzeramento dei gradienti
                 optimizer.zero_grad()
 
                 m = metric.get_metric()

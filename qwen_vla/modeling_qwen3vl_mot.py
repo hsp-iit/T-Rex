@@ -562,8 +562,8 @@ class Qwen3VLModelMoT(nn.Module):
 
     def forward(
         self,
-        inputs_embeds:   Optional[torch.FloatTensor]  = None,
-        attention_mask:  Optional[torch.Tensor]        = None,
+        inputs_embeds:   Optional[torch.FloatTensor]  = None,  
+        attention_mask:  Optional[torch.Tensor]        = None, 
         position_ids:    Optional[torch.LongTensor]    = None,   # latent only [B,3,L] or [B,L]
         past_key_values: Optional[Cache]               = None,
         use_cache:       bool                          = False,
@@ -576,7 +576,7 @@ class Qwen3VLModelMoT(nn.Module):
         tactile_indexes: Optional[torch.LongTensor]    = None,
     ) -> BaseModelOutputWithPast:
 
-        hidden_states = inputs_embeds
+        hidden_states = inputs_embeds # X^(0) = full_embeds
         batch_size, seq_len = hidden_states.shape[:2]
 
         # ── KV-cache bookkeeping ────────────────────────────────────────────
@@ -630,6 +630,22 @@ class Qwen3VLModelMoT(nn.Module):
         # ── Decoder layers ───────────────────────────────────────────────────
         all_hidden_states = () if output_hidden_states else None
         all_attentions    = () if output_attentions    else None
+
+
+        """
+        Questo ciclo attraversa tutti i layer definiti nel modello.
+        X^(0) -> ... -> X^(28)
+        Ogni layer modifica le rappresentazioni, ma mantiene la stessa struttura fondamentale:
+        [B,L_{total},H]
+        All'interno del singolo layer succedono le seguenti operazioni:
+        - Normalizzazioni specifiche per esperto.
+        - Proiezioni Q/K/V separate.
+        - Joint self-attention.
+        - Residual connection.
+        - MLP specializzate.
+        - Seconda residual connection.
+        Dopo l'ultimo layer vengono applicate le normalizzazioni finali specifiche dei tre stream.
+        """
 
         for layer in self.layers:
             if output_hidden_states:

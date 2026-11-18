@@ -148,8 +148,11 @@ class Qwen3VLVLAModel(nn.Module):
 
         # Flare visual prediction tokens for the latent expert
         if self.n_flare_tokens > 0:
+            # flare_queries è un parametro addestrabile [1,K,H] K = 32
             self.flare_queries = nn.Parameter(
                 torch.randn(1, self.n_flare_tokens, H) * 0.02)
+            # flare_proj è una piccola MLP che trasforma le rappresentazioni dei token
+            # FLARE nello spazio in cui verranno confrontate con i target visivi.
             self.flare_proj = nn.Sequential(
                 nn.Linear(H, H), nn.GELU(), nn.Linear(H, H))
 
@@ -187,6 +190,7 @@ class Qwen3VLVLAModel(nn.Module):
         from transformers import AutoConfig
 
         # Load the pretrained Qwen3-VL model for weight extraction
+        # STEP 1: carica il modello Qwen3-VL
         try:
             from transformers import Qwen3VLForConditionalGeneration
             base_model = Qwen3VLForConditionalGeneration.from_pretrained(
@@ -205,6 +209,8 @@ class Qwen3VLVLAModel(nn.Module):
         image_token_id = getattr(config, "image_token_id", _DEFAULT_IMAGE_TOKEN_ID)
 
         # Construct VLA model
+        # STEP 2: costruisce il VLA
+        # È in questa fase che vengono creati gli embedder, i Transformer specializzati e le prediction head.   
         vla = cls(
             config = text_config,
             action_dim = action_dim,
@@ -233,6 +239,7 @@ class Qwen3VLVLAModel(nn.Module):
             object.__setattr__(vla, '_rope_index_fn', _inner.get_rope_index)
 
         # Copy visual tower (base_model.visual is a @property → base_model.model.visual)
+        # STEP 3: Il modello VLA riutilizza il modulo visivo del modello pretrained.
         vla.visual = base_model.visual
 
         # Load text model weights into Qwen3VLModelMoT (strict=False).
@@ -257,6 +264,7 @@ class Qwen3VLVLAModel(nn.Module):
             # Qwen2-VL / direct text model: use keys as-is
             text_sd = dict(raw_sd)
 
+        # STEP 4: Carica i pesi linguistici nel MoT.
         missing, unexpected = vla.model.load_state_dict(text_sd, strict=False)
         print(f"[Qwen3VLVLAModel] Text model loaded – missing: {len(missing)}, unexpected: {len(unexpected)}")
         if missing:
@@ -411,6 +419,8 @@ class Qwen3VLVLAModel(nn.Module):
                     if mm.bias is not None:
                         nn.init.zeros_(mm.bias)
 
+    # 1. Costruisce gli embedding dei token testuali
+    # 2. Sostituisce gli embedding dei segnaposto visivi
     def prepare_inputs_embeds(
         self,
         input_ids:       torch.LongTensor,
@@ -639,13 +649,16 @@ class Qwen3VLVLAModel(nn.Module):
 
         return x_t
 
+
+    # il suo output è una tupla di 4 elementi
+    # x_t, past_kv, n_action_in_cache, tau_split
     @torch.no_grad()
     def forward_flow_action_partial(
         self,
-        inputs_embeds: torch.Tensor,
-        position_ids: torch.Tensor,
-        noise: torch.Tensor,
-        attention_mask: Optional[torch.Tensor] = None,
+        inputs_embeds: torch.Tensor, # Contesto latent [B,L_latent,H]
+        position_ids: torch.Tensor, # # Informazioni posizionali del contesto 
+        noise: torch.Tensor, # noise
+        attention_mask: Optional[torch.Tensor] = None, # # Maschera del contesto
         state_embeds: Optional[torch.Tensor] = None,
         fast_embeds: Optional[torch.Tensor] = None,
         num_steps_total: int = 10,
@@ -688,50 +701,69 @@ class Qwen3VLVLAModel(nn.Module):
 
         past_kv = None
         n_act = 0
+        # Per 6 steps
         for i in range(split_step):
+
+            # A ogni step vengono creati nuovamente:
+            # - Il token del tempo corrente.
+            # - I 16 token delle azioni rumorose correnti.
+            # - La sequenza action che contiene anche i token fast e l'eventuale stato.
             timesteps = self.t_embedder(time.expand(B)).unsqueeze(1)
             noisy_act = self.x_embedder(x_t)
-            act_parts = [fast_embeds]
+            act_parts = [fast_embeds] # importante anche la presenza dei fast tokens
             if n_state > 0:
                 act_parts.append(state_embeds)
             act_parts += [timesteps, noisy_act]
             act_seq = torch.cat(act_parts, dim=1)
             n_act = act_seq.shape[1]
 
+            # Alla prima iterazione quando i = 0, past_kv è None
             if past_kv is None:
                 full_embeds = torch.cat([inputs_embeds, act_seq], dim=1)
                 outputs = self.model(
-                    inputs_embeds=full_embeds,
-                    position_ids=position_ids,
+                    inputs_embeds=full_embeds, # full
+                    position_ids=position_ids, # full
                     attention_mask=attention_mask,
                     past_key_values=past_kv,
-                    use_cache=True,
+                    use_cache=True, # ora la cache viene create e salvata
                     latent_indexes=torch.arange(0, L_latent, device=device),
                     action_indexes=torch.arange(L_latent, L_latent + n_act, device=device),
                     tactile_indexes=torch.arange(0, 0, device=device),
                 )
             else:
+                # se in cache avevamo [KV_L | KV_A(1)]
+                # il crop elimina la parte dell'action e lascia [KV_L]
+                # così non perdiamo il contesto visivo-linguistico e non va ricalcolato
+                # però il transformer deve ricalcolare i token action perché x_t e time sono cambiati
                 past_kv.crop(-n_act)
                 extended_pos = self.model._extend_position_ids(position_ids, n_act, 0)
                 act_pos = extended_pos[..., -n_act:]
                 outputs = self.model(
                     inputs_embeds=act_seq,
-                    position_ids=act_pos,
+                    position_ids=act_pos, # Il contesto latent non è più presente tra i nuovi token.
+                                          # È già memorizzato in past_kv.
                     past_key_values=past_kv,
                     use_cache=True,
                     latent_indexes=torch.arange(0, 0, device=device),
                     action_indexes=torch.arange(0, n_act, device=device),
                     tactile_indexes=torch.arange(0, 0, device=device),
                 )
-
+            # hidden[:, -n_chunk:, :] seleziona gli hidden states dei 16 token action finali.
             hidden = outputs.last_hidden_state
+            # la HEAD self.final_layer(...) li trasforma in v_A
+            # !!! il tensore v_act non viene salvato come una sequenza di azioni da eseguire.
+            # Viene utilizzato per aggiornare x_t.
+            # È x_t, dopo il completamento del processo, a rappresentare il chunk generato.
             v_act  = self.final_layer(hidden[:, -n_chunk:, :])
+            # viene aggiornato lo stato
             x_t    = x_t + dt * v_act
+            # viene aggiornato il tempo
             time   = time + dt
             past_kv = outputs.past_key_values
 
         # `time` is now τ_split.  Refresh KV with the partially-denoised state
         # at τ_split so the tactile expert attends to a coherent action context.
+        # Refresh per avere cache e stato coerenti
         if refresh_clean_kv and past_kv is not None:
             past_kv.crop(-n_act)
             split_timesteps = self.t_embedder(
@@ -746,6 +778,11 @@ class Qwen3VLVLAModel(nn.Module):
             n_act_final = clean_seq.shape[1]
             extended_pos = self.model._extend_position_ids(position_ids, n_act_final, 0)
             act_pos_final = extended_pos[..., -n_act_final:]
+            # NUOVO FORWARD
+            # Questa volta il Transformer riceveE
+            # (x_{0.4},\tau=0.4)
+            # e aggiorna la cache.
+            # Non viene calcolato un nuovo passo di Eulero.
             _ = self.model(
                 inputs_embeds=clean_seq,
                 position_ids=act_pos_final,
@@ -760,6 +797,7 @@ class Qwen3VLVLAModel(nn.Module):
             n_action_in_cache = n_act
 
         tau_split = float(time.item())
+        # n_action_in_cache = L_fast + n_state + 1 + 16
         return x_t, past_kv, n_action_in_cache, tau_split
 
     @torch.no_grad()
@@ -785,6 +823,13 @@ class Qwen3VLVLAModel(nn.Module):
         `cached_kv` is cloned so multiple fast ticks within one chunk window
         each start from the same slow-tick snapshot.
         """
+        # !!! Il Tactile Expert non utilizza direttamente la cache originale:
+        # ne crea una copia indipendente. Perché?
+        # Perché, durante i quattro step di denoising, il codice modifica la cache con
+        # operazioni di inserimento e rimozione delle KV tattile.
+        # Se modificasse direttamente self.cached_kv, non potremmo riutilizzare lo stesso
+        # snapshot al tick veloce successivo. La clonazione permette quindi di preservare
+        # il contesto prodotto dall'Action Expert.
         cache = self._clone_dynamic_cache(cached_kv)
         device = x_split.device
         dtype  = torch.bfloat16
@@ -811,11 +856,18 @@ class Qwen3VLVLAModel(nn.Module):
         x = x_split.to(dtype)
 
         for step in range(remaining):
+            # Ad ogni iterazione
+            # x_{tau-0.1} = x_tau -0.1 v_T(x_tau, tau, F, C), tau -> tau - 0.1
+
+
             tau_emb = self.t_embedder(time.expand(B)).unsqueeze(1)
             x_emb   = self.x_embedder(x)
             full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1)
             if step > 0:
+                # Al primo step, la cache clonata contiene soltanto il contesto latent e action.
+                # Dopo il primo forward vengono aggiunte le KV dei token tattili.
                 cache.crop(-n_tac_seq)
+
             outputs = self.model(
                 inputs_embeds=full_embeds,
                 position_ids=tac_pos,
@@ -829,9 +881,14 @@ class Qwen3VLVLAModel(nn.Module):
             v = self.final_layer_tactile(hidden[:, -n_chunk:, :])
             x    = x + dt * v
             time = time + dt
-
+            
+        # Questo x è il chunk denoisato a tau=0, ancora nello spazio normalizzato delle azioni.
         return x
 
+
+    # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
+    # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
+    # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
     def tactile_flow_train_step(
         self,
         cached_kv,
@@ -856,19 +913,29 @@ class Qwen3VLVLAModel(nn.Module):
         B      = x_tau.shape[0]
         n_chunk = x_tau.shape[1]
 
+        # Costruzione dei token tattili
+        # Questa funzione converte gli input tattili in una sequenza di embedding.
         tac_obs = self._embed_tactile_observations(
             tactile_f6, tactile_deform, device, dtype,
             tactile_codes=tactile_codes,
             tactile_f6_history=tactile_f6_history)
         n_obs = tac_obs.shape[1]
 
+        # IMPORTANTE: il Tactile Expert utilizza gli stessi moduli t_embedder e x_embedder dell'Action Expert.
+        # Non sono presenti due copie separate di questi embedder nella funzione.
+        # Questa condivisione ha conseguenze sui gradienti, come abbiamo visto studiando il training.
         tau_emb = self.t_embedder(tau.to(dtype)).unsqueeze(1)            # [B, 1, H]
-        x_emb   = self.x_embedder(x_tau.to(dtype))                       # [B, n_chunk, H]
-        full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1)
+        x_emb   = self.x_embedder(x_tau.to(dtype))                       # [B, 16, H]
+
+        # Tactile obs (#n_obs), tau(#1), noisy action(#16)
+        full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1) # concatenazione
         n_tac_seq = full_embeds.shape[1]
 
+        # Il codice costruisce gli indici posizionali:
         extended_pos = self.model._extend_position_ids(
             latent_position_ids, n_action_in_cache, n_tac_seq)
+        # La cache contiene già i token latent e action elaborati precedentemente.
+        # I nuovi token tattili devono occupare posizioni successive a quelle della cache.
         tac_pos = extended_pos[..., -n_tac_seq:]
 
         outputs = self.model(
@@ -876,11 +943,13 @@ class Qwen3VLVLAModel(nn.Module):
             position_ids=tac_pos,
             past_key_values=cached_kv,
             use_cache=True,
-            latent_indexes=torch.arange(0, 0, device=device),
-            action_indexes=torch.arange(0, 0, device=device),
-            tactile_indexes=torch.arange(0, n_tac_seq, device=device),
-        )
+            latent_indexes=torch.arange(0, 0, device=device), # indici latent vuoti
+            action_indexes=torch.arange(0, 0, device=device), # indici action vuoti
+            tactile_indexes=torch.arange(0, n_tac_seq, device=device), # tutti i nuovi token sono assegnati al tactile expert
+        ) 
+
         hidden = outputs.last_hidden_state
+        # Questa istruzione estrae gli ultimi 16 token, corrispondenti alle azioni rumorose, e li passa alla prediction head tattile.
         v_pred = self.final_layer_tactile(hidden[:, -n_chunk:, :])
         return v_pred
 
@@ -922,6 +991,13 @@ def split_slow_fast_embeds(
     slow_embeds : [B, L_slow, H]  — contiguous prefix (text + slow image)
     fast_embeds : [B, L_fast, H]  — contiguous suffix (fast images + trailing)
     """
+
+    # Il codice ricerca il primo token visivo appartenente alle immagini fast e determina
+    # il punto in cui dividere la sequenza.
+
+    #Il suffisso fast comprende anche i token di delimitazione dell'immagine e gli eventuali
+    # token successivi previsti dal prompt.
+
     B = inputs_embeds.shape[0]
     img_pad_mask = (input_ids == image_token_id)             # [B, L]
     img_cumcount = img_pad_mask.long().cumsum(dim=1)         # [B, L]
@@ -938,6 +1014,8 @@ def split_slow_fast_embeds(
     fast_pad_pos = fast_pad_mask[0].nonzero(as_tuple=True)[0]
     split_pos = int(fast_pad_pos[0].item()) - 1  # <|vision_start|>
 
+    # slow_embeds.shape  # [B, L_slow, H]
+    # fast_embeds.shape  # [B, L_fast, H]
     slow_embeds = inputs_embeds[:, :split_pos]
     fast_embeds = inputs_embeds[:, split_pos:]
     return slow_embeds, fast_embeds

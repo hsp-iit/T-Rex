@@ -325,6 +325,8 @@ def _encode_tactile_deform(tactile_deform_input, device):
 
 # ─────────────────────────────────────────────────────────────────────────────
 # Cascaded slow/fast inference
+# La classe conserva lo stato necessario tra una richiesta lenta e
+# le successive richieste veloci.
 # ─────────────────────────────────────────────────────────────────────────────
 
 class CascadedServer:
@@ -359,14 +361,14 @@ class CascadedServer:
         self.disable_tactile = bool(getattr(args, "disable_tactile", 0))
 
         # Slow-tick snapshot
-        self.cached_kv          = None
-        self.x_split            = None             # [B, n_chunk, action_dim] bf16,
+        self.cached_kv          = None      # KV del Latent Expert e dell'Action Expert al punto di handover
+        self.x_split            = None      # Chunck parzialmente denoisato a tau=0.4, [B, n_chunk, action_dim] bf16,
                                                    # action-expert intermediate at τ=τ_split
-        self.tau_split          = None
-        self.position_ids       = None
+        self.tau_split          = None      # Tempo di handover
+        self.position_ids       = None      # Indici posizionali necessari al forward tattile
         self.attention_mask     = None
-        self.n_action_in_cache  = 0
-        self.chunk_id           = -1               # incremented per slow
+        self.n_action_in_cache  = 0         # Numero di token action memorizzati
+        self.chunk_id           = -1        # Identificativo del piano lento
         self.last_actions       = None             # cached denormalized chunk for
                                                    # disable_tactile fast-tick passthrough
 
@@ -487,6 +489,8 @@ class CascadedServer:
         self, task_description, slow_images, fast_images,
         tactile_f6_input=None, tactile_deform_input=None, state_fast=None,
     ):
+        
+        # Sono sostanzialmente gli stessi passaggi di preparazione che abbiamo studiato durante il training.
         args, model, processor, statistic = (
             self.args, self.model, self.processor, self.statistic)
         device = self.device
@@ -551,13 +555,16 @@ class CascadedServer:
             position_ids = extend_position_ids_for_flare(
                 position_ids, model.n_flare_tokens)
 
+        # Questo rumore non viene costruito usando la ground truth:
+        # non ne abbiamo bisogno, perché siamo in inferenza.
         noise = torch.randn(1, args.action_chunk, args.action_dim,
                             dtype=torch.bfloat16, device=device)
-
+        # NON ENTREREMO QUI
         if self.disable_tactile:
             # Action-expert-only ablation: integrate the full τ ∈ [0, 1] flow
             # and return the resulting chunk directly.  No tactile expert is
             # invoked; subsequent fast ticks reuse the same chunk.
+            # CHiamata alla funzione, esegue 6 step e termina a tau_split=0.4
             full_chunk = model.forward_flow_action_full(
                 inputs_embeds=slow_embeds,
                 position_ids=position_ids,
@@ -580,7 +587,8 @@ class CascadedServer:
                 statistic["action_min"], statistic["action_max"])
             self.last_actions = list(a_full)
             return self.last_actions, self.chunk_id
-
+        
+        # CHiamata alla funzione, esegue 6 step e termina a tau_split=0.4
         x_split, cached_kv, n_action_in_cache, tau_split = (
             model.forward_flow_action_partial(
                 inputs_embeds=slow_embeds,
@@ -600,6 +608,8 @@ class CascadedServer:
         self.attention_mask    = attention_mask
         self.n_action_in_cache = n_action_in_cache
         self.chunk_id         += 1
+        # A questo punto il server ha un chunk parzialmente denoisato e una cache,
+        # ma non ha ancora completato la generazione delle azioni.
 
         # Cascaded mode produces no usable action from the slow tick alone;
         # caller should always send 'slow_and_fast' so a_refined comes back.
@@ -620,10 +630,12 @@ class CascadedServer:
             return self.last_actions, self.chunk_id
 
         if self.cached_kv is None or self.x_split is None:
+            # Il Tactile Expert non può partire senza il contesto dell'Action Expert.
             raise RuntimeError(
                 "fast request received before any slow request — server has "
                 "no cached state. Send mode='slow' or 'slow_and_fast' first.")
 
+        # PREPARAZIONE DATI TATTILI
         tac_f6_tensor     = _encode_tactile_f6(
             tactile_f6_input if args.use_tactile_vec else None,
             statistic, device)
@@ -640,25 +652,33 @@ class CascadedServer:
 
         # Continue the action expert's flow with the tactile expert from
         # x_split → τ=0; the result IS the clean action (no Â + Δa add).
+
+        # Chiamata a model.tactile_flow_continue
         refined = model.tactile_flow_continue(
-            cached_kv          = self.cached_kv,
-            latent_position_ids= self.position_ids,
-            n_action_in_cache  = self.n_action_in_cache,
-            x_split            = self.x_split,
-            tau_split          = self.tau_split,
+            cached_kv          = self.cached_kv, # cache generata da run_slow
+            latent_position_ids= self.position_ids, # indici del tattile
+            n_action_in_cache  = self.n_action_in_cache, # numero di azioni in cache
+            x_split            = self.x_split, # x_split generato da run_slow
+            tau_split          = self.tau_split, # tau_split generato da run_slow
             tactile_f6         = tac_f6_tensor,
             tactile_deform     = tac_deform_tensor,
             tactile_codes      = tac_codes_tensor,
             tactile_f6_history = tac_hist_tensor,
             num_steps_total    = args.cascaded_total_steps,
-            split_step         = args.cascaded_split_step,
+            split_step         = args.cascaded_split_step, # 4
         )
         a_refined_norm = refined[0].float().cpu().numpy()
         a_refined = _denormalize(
             a_refined_norm, statistic["action_mask"],
             statistic["action_min"], statistic["action_max"])
+        # Restituzione chunk denormalizzato con chunk id
         return list(a_refined), self.chunk_id
 
+
+    # Gestisce tre modalità:
+    # I. Modalità lenta
+    # II. Modalità veloce
+    # III. Modalità mista
     def predict(self, mode, payload):
         """Top-level dispatch.  Returns dict suitable for pickling back to
         the client.  Any exception inside a mode's body is propagated to the
@@ -686,6 +706,8 @@ class CascadedServer:
                     task_desc, [slow_img], fast_list,
                     tac_f6, tac_deform, state_fast)
                 latency_ms = (time.time() - t0) * 1000.0
+                # A questo punto il server ha un chunk parzialmente denoisato e una cache,
+                # ma non ha ancora completato la generazione delle azioni.
                 return {"status": "success", "mode": "slow",
                         "actions": actions, "chunk_id": cid,
                         "latency_ms": latency_ms}
