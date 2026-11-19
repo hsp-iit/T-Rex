@@ -1,0 +1,12 @@
+.........[LeRobot] test_official_loader_still_col0: 0 frames, fps=30, wrist=False, tactile=False
+..[Gloo] Rank 1 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[Gloo] Rank 0 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+...MULTISPLIT_RESULT {"action_steps": 8, "action_loss": 1.3873332738876343, "tactile_loss": 1.5588464736938477, "cache_length": 180, "n_action": 89, "tau": 0.2}
+.MULTISPLIT_RESULT {"action_steps": 6, "action_loss": 1.3873286247253418, "tactile_loss": 1.5588582754135132, "cache_length": 180, "n_action": 89, "tau": 0.4}
+.MULTISPLIT_RESULT {"action_steps": 4, "action_loss": 1.387320637702942, "tactile_loss": 1.5589044094085693, "cache_length": 180, "n_action": 89, "tau": 0.6}
+.BASELINE_RESULT {"legacy_bitwise_equal": true, "old_tau": 0.39453125, "revised_tau": 0.4, "partial_output_difference": {"max_abs": 0.03125, "rms": 0.008160494267940521}, "final_output_difference": {"max_abs": 0.046875, "rms": 0.010113298892974854}}
+..VALIDATION_RESULT {"tau": 0.2, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4886562824249268}
+VALIDATION_RESULT {"tau": 0.4, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.5096096992492676}
+VALIDATION_RESULT {"tau": 0.6, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4808523654937744}
+.
+20 passed in 15.95s

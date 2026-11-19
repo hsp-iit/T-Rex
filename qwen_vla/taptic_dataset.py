@@ -17,6 +17,8 @@ from taptic.actions import chunk_21d, rotvec_gd_to_matrix
 from taptic.data import (Source, CAMERAS, finite, normalize, denormalize,
                          tactile_at, tactile_stream_between)
 from taptic.video import VideoReader
+from taptic.timing import build_quality, latest_quality
+from .flow_matching import validate_split_config
 
 
 def validate_config(cfg):
@@ -29,8 +31,7 @@ def validate_config(cfg):
         raise ValueError('TAPTIC requires use_tactile_vec=1')
     if tuple(getattr(cfg, 'tactile_delay_offsets', (0,))) != (0,):
         raise ValueError('TAPTIC causal baseline requires tactile_delay_offsets=[0]')
-    if (getattr(cfg, 'cascaded_total_steps', 10), getattr(cfg, 'cascaded_split_step', 6)) != (10, 6):
-        raise ValueError('TAPTIC baseline requires fixed tau_split=0.4 (6/10 steps)')
+    validate_split_config(cfg)
 
 
 class TRexTapticDataset(torch.utils.data.Dataset):
@@ -98,6 +99,9 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             a = finite(np.stack(d.action).astype(np.float32), 'action')
             times = self.source.clocks(ep)
             sm, available = self.source.tactile(ep)
+            native = not bool(self.source.episodes.loc[ep, 'tactile_interpolated'])
+            gap_ms = getattr(self.config, 'tactile_gap_ms', 50.) if native else 150.
+            self._cache_quality = build_quality(sm, available, native, int(gap_ms*1e6))
             self._cache = (d, s, a, times, sm, available)
             self._cache_key = ep
         return self._cache
@@ -113,11 +117,24 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         ep, t = self._rows[idx]
         d, s, a, times, sm, available = self._episode(ep)
         native = not bool(self.source.episodes.loc[ep, 'tactile_interpolated'])
-        taxels, force, valid, force_valid, sample_ns = tactile_at(sm, available, int(times[t]), int(times[0]), native)
+        stale_ms = getattr(self.config, 'tactile_stale_ms', 50.) if native else getattr(self.config, 'tactile_legacy_stale_ms', 150.)
+        stale_ns = int(stale_ms * 1e6)
+        current_quality = latest_quality(self._cache_quality, int(times[t]), int(times[0]), native, stale_ns)
+        taxels, force, valid, force_valid, sample_ns = tactile_at(
+            sm, available, int(times[t]), int(times[0]), native,
+            quality=self._cache_quality, stale_ns=stale_ns)
         stream = tactile_stream_between(sm, available, int(times[t]),
-                                        int(times[t-1]) if t else None, native)
+                                        int(times[t-1]) if t else None, native,
+                                        quality=self._cache_quality, stale_ns=stale_ns)
+        recorder_gap = bool(t and times[t]-times[t-1] > 150_000_000)
+        current_quality['recording_gap_before_tick'] = recorder_gap
+        if recorder_gap:
+            # Keep every raw row for audit/replay, but do not present a paused
+            # recorder interval as a continuous within-policy feature history.
+            stream['history_valid'][:] = False
+            stream['derivative_valid'][:] = False
         # Missing taxels use neutral zeros and a separate explicit validity mask.
-        scaled = taxels / np.asarray([128., 128., 255.], np.float32)
+        scaled = taxels / np.asarray([128., 128., 255.], np.float32) if valid else np.zeros_like(taxels)
         state = None
         if getattr(self.config, 'use_robot_state', 0):
             R = rotvec_gd_to_matrix(s[t, 37:40])
@@ -140,10 +157,11 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                 'language': self.source.episodes.loc[ep, 'caption'], 'action_chunk': chunk_21d(s, a, t),
                 'tactile_f6': scaled.reshape(5, 360), 'tactile_taxels': taxels,
                 'tactile_valid': np.full(5, valid), 'sdk_force': force, 'sdk_force_valid': force_valid,
-                'tactile_stream': stream,
+                'tactile_stream': stream, 'tactile_quality': current_quality,
                 'state_raw': state, 'recorded_haptics': haptics, 'flare_frames': flare,
                 'meta': {'episode': ep, 'frame': t, 'observation_ns': int(times[t]),
                          'tactile_available_ns': sample_ns, 'clock_is_nominal': not native,
+                         'recording_gap_before_tick': recorder_gap,
                          'action_timestamps_ns': times[t:t+16].copy()}, 'delay_k': 0}
 
     def normalize_actions(self, x):
@@ -169,7 +187,9 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         noise = torch.randn_like(norm_actions)
         x_t = t_ * noise + (1 - t_) * norm_actions
         u_t = noise - norm_actions
-        time_r = (d.sample((B,)) * 0.999 + 0.001).to(torch.bfloat16)
+        time_r = d.sample((B,)) * 0.999 + 0.001
+        if getattr(cfg, 'flow_time_precision', 'fp32') == 'legacy_bf16':
+            time_r = time_r.to(torch.bfloat16)
         eps_r = torch.randn_like(norm_actions)
 
         norm_tac = torch.from_numpy(np.stack([x["tactile_f6"] for x in batch]))
@@ -230,6 +250,8 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             "sdk_force": torch.from_numpy(np.stack([x["sdk_force"] for x in batch])),
             "sdk_force_valid": torch.tensor([x["sdk_force_valid"] for x in batch]),
             "tactile_stream": stream_batch,
+            "tactile_quality": {k: torch.tensor([x['tactile_quality'][k] for x in batch])
+                                for k in batch[0]['tactile_quality']},
             "recorded_haptics": {k: torch.from_numpy(np.stack([x["recorded_haptics"][k] for x in batch]))
                                  for k in batch[0]["recorded_haptics"]},
             "contact_features": None, "contact_risk": None,

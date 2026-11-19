@@ -54,6 +54,7 @@ from accelerate import Accelerator, DataLoaderConfiguration
 from transformers import AutoProcessor, set_seed
 
 from qwen_vla import Qwen3VLVLAModel, extend_position_ids_for_flare, split_slow_fast_embeds
+from qwen_vla.flow_matching import validate_split_config, select_handover, tactile_training_pair
 import cv2
 
 logger = logging.getLogger(__name__)
@@ -1093,6 +1094,12 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
                 "paradigm": "cascaded",
                 "cascaded_total_steps": getattr(args, "cascaded_total_steps", 10),
                 "cascaded_split_step":  getattr(args, "cascaded_split_step", 6),
+                "cascaded_split_mode": args.cascaded_split_mode,
+                "cascaded_splits": args.cascaded_splits,
+                "flow_time_precision": args.flow_time_precision,
+                "tactile_stale_ms": args.tactile_stale_ms,
+                "tactile_legacy_stale_ms": args.tactile_legacy_stale_ms,
+                "tactile_gap_ms": args.tactile_gap_ms,
                 "flare_frame_stride": getattr(args, "flare_frame_stride", 2),
             }, f, indent=2)
 
@@ -1152,6 +1159,7 @@ def run_validation(model, val_dataloader, accelerator, args,
         if i >= max_batches:
             break
         raw_model = accelerator.unwrap_model(model)
+        handover = select_handover(args, device)
 
         inputs_embeds = raw_model.prepare_inputs_embeds(
             input_ids=batch["input_ids"],
@@ -1238,22 +1246,21 @@ def run_validation(model, val_dataloader, accelerator, args,
                     state_embeds=se,
                     fast_embeds=fe,
                     num_steps_total=args.cascaded_total_steps,
-                    split_step=args.cascaded_split_step,
+                    split_step=handover.action_steps,
+                    flow_time_precision=args.flow_time_precision,
                     refresh_clean_kv=True,
                 ))
             norm_actions_gt = batch["norm_actions"].to(slow_embeds.dtype)
             eps_r = batch["eps_r"].to(slow_embeds.dtype)
-            tau_split = 1.0 - args.cascaded_split_step / args.cascaded_total_steps
-            tau_t = batch["time_r"].to(slow_embeds.dtype) * tau_split
-            tau_t_b = tau_t[:, None, None]
-            x_tau = (1 - tau_t_b) * norm_actions_gt + tau_t_b * eps_r
-            v_target_r = eps_r - norm_actions_gt
+            x_tau, tau_t, v_target_r = tactile_training_pair(
+                norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
             v_pred_r = raw_model.tactile_flow_train_step(
                 cached_kv=cached_kv,
                 latent_position_ids=pos_ids,
                 n_action_in_cache=n_action_in_cache,
                 x_tau=x_tau,
                 tau=tau_t,
+                flow_time_precision=args.flow_time_precision,
                 tactile_f6=batch.get("tactile_f6s_delayed"),
                 tactile_deform=batch.get("tactile_deforms_delayed"),
                 tactile_codes=batch.get("tactile_codes"),
@@ -1297,6 +1304,7 @@ def run_validation(model, val_dataloader, accelerator, args,
 
 
 def train(args):
+    validate_split_config(args)
     if getattr(args, "data_format", "json") == "taptic":
         from qwen_vla.taptic_dataset import validate_config
         validate_config(args)
@@ -1591,6 +1599,7 @@ def train(args):
             batch = {k: (v.to(device) if torch.is_tensor(v) else v)
                      for k, v in batch.items()}
             raw_model = accelerator.unwrap_model(model)
+            handover = select_handover(args, device)
 
             # viene eseguito il vision encoder
             # input_ids [B,L] -> text embeddings
@@ -1745,7 +1754,8 @@ def train(args):
                             state_embeds=se,
                             fast_embeds=fe,
                             num_steps_total=args.cascaded_total_steps,
-                            split_step=args.cascaded_split_step,
+                            split_step=handover.action_steps,
+                            flow_time_precision=args.flow_time_precision,
                             refresh_clean_kv=True,
                         ))
 
@@ -1761,15 +1771,8 @@ def train(args):
 
                 # Nuovo rumore gaussiano (riga 930 collate_fn())
                 eps_r = batch["eps_r"].to(slow_embeds.dtype)
-                tau_split = 1.0 - args.cascaded_split_step / args.cascaded_total_steps
-                tau_t = batch["time_r"].to(slow_embeds.dtype) * tau_split
-                tau_t_b = tau_t[:, None, None]
-                # equazione di flow matching
-                x_tau = (1 - tau_t_b) * norm_actions_gt + tau_t_b * eps_r
-                # target tattile
-                # Il Tactile Expert predice il campo di velocità del flow delle azioni
-                # non un residuo cartesiano da sommare alla traiettoria dell'Action Expert.
-                v_target_r = eps_r - norm_actions_gt
+                x_tau, tau_t, v_target_r = tactile_training_pair(
+                    norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
                 r_target_norm = v_target_r.float().abs().mean().detach()
 
                 # Tactile dropout — zero the values, not the tensor shape.
@@ -1801,6 +1804,7 @@ def train(args):
                         n_action_in_cache=n_action_in_cache,
                         x_tau=x_tau,
                         tau=tau_t,
+                        flow_time_precision=args.flow_time_precision,
                         tactile_f6=tac_f6_in,
                         tactile_deform=tac_def_in,
                         tactile_codes=tac_codes_in,
@@ -1924,6 +1928,9 @@ def train(args):
                         "tactile_loss": m["tactile_loss"],
                         "flare_loss":  m["flare_loss"],
                         "lr": lr_now,
+                        "flow/tau_split": handover.tau,
+                        "flow/action_steps": handover.action_steps,
+                        "flow/tactile_steps": handover.tactile_steps,
                     }
                     if r_target_norm is not None:
                         log_dict["refine/r_target_norm"] = float(r_target_norm)
@@ -2006,6 +2013,12 @@ if __name__ == "__main__":
                              "tactile observations for the tactile expert.")
 
     # Cascaded flow matching (see train_qwen3vl_flare.py for details).
+    parser.add_argument("--cascaded_split_mode", choices=["fixed", "multi"], default="fixed")
+    parser.add_argument("--cascaded_splits", type=float, nargs="+", default=[0.2, 0.4, 0.6])
+    parser.add_argument("--flow_time_precision", choices=["fp32", "legacy_bf16"], default="fp32")
+    parser.add_argument("--tactile_stale_ms", type=float, default=50.)
+    parser.add_argument("--tactile_legacy_stale_ms", type=float, default=150.)
+    parser.add_argument("--tactile_gap_ms", type=float, default=50.)
     parser.add_argument("--cascaded_total_steps", type=int, default=10)
     parser.add_argument("--cascaded_split_step",  type=int, default=6)
     parser.add_argument("--cascaded_tactile_dropout", type=float, default=0.1)
@@ -2068,6 +2081,7 @@ if __name__ == "__main__":
                         help="Max batches per validation run")
 
     args = parser.parse_args()
+    validate_split_config(args)
 
     if args.data_format in ("lerobot", "taptic"):
         if not args.lerobot_root:

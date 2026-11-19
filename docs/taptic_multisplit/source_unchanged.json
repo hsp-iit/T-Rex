@@ -1,0 +1,22 @@
+{
+  "tactile_raw/episode_000000_right.parquet": true,
+  "tactile_raw/episode_000000_frames.parquet": true,
+  "tactile_raw/episode_000048_right.parquet": true,
+  "tactile_raw/episode_000048_frames.parquet": true,
+  "tactile_raw/episode_000098_right.parquet": true,
+  "tactile_raw/episode_000098_frames.parquet": true,
+  "tactile_raw/episode_000197_right.parquet": true,
+  "tactile_raw/episode_000197_frames.parquet": true,
+  "tactile_raw/episode_000553_right.parquet": true,
+  "tactile_raw/episode_000553_frames.parquet": true,
+  "tactile_raw/episode_000554_right.parquet": true,
+  "tactile_raw/episode_000554_frames.parquet": true,
+  "tactile_raw/episode_000771_right.parquet": true,
+  "tactile_raw/episode_000771_frames.parquet": true,
+  "meta/info.json": true,
+  "tactile_raw/info.json": true,
+  "meta/episodes/chunk-000/file-000.parquet": true,
+  "data/chunk-000/file-000.parquet": true,
+  "tactile_raw/episode_000297_right.parquet": true,
+  "tactile_raw/episode_000297_frames.parquet": true
+}

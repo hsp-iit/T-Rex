@@ -13,6 +13,7 @@ import pandas as pd
 import pyarrow.dataset as pads
 
 from .actions import chunk_21d
+from .timing import build_quality, latest_quality, interval_quality
 from .constants import FINGERS, XHAND_JOINTS
 
 CAMERAS = ('observation.images.left', 'observation.images.wrist')
@@ -106,25 +107,20 @@ class Source:
         return sm, available
 
 
-def tactile_at(sm, available, tick, first_tick, native):
-    ok = np.flatnonzero((available <= tick) & (sm.read_end_ns.to_numpy(np.int64) <= tick))
-    if not len(ok):
+def tactile_at(sm, available, tick, first_tick, native, *, quality=None, stale_ns=None):
+    quality = build_quality(sm, available, native) if quality is None else quality
+    current = latest_quality(quality, tick, first_tick, native, stale_ns)
+    i = current['source_index']
+    if i < 0:
         return np.zeros((5, 120, 3), np.float32), np.zeros((5, 3), np.float32), False, False, 0
-    i = int(ok[-1])
-    # No borrowed history or observations from before this re-cut episode.
-    # One latest-at-first-frame sample is allowed as the initial observation.
-    initial = np.flatnonzero(available <= first_tick)
-    lower = int(initial[-1]) if len(initial) else 0
-    if i < lower:
-        raise ValueError('tactile lookup crossed episode start')
     f = finite(np.asarray(sm.iloc[i]['force'], np.float32).reshape(5, 3), 'SDK force')
     raw = finite(np.asarray(sm.iloc[i]['values'], np.float32).reshape(5, 120, 3), 'taxels')
     if not native:
         raw = np.zeros_like(raw)  # placeholders explicitly masked, never recorded taxels
-    return raw, f, native, True, int(available[i])
+    return raw, f, native and current["fresh"], current["fresh"], int(available[i])
 
 
-def tactile_stream_between(sm, available, tick, previous_tick, native):
+def tactile_stream_between(sm, available, tick, previous_tick, native, *, quality=None, stale_ns=None):
     """All recorded samples becoming available in (previous_tick, tick].
 
     Preserve native timestamps/rate, taxels, SDK forces and quality counters.
@@ -142,6 +138,7 @@ def tactile_stream_between(sm, available, tick, previous_tick, native):
         if previous_tick >= tick:
             raise ValueError('tactile interval must have increasing boundaries')
         indices = np.flatnonzero(eligible & (available > previous_tick))
+    quality = build_quality(sm, available, native) if quality is None else quality
     rows = sm.iloc[indices]
     n = len(rows)
     force = (np.stack(rows.force).astype(np.float32).reshape(n, 5, 3)
@@ -156,6 +153,7 @@ def tactile_stream_between(sm, available, tick, previous_tick, native):
               'clock_is_nominal': np.full(n, not native, dtype=bool)}
     for key in ('sequence', 'reset_sequence', 'read_errors', 'dropped'):
         result[key] = rows[key].to_numpy(np.int64).copy()
+    result.update(interval_quality(sm, quality, indices, tick, native, stale_ns))
     return result
 
 

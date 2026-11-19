@@ -1,0 +1,2762 @@
+{
+  "episodes": [
+    {
+      "episode": 0,
+      "task": "wiping_table",
+      "all_recorded_rows": 8161,
+      "kept_rows_before_min_segment_length": 2151,
+      "segments": 3,
+      "duration_s": 28.1964793,
+      "read_interval_ms": {
+        "min": 10.162516,
+        "p01": 10.9961512,
+        "p50": 13.0756265,
+        "p95": 14.29223725,
+        "p99": 15.194817720000003,
+        "max": 21.023018
+      },
+      "comparisons": 2148,
+      "force_repeated_fraction": 0.8277467411545624,
+      "taxel_repeated_fraction": 0.8040037243947858,
+      "force_change_events_per_s": 13.122205650689162,
+      "taxel_change_events_per_s": 14.930942105243615,
+      "active_force_pairs": 736,
+      "active_force_repeat_fraction": 0.5108695652173914,
+      "force_unchanged_taxels_changed_pairs": 167,
+      "force_payload_change_interval_ms": {
+        "min": 10.389892,
+        "p01": 11.04573826,
+        "p50": 14.175233500000001,
+        "p95": 73.41650945000012,
+        "p99": 331.9241574600008,
+        "max": 6265.669873
+      },
+      "short_peaks": 3
+    },
+    {
+      "episode": 48,
+      "task": "dosing_pipette",
+      "all_recorded_rows": 4362,
+      "kept_rows_before_min_segment_length": 2357,
+      "segments": 2,
+      "duration_s": 30.9067661,
+      "read_interval_ms": {
+        "min": 10.877443,
+        "p01": 11.9647357,
+        "p50": 13.083686,
+        "p95": 13.7461381,
+        "p99": 14.46687822,
+        "max": 17.71448
+      },
+      "comparisons": 2355,
+      "force_repeated_fraction": 0.7112526539278131,
+      "taxel_repeated_fraction": 0.7129511677282377,
+      "force_change_events_per_s": 22.001654841526758,
+      "taxel_change_events_per_s": 21.87223334245895,
+      "active_force_pairs": 1322,
+      "active_force_repeat_fraction": 0.49319213313161875,
+      "force_unchanged_taxels_changed_pairs": 286,
+      "force_payload_change_interval_ms": {
+        "min": 11.016148,
+        "p01": 12.02906315,
+        "p50": 13.482813,
+        "p95": 65.89559835,
+        "p99": 197.7914324300024,
+        "max": 5434.494149
+      },
+      "short_peaks": 0
+    },
+    {
+      "episode": 98,
+      "task": "grasp_plastic_glass",
+      "all_recorded_rows": 2331,
+      "kept_rows_before_min_segment_length": 1542,
+      "segments": 1,
+      "duration_s": 20.211096224,
+      "read_interval_ms": {
+        "min": 11.152375,
+        "p01": 12.0816134,
+        "p50": 13.073974,
+        "p95": 13.616478,
+        "p99": 14.038866199999998,
+        "max": 17.12309
+      },
+      "comparisons": 1541,
+      "force_repeated_fraction": 0.872160934458144,
+      "taxel_repeated_fraction": 0.8760545100584036,
+      "force_change_events_per_s": 9.747120978330166,
+      "taxel_change_events_per_s": 9.450254349548537,
+      "active_force_pairs": 346,
+      "active_force_repeat_fraction": 0.45375722543352603,
+      "force_unchanged_taxels_changed_pairs": 71,
+      "force_payload_change_interval_ms": {
+        "min": 11.996386,
+        "p01": 12.244632079999999,
+        "p50": 13.504906,
+        "p95": 65.58794619999999,
+        "p99": 1201.779046119992,
+        "max": 8777.532198
+      },
+      "short_peaks": 0
+    },
+    {
+      "episode": 197,
+      "task": "split_cups",
+      "all_recorded_rows": 4578,
+      "kept_rows_before_min_segment_length": 1625,
+      "segments": 1,
+      "duration_s": 21.310840225,
+      "read_interval_ms": {
+        "min": 11.911752,
+        "p01": 12.07231442,
+        "p50": 13.0819875,
+        "p95": 13.64040515,
+        "p99": 13.95036623,
+        "max": 16.375392
+      },
+      "comparisons": 1624,
+      "force_repeated_fraction": 0.728448275862069,
+      "taxel_repeated_fraction": 0.729679802955665,
+      "force_change_events_per_s": 20.693693695035904,
+      "taxel_change_events_per_s": 20.59984474403801,
+      "active_force_pairs": 886,
+      "active_force_repeat_fraction": 0.5045146726862303,
+      "force_unchanged_taxels_changed_pairs": 181,
+      "force_payload_change_interval_ms": {
+        "min": 12.360836,
+        "p01": 12.5274772,
+        "p50": 13.530765,
+        "p95": 66.167067,
+        "p99": 105.65019180000002,
+        "max": 6391.391329
+      },
+      "short_peaks": 0
+    },
+    {
+      "episode": 553,
+      "task": "clearing_table",
+      "all_recorded_rows": 1250,
+      "kept_rows_before_min_segment_length": 1097,
+      "segments": 1,
+      "duration_s": 14.399787304,
+      "read_interval_ms": {
+        "min": 11.99367,
+        "p01": 12.08098345,
+        "p50": 13.100974,
+        "p95": 13.61945375,
+        "p99": 13.97047935,
+        "max": 15.792984
+      },
+      "comparisons": 1096,
+      "force_repeated_fraction": 0.6377737226277372,
+      "taxel_repeated_fraction": 0.6405109489051095,
+      "force_change_events_per_s": 27.569851666470143,
+      "taxel_change_events_per_s": 27.361515255892282,
+      "active_force_pairs": 460,
+      "active_force_repeat_fraction": 0.14130434782608695,
+      "force_unchanged_taxels_changed_pairs": 54,
+      "force_payload_change_interval_ms": {
+        "min": 11.99367,
+        "p01": 12.0999278,
+        "p50": 13.136563,
+        "p95": 26.4925994,
+        "p99": 42.28807008000022,
+        "max": 7408.953665
+      },
+      "short_peaks": 0
+    },
+    {
+      "episode": 554,
+      "task": "clearing_table",
+      "all_recorded_rows": 1097,
+      "kept_rows_before_min_segment_length": 945,
+      "segments": 1,
+      "duration_s": 12.410729394,
+      "read_interval_ms": {
+        "min": 10.984677,
+        "p01": 12.061434409999999,
+        "p50": 13.0881085,
+        "p95": 13.698561499999999,
+        "p99": 14.03396891,
+        "max": 29.166852
+      },
+      "comparisons": 944,
+      "force_repeated_fraction": 0.5783898305084746,
+      "taxel_repeated_fraction": 0.6027542372881356,
+      "force_change_events_per_s": 32.06902570870767,
+      "taxel_change_events_per_s": 30.215790554686876,
+      "active_force_pairs": 423,
+      "active_force_repeat_fraction": 0.07092198581560284,
+      "force_unchanged_taxels_changed_pairs": 17,
+      "force_payload_change_interval_ms": {
+        "min": 12.01337,
+        "p01": 12.087739139999998,
+        "p50": 13.112959499999999,
+        "p95": 26.15197155,
+        "p99": 39.26394731,
+        "max": 4948.196344
+      },
+      "short_peaks": 0
+    },
+    {
+      "episode": 771,
+      "task": "insert_credit_card",
+      "all_recorded_rows": 5785,
+      "kept_rows_before_min_segment_length": 3556,
+      "segments": 3,
+      "duration_s": 46.623141692999994,
+      "read_interval_ms": {
+        "min": 10.165363,
+        "p01": 11.574771680000001,
+        "p50": 13.086746,
+        "p95": 13.814765599999998,
+        "p99": 14.88627496,
+        "max": 16.925689
+      },
+      "comparisons": 3553,
+      "force_repeated_fraction": 0.7838446383338025,
+      "taxel_repeated_fraction": 0.6484660849985927,
+      "force_change_events_per_s": 16.472506401586138,
+      "taxel_change_events_per_s": 26.789271478621206,
+      "active_force_pairs": 1998,
+      "active_force_repeat_fraction": 0.6176176176176176,
+      "force_unchanged_taxels_changed_pairs": 687,
+      "force_payload_change_interval_ms": {
+        "min": 10.810395,
+        "p01": 12.06588268,
+        "p50": 13.541352,
+        "p95": 126.38264954999974,
+        "p99": 228.46722404000045,
+        "max": 7705.060187
+      },
+      "short_peaks": 0
+    }
+  ],
+  "source_sha256": {
+    "tactile_raw/episode_000000_right.parquet": "20e4293d7b39916c65de9f8a1714eff8afcffbb9fd18730b9cae2ff4d67449b0",
+    "tactile_raw/episode_000000_frames.parquet": "97c25a30d8ef9f8ba6f1acbb7a725ba0aa996410e32044429180206f2c3e1a9e",
+    "tactile_raw/episode_000048_right.parquet": "ea1b56684d321f87dc5d3bc0a50ca5651c875247ecac3af7f70175fd1b10e17b",
+    "tactile_raw/episode_000048_frames.parquet": "511834ec74f65ffa85e77441bdb98ab8b211a0985f8a885c5377f4d4eb29c7bf",
+    "tactile_raw/episode_000098_right.parquet": "2c47ed49e64297b7e578b215452c2c1aa87ce1cd9c525ea2d5e27f9225019f40",
+    "tactile_raw/episode_000098_frames.parquet": "216ca84d7ad1b2af43c7920e2f199940c2d6bce0ae5c82349bc8f535457b91e7",
+    "tactile_raw/episode_000197_right.parquet": "6dfbf753b25903c80724e0aa7d3ea372b3e9767d3b8e0b1cd52985e0d896afa7",
+    "tactile_raw/episode_000197_frames.parquet": "e51f9dc03d94e8fdbbd84af3f7ea915967f92d447d352491f83faf1771b534f2",
+    "tactile_raw/episode_000553_right.parquet": "c60ffa4602191619b88695fede9801602a68801cf4fea7e7955739f89824ee8d",
+    "tactile_raw/episode_000553_frames.parquet": "e5ab42db18b5725d57b859e581b0631fd9ba380d076e57a5275e8234d4943afd",
+    "tactile_raw/episode_000554_right.parquet": "c8bcbfacbfc55b668b9cdfbac4662b9facab391526a226fd9980c15283891224",
+    "tactile_raw/episode_000554_frames.parquet": "ab258857b60585a1303741764783623dd7b265694ec23d1e90664b05ecde9f9e",
+    "tactile_raw/episode_000771_right.parquet": "cac8c1a155d18e577f7128481b00603b4dcf607a87e4561a12f95453b9a19e97",
+    "tactile_raw/episode_000771_frames.parquet": "a29920303797c0c9dcb455522aacd5b335da099cf6da9c27a34b9dc780cfdaea"
+  },
+  "phases_per_rate": 10,
+  "definitions": {
+    "gap_ms": 50,
+    "recorder_pause_ms": 150,
+    "peak_prominence_counts": 5,
+    "short_peak_half_prominence_span_ms": 50,
+    "rise_increment_counts": 5,
+    "retained_amplitude_fraction": 0.9,
+    "selection": "latest recorded read_end_ns <= grid_ns; no interpolation; no deduplication",
+    "derivative": "norm(F_grid[k]-F_grid[k-1])/grid_dt per finger; counts/s, not physical risk",
+    "warning": "force changes are payload changes, not proven independent hardware acquisitions"
+  },
+  "aggregate": [
+    {
+      "hz": 76,
+      "force_repeat_fraction": {
+        "mean": 0.7562267969432944,
+        "phase_min": 0.7555589169565875,
+        "phase_max": 0.7569633666363912
+      },
+      "taxel_repeat_fraction": {
+        "mean": 0.7193431030903067,
+        "phase_min": 0.7180456814400242,
+        "phase_max": 0.7209355131698456
+      },
+      "same_software_read_fraction": {
+        "mean": 0.010017478096110847,
+        "phase_min": 0.007411889275450008,
+        "phase_max": 0.014456554647290343
+      },
+      "force_changes_per_s": {
+        "mean": 18.526763432137958,
+        "phase_min": 18.470784135226044,
+        "phase_max": 18.57752231135555
+      },
+      "short_peak_retained90_fraction": {
+        "mean": 1.0,
+        "phase_min": 1.0,
+        "phase_max": 1.0
+      },
+      "short_peak_amplitude_ratio_mean": {
+        "mean": 1.0,
+        "phase_min": 1.0,
+        "phase_max": 1.0
+      },
+      "rise_proxy_retained90_fraction": {
+        "mean": 0.9979381443298969,
+        "phase_min": 0.9896907216494846,
+        "phase_max": 1.0
+      },
+      "derivative_rms": {
+        "mean": 91.0127164041211,
+        "phase_min": 89.40906211134202,
+        "phase_max": 91.39205300938356
+      },
+      "derivative_rms_ratio": {
+        "mean": 1.0212476419934244,
+        "phase_min": 1.0032531437542849,
+        "phase_max": 1.0255041528300635
+      },
+      "force_total_variation_ratio": {
+        "mean": 0.9971411514991464,
+        "phase_min": 0.9943806039511809,
+        "phase_max": 0.9989794780166554
+      },
+      "mean_selected_age_ms": 6.573066360307195,
+      "mean_held_output_age_ms": 13.152013728728246,
+      "measurement_age_ms_p50": 6.56190175,
+      "measurement_age_ms_p95": 12.481617474999998,
+      "measurement_age_ms_p99": 13.150075606000001,
+      "measurement_age_ms_max": 22.5354649
+    },
+    {
+      "hz": 70,
+      "force_repeat_fraction": {
+        "mean": 0.7482152459811184,
+        "phase_min": 0.7471453216134067,
+        "phase_max": 0.7494454941263452
+      },
+      "taxel_repeat_fraction": {
+        "mean": 0.7102367818204846,
+        "phase_min": 0.7087817300583258,
+        "phase_max": 0.7115052968711505
+      },
+      "same_software_read_fraction": {
+        "mean": 0.0010022552098482476,
+        "phase_min": 0.0007393411648730797,
+        "phase_max": 0.0013143842931076974
+      },
+      "force_changes_per_s": {
+        "mean": 17.624932781252106,
+        "phase_min": 17.538815411054983,
+        "phase_max": 17.699827487468657
+      },
+      "short_peak_retained90_fraction": {
+        "mean": 1.0,
+        "phase_min": 1.0,
+        "phase_max": 1.0
+      },
+      "short_peak_amplitude_ratio_mean": {
+        "mean": 0.9987667584227828,
+        "phase_min": 0.9876675842278297,
+        "phase_max": 1.0
+      },
+      "rise_proxy_retained90_fraction": {
+        "mean": 0.9969072164948454,
+        "phase_min": 0.979381443298969,
+        "phase_max": 1.0
+      },
+      "derivative_rms": {
+        "mean": 88.37058399481751,
+        "phase_min": 86.54495317032,
+        "phase_max": 89.11818882556464
+      },
+      "derivative_rms_ratio": {
+        "mean": 0.9915668251330167,
+        "phase_min": 0.9710418676690388,
+        "phase_max": 0.9998760526592287
+      },
+      "force_total_variation_ratio": {
+        "mean": 0.9828766021842883,
+        "phase_min": 0.9795440363017534,
+        "phase_max": 0.9861122046613965
+      },
+      "mean_selected_age_ms": 6.570371044030715,
+      "mean_held_output_age_ms": 13.713228186887857,
+      "measurement_age_ms_p50": 6.556496899999999,
+      "measurement_age_ms_p95": 12.495016119999999,
+      "measurement_age_ms_p99": 13.145757284999998,
+      "measurement_age_ms_max": 22.807901100000002
+    },
+    {
+      "hz": 65,
+      "force_repeat_fraction": {
+        "mean": 0.7415746499722553,
+        "phase_min": 0.7402195078775005,
+        "phase_max": 0.7429228591648974
+      },
+      "taxel_repeat_fraction": {
+        "mean": 0.7028215139559479,
+        "phase_min": 0.7006459605344659,
+        "phase_max": 0.7038216560509554
+      },
+      "same_software_read_fraction": {
+        "mean": 0.0002388754383505063,
+        "phase_min": 8.847991505928154e-05,
+        "phase_max": 0.0004421648390519986
+      },
+      "force_changes_per_s": {
+        "mean": 16.797647751884824,
+        "phase_min": 16.71001415415602,
+        "phase_max": 16.88573198838843
+      },
+      "short_peak_retained90_fraction": {
+        "mean": 0.9333333333333332,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "short_peak_amplitude_ratio_mean": {
+        "mean": 0.9321000917561163,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "rise_proxy_retained90_fraction": {
+        "mean": 0.9927835051546392,
+        "phase_min": 0.9896907216494846,
+        "phase_max": 1.0
+      },
+      "derivative_rms": {
+        "mean": 85.2989381616197,
+        "phase_min": 83.12927510484602,
+        "phase_max": 87.00750410311551
+      },
+      "derivative_rms_ratio": {
+        "mean": 0.9570372770783072,
+        "phase_min": 0.9326824585152794,
+        "phase_max": 0.97626857576345
+      },
+      "force_total_variation_ratio": {
+        "mean": 0.9676378223182303,
+        "phase_min": 0.9572466457343978,
+        "phase_max": 0.9740723752591565
+      },
+      "mean_selected_age_ms": 6.5708126325838165,
+      "mean_held_output_age_ms": 14.263120324891508,
+      "measurement_age_ms_p50": 6.55650455,
+      "measurement_age_ms_p95": 12.498285825,
+      "measurement_age_ms_p99": 13.156075008000002,
+      "measurement_age_ms_max": 22.5692726
+    },
+    {
+      "hz": 60,
+      "force_repeat_fraction": {
+        "mean": 0.7342145663791654,
+        "phase_min": 0.7321959168024538,
+        "phase_max": 0.7358183211958604
+      },
+      "taxel_repeat_fraction": {
+        "mean": 0.6942418127762272,
+        "phase_min": 0.6920348892935877,
+        "phase_max": 0.6953686834787611
+      },
+      "same_software_read_fraction": {
+        "mean": 0.00011500863198791252,
+        "phase_min": 0.0,
+        "phase_max": 0.0004791107704101188
+      },
+      "force_changes_per_s": {
+        "mean": 15.947126017252888,
+        "phase_min": 15.850900728369881,
+        "phase_max": 16.068244991513946
+      },
+      "short_peak_retained90_fraction": {
+        "mean": 0.9333333333333332,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "short_peak_amplitude_ratio_mean": {
+        "mean": 0.9308668501788991,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "rise_proxy_retained90_fraction": {
+        "mean": 0.9907216494845361,
+        "phase_min": 0.979381443298969,
+        "phase_max": 1.0
+      },
+      "derivative_rms": {
+        "mean": 82.53301356840174,
+        "phase_min": 81.19819573945728,
+        "phase_max": 83.77442276347165
+      },
+      "derivative_rms_ratio": {
+        "mean": 0.9259462454783405,
+        "phase_min": 0.911062125617129,
+        "phase_max": 0.9400272301144255
+      },
+      "force_total_variation_ratio": {
+        "mean": 0.9538962715208397,
+        "phase_min": 0.9451028397181647,
+        "phase_max": 0.9598910882930806
+      },
+      "mean_selected_age_ms": 6.574380285215822,
+      "mean_held_output_age_ms": 14.907713618549158,
+      "measurement_age_ms_p50": 6.56160785,
+      "measurement_age_ms_p95": 12.496913315,
+      "measurement_age_ms_p99": 13.146480446999998,
+      "measurement_age_ms_max": 21.4571892
+    },
+    {
+      "hz": 50,
+      "force_repeat_fraction": {
+        "mean": 0.7147511411968643,
+        "phase_min": 0.710950080515298,
+        "phase_max": 0.7175739440672114
+      },
+      "taxel_repeat_fraction": {
+        "mean": 0.6727001243546425,
+        "phase_min": 0.6670117322291236,
+        "phase_max": 0.6775233053285764
+      },
+      "same_software_read_fraction": {
+        "mean": 5.752548787105159e-05,
+        "phase_min": 0.0,
+        "phase_max": 0.00011508804235239959
+      },
+      "force_changes_per_s": {
+        "mean": 14.262442940156784,
+        "phase_min": 14.121302796639432,
+        "phase_max": 14.452495974235108
+      },
+      "short_peak_retained90_fraction": {
+        "mean": 0.9,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "short_peak_amplitude_ratio_mean": {
+        "mean": 0.8950670336911319,
+        "phase_min": 0.6666666666666666,
+        "phase_max": 1.0
+      },
+      "rise_proxy_retained90_fraction": {
+        "mean": 0.9855670103092784,
+        "phase_min": 0.9690721649484536,
+        "phase_max": 1.0
+      },
+      "derivative_rms": {
+        "mean": 76.37170606053711,
+        "phase_min": 75.22131385607771,
+        "phase_max": 78.66349928774727
+      },
+      "derivative_rms_ratio": {
+        "mean": 0.8567410364869288,
+        "phase_min": 0.8438940811099719,
+        "phase_max": 0.8821780892541866
+      },
+      "force_total_variation_ratio": {
+        "mean": 0.9253799577373677,
+        "phase_min": 0.9171032633550957,
+        "phase_max": 0.932840805240898
+      },
+      "mean_selected_age_ms": 6.572491849566596,
+      "mean_held_output_age_ms": 16.572491849566596,
+      "measurement_age_ms_p50": 6.5587135000000005,
+      "measurement_age_ms_p95": 12.49602298,
+      "measurement_age_ms_p99": 13.154432683,
+      "measurement_age_ms_max": 20.6045494
+    }
+  ],
+  "per_phase": [
+    {
+      "hz": 76,
+      "phase_fraction": 0.0,
+      "comparisons": 13224,
+      "force_repeat_fraction": 0.7569570477918935,
+      "taxel_repeat_fraction": 0.720205686630369,
+      "same_software_read_fraction": 0.012628554143980642,
+      "force_changes_per_s": 18.47126436781609,
+      "mean_selected_age_ms": 6.1456658736778484,
+      "mean_held_output_age_ms": 12.7246132420989,
+      "measurement_age_ms": {
+        "min": 0.0,
+        "p01": 0.1023301,
+        "p50": 5.962944,
+        "p95": 12.63472175,
+        "p99": 13.255281299999998,
+        "max": 19.788689
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.0,
+        "p01": 0.32393785,
+        "p50": 256.3370275,
+        "p95": 5802.631579,
+        "p99": 7381.578947,
+        "max": 8776.315789
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.2010541101689,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0233609668759136,
+      "force_total_variation_ratio": 0.997285928980937
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.1,
+      "comparisons": 13223,
+      "force_repeat_fraction": 0.7558042804204794,
+      "taxel_repeat_fraction": 0.7195038947288815,
+      "same_software_read_fraction": 0.008772593208802843,
+      "force_changes_per_s": 18.558874687324952,
+      "mean_selected_age_ms": 6.0533689833018505,
+      "mean_held_output_age_ms": 12.632316351722903,
+      "measurement_age_ms": {
+        "min": 0.000172,
+        "p01": 0.16465506,
+        "p50": 5.869189,
+        "p95": 12.157143699999999,
+        "p99": 13.096415039999998,
+        "max": 20.329196
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000172,
+        "p01": 0.55945302,
+        "p50": 253.308388,
+        "p95": 5795.526521999991,
+        "p99": 7378.421052699998,
+        "max": 8764.473684
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.39205300938356,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0255041528300635,
+      "force_total_variation_ratio": 0.9989794780166554
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.2,
+      "comparisons": 13222,
+      "force_repeat_fraction": 0.7555589169565875,
+      "taxel_repeat_fraction": 0.7180456814400242,
+      "same_software_read_fraction": 0.007411889275450008,
+      "force_changes_per_s": 18.57752231135555,
+      "mean_selected_age_ms": 6.487977221323863,
+      "mean_held_output_age_ms": 13.066924589744914,
+      "measurement_age_ms": {
+        "min": 0.001348,
+        "p01": 0.18402321,
+        "p50": 6.352282,
+        "p95": 12.207651049999997,
+        "p99": 13.04470761,
+        "max": 21.644985
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.009367,
+        "p01": 0.77232033,
+        "p50": 254.191935,
+        "p95": 5792.500102899999,
+        "p99": 7379.868420980001,
+        "max": 8765.789474
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.18112585186209,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0231373532139008,
+      "force_total_variation_ratio": 0.9988494569174893
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.3,
+      "comparisons": 13220,
+      "force_repeat_fraction": 0.7558245083207261,
+      "taxel_repeat_fraction": 0.7182299546142209,
+      "same_software_read_fraction": 0.008169440242057489,
+      "force_changes_per_s": 18.557337366990325,
+      "mean_selected_age_ms": 6.825630855123943,
+      "mean_held_output_age_ms": 13.404578223544995,
+      "measurement_age_ms": {
+        "min": 0.004051,
+        "p01": 0.16674671000000002,
+        "p50": 6.7657105,
+        "p95": 12.457625,
+        "p99": 13.097307000000002,
+        "max": 22.960775
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.007426,
+        "p01": 0.9191827000000001,
+        "p50": 254.91121800000002,
+        "p95": 5793.928704299999,
+        "p99": 7381.447368550007,
+        "max": 8767.105263
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.21772311048369,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.023548008620611,
+      "force_total_variation_ratio": 0.9984056896011885
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.4,
+      "comparisons": 13218,
+      "force_repeat_fraction": 0.7562414888788016,
+      "taxel_repeat_fraction": 0.7186412467846875,
+      "same_software_read_fraction": 0.008473293993039794,
+      "force_changes_per_s": 18.525646845379264,
+      "mean_selected_age_ms": 6.861376440740741,
+      "mean_held_output_age_ms": 13.440323809161793,
+      "measurement_age_ms": {
+        "min": 0.000388,
+        "p01": 0.14339203999999997,
+        "p50": 6.861683,
+        "p95": 12.5486155,
+        "p99": 13.114442649999999,
+        "max": 24.276564
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000388,
+        "p01": 0.66699637,
+        "p50": 255.263158,
+        "p95": 5795.357304699999,
+        "p99": 7383.026315739989,
+        "max": 8768.421053
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.720061552192
+      },
+      "derivative_rms": 91.37108792695616,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0252689050335018,
+      "force_total_variation_ratio": 0.9981618106297573
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.5,
+      "comparisons": 13216,
+      "force_repeat_fraction": 0.7555992736077481,
+      "taxel_repeat_fraction": 0.7185986682808717,
+      "same_software_read_fraction": 0.01074455205811138,
+      "force_changes_per_s": 18.57445520528831,
+      "mean_selected_age_ms": 6.795981790293317,
+      "mean_held_output_age_ms": 13.37492915871437,
+      "measurement_age_ms": {
+        "min": 0.000227,
+        "p01": 0.11783604000000002,
+        "p50": 7.046170500000001,
+        "p95": 12.5636838,
+        "p99": 13.17654451,
+        "max": 25.592354
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000227,
+        "p01": 0.45498120000000003,
+        "p50": 256.578947,
+        "p95": 5796.7859061,
+        "p99": 7384.605263349995,
+        "max": 8769.736842
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.12415522682174,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.022498089616636,
+      "force_total_variation_ratio": 0.9982685252372583
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.6,
+      "comparisons": 13213,
+      "force_repeat_fraction": 0.7562249299931886,
+      "taxel_repeat_fraction": 0.7196700219480814,
+      "same_software_read_fraction": 0.009460379928857943,
+      "force_changes_per_s": 18.526905320826152,
+      "mean_selected_age_ms": 6.712669816483932,
+      "mean_held_output_age_ms": 13.291617184904984,
+      "measurement_age_ms": {
+        "min": 0.000565,
+        "p01": 0.1415236,
+        "p50": 7.26825,
+        "p95": 12.463633999999999,
+        "p99": 13.132029240000001,
+        "max": 26.908143
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000565,
+        "p01": 0.4096104400000001,
+        "p50": 257.894737,
+        "p95": 5797.368421,
+        "p99": 7376.315789,
+        "max": 8771.052632
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.720061552192
+      },
+      "derivative_rms": 91.086522757622,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0220758181808296,
+      "force_total_variation_ratio": 0.9952199303630075
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.7,
+      "comparisons": 13212,
+      "force_repeat_fraction": 0.7569633666363912,
+      "taxel_repeat_fraction": 0.7199515591886164,
+      "same_software_read_fraction": 0.010293672419013019,
+      "force_changes_per_s": 18.470784135226044,
+      "mean_selected_age_ms": 6.746571950620084,
+      "mean_held_output_age_ms": 13.325519319041137,
+      "measurement_age_ms": {
+        "min": 0.00011,
+        "p01": 0.11158799999999999,
+        "p50": 6.9435365000000004,
+        "p95": 12.610581599999998,
+        "p99": 13.169942450000002,
+        "max": 28.223933
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000167,
+        "p01": 0.44743056,
+        "p50": 259.1533635,
+        "p95": 5798.684211,
+        "p99": 7377.631579,
+        "max": 8772.368421
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.719175185486
+      },
+      "derivative_rms": 91.01410488900859,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0212632220900673,
+      "force_total_variation_ratio": 0.9943806039511809
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.8,
+      "comparisons": 13212,
+      "force_repeat_fraction": 0.7562064789585226,
+      "taxel_repeat_fraction": 0.719648804117469,
+      "same_software_read_fraction": 0.009763851044504996,
+      "force_changes_per_s": 18.52830759948886,
+      "mean_selected_age_ms": 6.629375464458561,
+      "mean_held_output_age_ms": 13.208322832879613,
+      "measurement_age_ms": {
+        "min": 0.000944,
+        "p01": 0.13793997,
+        "p50": 6.3375425,
+        "p95": 12.542796449999999,
+        "p99": 13.149149460000002,
+        "max": 17.15711
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.003851,
+        "p01": 0.46814262999999995,
+        "p50": 259.2629,
+        "p95": 5800.0,
+        "p99": 7378.947368,
+        "max": 8773.684211
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 11662.720061552192
+      },
+      "derivative_rms": 91.13027504756224,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0225667597184371,
+      "force_total_variation_ratio": 0.9972669847984097
+    },
+    {
+      "hz": 76,
+      "phase_fraction": 0.9,
+      "comparisons": 13212,
+      "force_repeat_fraction": 0.7568876778686043,
+      "taxel_repeat_fraction": 0.7209355131698456,
+      "same_software_read_fraction": 0.014456554647290343,
+      "force_changes_per_s": 18.476536481684004,
+      "mean_selected_age_ms": 6.472045207047792,
+      "mean_held_output_age_ms": 13.050992575468843,
+      "measurement_age_ms": {
+        "min": 0.000255,
+        "p01": 0.09955976999999999,
+        "p50": 6.2117094999999996,
+        "p95": 12.6297219,
+        "p99": 13.264936800000001,
+        "max": 18.4729
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000255,
+        "p01": 0.44243895999999994,
+        "p50": 258.51352399999996,
+        "p95": 5801.315789,
+        "p99": 7380.263158,
+        "max": 8775.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 75.99999848000003,
+        "p99": 169.94117580668987,
+        "max": 10729.466500956229
+      },
+      "derivative_rms": 89.40906211134202,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 1.0032531437542849,
+      "force_total_variation_ratio": 0.9945931064955809
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.0,
+      "comparisons": 12177,
+      "force_repeat_fraction": 0.7487887000082122,
+      "taxel_repeat_fraction": 0.7115052968711505,
+      "same_software_read_fraction": 0.0009033423667570009,
+      "force_changes_per_s": 17.5847909993385,
+      "mean_selected_age_ms": 6.54842937336943,
+      "mean_held_output_age_ms": 13.691286516226572,
+      "measurement_age_ms": {
+        "min": 0.0,
+        "p01": 0.11415339999999999,
+        "p50": 6.527278,
+        "p95": 12.4777632,
+        "p99": 13.112605320000002,
+        "max": 20.517166
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.0,
+        "p01": 0.46373508,
+        "p50": 257.142857,
+        "p95": 5800.0,
+        "p99": 7385.714286,
+        "max": 8771.428571
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.4642734216088,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.24103968906736,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.9901094742246166,
+      "force_total_variation_ratio": 0.9853495855613851
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.1,
+      "comparisons": 12176,
+      "force_repeat_fraction": 0.7479467805519053,
+      "taxel_repeat_fraction": 0.7109888304862023,
+      "same_software_read_fraction": 0.0009034165571616294,
+      "force_changes_per_s": 17.643725361047835,
+      "mean_selected_age_ms": 6.571607672218576,
+      "mean_held_output_age_ms": 13.714464815075718,
+      "measurement_age_ms": {
+        "min": 0.004002,
+        "p01": 0.14007275,
+        "p50": 6.54616,
+        "p95": 12.501778799999999,
+        "p99": 13.136432849999995,
+        "max": 21.945737
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.005756,
+        "p01": 0.56809224,
+        "p50": 258.571429,
+        "p95": 5801.428571,
+        "p99": 7387.142857,
+        "max": 8772.857143
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.4642734216088,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.25287206471532,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.9902422395147005,
+      "force_total_variation_ratio": 0.9832996930736251
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.2,
+      "comparisons": 12175,
+      "force_repeat_fraction": 0.7480903490759754,
+      "taxel_repeat_fraction": 0.7107186858316221,
+      "same_software_read_fraction": 0.0009856262833675565,
+      "force_changes_per_s": 17.63367556453689,
+      "mean_selected_age_ms": 6.578951684910151,
+      "mean_held_output_age_ms": 13.721808827767294,
+      "measurement_age_ms": {
+        "min": 0.000888,
+        "p01": 0.13033664,
+        "p50": 6.556033,
+        "p95": 12.498423499999998,
+        "p99": 13.1663102,
+        "max": 23.374309
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.002309,
+        "p01": 0.5506426799999999,
+        "p50": 260.0,
+        "p95": 5802.857143,
+        "p99": 7388.571429,
+        "max": 8774.285714
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.4642734216088,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.31484676329644,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.990937627244079,
+      "force_total_variation_ratio": 0.9800199722559447
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.3,
+      "comparisons": 12173,
+      "force_repeat_fraction": 0.7476382157233221,
+      "taxel_repeat_fraction": 0.7087817300583258,
+      "same_software_read_fraction": 0.0010679372381500042,
+      "force_changes_per_s": 17.665324899164286,
+      "mean_selected_age_ms": 6.583654621583914,
+      "mean_held_output_age_ms": 13.726511764441057,
+      "measurement_age_ms": {
+        "min": 0.000361,
+        "p01": 0.14744588,
+        "p50": 6.563557,
+        "p95": 12.501097399999999,
+        "p99": 13.14546012,
+        "max": 24.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001627,
+        "p01": 0.62736844,
+        "p50": 256.595516,
+        "p95": 5804.285714,
+        "p99": 7390.0,
+        "max": 8775.714286
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46428542410817,
+        "max": 10741.977865411513
+      },
+      "derivative_rms": 88.75854406783614,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.995916137316724,
+      "force_total_variation_ratio": 0.9855686767674815
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.4,
+      "comparisons": 12173,
+      "force_repeat_fraction": 0.7471453216134067,
+      "taxel_repeat_fraction": 0.709192475149922,
+      "same_software_read_fraction": 0.0007393411648730797,
+      "force_changes_per_s": 17.699827487468657,
+      "mean_selected_age_ms": 6.571556948297087,
+      "mean_held_output_age_ms": 13.71441409115423,
+      "measurement_age_ms": {
+        "min": 0.001804,
+        "p01": 0.12095088000000001,
+        "p50": 6.574581,
+        "p95": 12.4840996,
+        "p99": 13.1505202,
+        "max": 26.231451
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.005925,
+        "p01": 0.56349156,
+        "p50": 255.548641,
+        "p95": 5801.6543709999905,
+        "p99": 7379.428571239998,
+        "max": 8777.142857
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46427774250856,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.89087276801139,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9974385755720461,
+      "force_total_variation_ratio": 0.9861122046613965
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.5,
+      "comparisons": 12173,
+      "force_repeat_fraction": 0.7477203647416414,
+      "taxel_repeat_fraction": 0.7102604123880719,
+      "same_software_read_fraction": 0.000985788219830773,
+      "force_changes_per_s": 17.659574467882006,
+      "mean_selected_age_ms": 6.57067838908494,
+      "mean_held_output_age_ms": 13.713535531942084,
+      "measurement_age_ms": {
+        "min": 0.000905,
+        "p01": 0.1429674,
+        "p50": 6.57356,
+        "p95": 12.509625799999998,
+        "p99": 13.148757279999998,
+        "max": 27.660023
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000905,
+        "p01": 0.5129830400000001,
+        "p50": 256.163217,
+        "p95": 5792.857143,
+        "p99": 7378.571429,
+        "max": 8764.285714
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46428542410817,
+        "max": 10741.977865411513
+      },
+      "derivative_rms": 88.34306166537617,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9912916235973361,
+      "force_total_variation_ratio": 0.983838044304985
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.6,
+      "comparisons": 12173,
+      "force_repeat_fraction": 0.7491990470713875,
+      "taxel_repeat_fraction": 0.7093567731865604,
+      "same_software_read_fraction": 0.000985788219830773,
+      "force_changes_per_s": 17.556066705406696,
+      "mean_selected_age_ms": 6.597856003775134,
+      "mean_held_output_age_ms": 13.740713146632277,
+      "measurement_age_ms": {
+        "min": 0.001533,
+        "p01": 0.15180543999999999,
+        "p50": 6.585678,
+        "p95": 12.527866599999998,
+        "p99": 13.142656639999998,
+        "max": 29.088594
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001993,
+        "p01": 0.5960123199999999,
+        "p50": 256.153494,
+        "p95": 5794.285714,
+        "p99": 7380.0,
+        "max": 8765.714286
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46428542410817,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.39225982502168,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9918436728769697,
+      "force_total_variation_ratio": 0.9806403011187024
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.7,
+      "comparisons": 12173,
+      "force_repeat_fraction": 0.7494454941263452,
+      "taxel_repeat_fraction": 0.7109176045346258,
+      "same_software_read_fraction": 0.0013143842931076974,
+      "force_changes_per_s": 17.538815411054983,
+      "mean_selected_age_ms": 6.568027076651621,
+      "mean_held_output_age_ms": 13.710884219508763,
+      "measurement_age_ms": {
+        "min": 0.000148,
+        "p01": 0.10085056,
+        "p50": 6.550329,
+        "p95": 12.4770998,
+        "p99": 13.21017868,
+        "max": 17.710234
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000148,
+        "p01": 0.45417364000000005,
+        "p50": 256.675842,
+        "p95": 5795.714286,
+        "p99": 7381.428571,
+        "max": 8767.142857
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46427774250856,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 88.84920110896587,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9969709806554279,
+      "force_total_variation_ratio": 0.9806808161548387
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.8,
+      "comparisons": 12167,
+      "force_repeat_fraction": 0.7478425248623325,
+      "taxel_repeat_fraction": 0.7101997205556012,
+      "same_software_read_fraction": 0.0010684638777019807,
+      "force_changes_per_s": 17.651023259259535,
+      "mean_selected_age_ms": 6.537095223910009,
+      "mean_held_output_age_ms": 13.679952366767152,
+      "measurement_age_ms": {
+        "min": 0.00035,
+        "p01": 0.1461609,
+        "p50": 6.520199,
+        "p95": 12.4614069,
+        "p99": 13.13953644,
+        "max": 17.660023
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.002856,
+        "p01": 0.54835014,
+        "p50": 256.117665,
+        "p95": 5797.142857,
+        "p99": 7382.857143,
+        "max": 8768.571429
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.4642734216088,
+        "max": 10741.978617349978
+      },
+      "derivative_rms": 89.11818882556464,
+      "native_derivative_rms": 89.12923615737132,
+      "derivative_rms_ratio": 0.9998760526592287,
+      "force_total_variation_ratio": 0.9837126916427705
+    },
+    {
+      "hz": 70,
+      "phase_fraction": 0.9,
+      "comparisons": 12167,
+      "force_repeat_fraction": 0.7483356620366566,
+      "taxel_repeat_fraction": 0.7104462891427632,
+      "same_software_read_fraction": 0.0010684638777019807,
+      "force_changes_per_s": 17.61650365736165,
+      "mean_selected_age_ms": 6.575853446506281,
+      "mean_held_output_age_ms": 13.718710589363425,
+      "measurement_age_ms": {
+        "min": 0.001318,
+        "p01": 0.16710752,
+        "p50": 6.567594,
+        "p95": 12.5109996,
+        "p99": 13.105115119999999,
+        "max": 19.088594
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.002749,
+        "p01": 0.61211838,
+        "p50": 256.413429,
+        "p95": 5798.571429,
+        "p99": 7384.285714,
+        "max": 8770.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.979381443298969,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 70.00000140000003,
+        "p99": 171.46428542410817,
+        "max": 9882.403751440037
+      },
+      "derivative_rms": 86.54495317032,
+      "native_derivative_rms": 89.12587196478864,
+      "derivative_rms_ratio": 0.9710418676690388,
+      "force_total_variation_ratio": 0.9795440363017534
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.0,
+      "comparisons": 11308,
+      "force_repeat_fraction": 0.7413335691545808,
+      "taxel_repeat_fraction": 0.7033958259639194,
+      "same_software_read_fraction": 0.0004421648390519986,
+      "force_changes_per_s": 16.8133180048779,
+      "mean_selected_age_ms": 6.580332622261484,
+      "mean_held_output_age_ms": 14.272640314569177,
+      "measurement_age_ms": {
+        "min": 0.0,
+        "p01": 0.10457135,
+        "p50": 6.552645999999999,
+        "p95": 12.497660899999998,
+        "p99": 13.138373609999999,
+        "max": 27.110572
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.0,
+        "p01": 0.5442777799999999,
+        "p50": 258.835703,
+        "p95": 5800.0,
+        "p99": 7381.692307959992,
+        "max": 8769.230769
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.69448026988
+      },
+      "derivative_rms": 85.72450282087624,
+      "native_derivative_rms": 89.12139866405576,
+      "derivative_rms_ratio": 0.9618846214927106,
+      "force_total_variation_ratio": 0.9724029973026747
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.1,
+      "comparisons": 11306,
+      "force_repeat_fraction": 0.7411109145586414,
+      "taxel_repeat_fraction": 0.7034318061206439,
+      "same_software_read_fraction": 0.0002653458340704051,
+      "force_changes_per_s": 16.827790554216687,
+      "mean_selected_age_ms": 6.548730898303587,
+      "mean_held_output_age_ms": 14.241038590611279,
+      "measurement_age_ms": {
+        "min": 0.001118,
+        "p01": 0.13993083,
+        "p50": 6.5429645,
+        "p95": 12.48267385,
+        "p99": 13.131551080000001,
+        "max": 28.649034
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.012823,
+        "p01": 0.489706,
+        "p50": 258.02725499999997,
+        "p95": 5801.538462,
+        "p99": 7383.538461449999,
+        "max": 8770.769231
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.69448026988
+      },
+      "derivative_rms": 85.51867061975395,
+      "native_derivative_rms": 89.12923615737132,
+      "derivative_rms_ratio": 0.9594906711503465,
+      "force_total_variation_ratio": 0.9719988222055121
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.2,
+      "comparisons": 11304,
+      "force_repeat_fraction": 0.7429228591648974,
+      "taxel_repeat_fraction": 0.7038216560509554,
+      "same_software_read_fraction": 0.0002653927813163482,
+      "force_changes_per_s": 16.71001415415602,
+      "mean_selected_age_ms": 6.543691047454931,
+      "mean_held_output_age_ms": 14.235998739762623,
+      "measurement_age_ms": {
+        "min": 0.000272,
+        "p01": 0.1194664,
+        "p50": 6.537254,
+        "p95": 12.4859485,
+        "p99": 13.10874445,
+        "max": 19.019458
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.014481,
+        "p01": 0.5908903,
+        "p50": 257.1403715,
+        "p95": 5803.076923,
+        "p99": 7385.384615600005,
+        "max": 8772.307692
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.69448026988
+      },
+      "derivative_rms": 83.12927510484602,
+      "native_derivative_rms": 89.12923615737132,
+      "derivative_rms_ratio": 0.9326824585152794,
+      "force_total_variation_ratio": 0.9572466457343978
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.3,
+      "comparisons": 11302,
+      "force_repeat_fraction": 0.7403999292160679,
+      "taxel_repeat_fraction": 0.703326844806229,
+      "same_software_read_fraction": 0.00026543974517784463,
+      "force_changes_per_s": 16.874004601239257,
+      "mean_selected_age_ms": 6.582049539862117,
+      "mean_held_output_age_ms": 14.274357232169809,
+      "measurement_age_ms": {
+        "min": 0.003486,
+        "p01": 0.14978016,
+        "p50": 6.5756685,
+        "p95": 12.48346725,
+        "p99": 13.15458821,
+        "max": 20.55792
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.003753,
+        "p01": 0.48416604999999996,
+        "p50": 253.7254665,
+        "p95": 5804.615385,
+        "p99": 7387.230769050012,
+        "max": 8773.846154
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.693831914767
+      },
+      "derivative_rms": 83.46602323586687,
+      "native_derivative_rms": 89.12923615737132,
+      "derivative_rms_ratio": 0.9364606590871576,
+      "force_total_variation_ratio": 0.9582197051724753
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.4,
+      "comparisons": 11302,
+      "force_repeat_fraction": 0.7419925676871351,
+      "taxel_repeat_fraction": 0.7015572465050434,
+      "same_software_read_fraction": 0.00026543974517784463,
+      "force_changes_per_s": 16.770483100232354,
+      "mean_selected_age_ms": 6.577261636379708,
+      "mean_held_output_age_ms": 14.2695693286874,
+      "measurement_age_ms": {
+        "min": 0.001167,
+        "p01": 0.15398951,
+        "p50": 6.548674999999999,
+        "p95": 12.491030900000002,
+        "p99": 13.176824840000004,
+        "max": 17.879803
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.00146,
+        "p01": 0.59134002,
+        "p50": 253.982219,
+        "p95": 5806.153846,
+        "p99": 7388.769230920013,
+        "max": 8775.384615
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9176.517815076908
+      },
+      "derivative_rms": 84.5429464984137,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.948650783867514,
+      "force_total_variation_ratio": 0.964509628938432
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.5,
+      "comparisons": 11302,
+      "force_repeat_fraction": 0.7427888869226685,
+      "taxel_repeat_fraction": 0.7021766059104583,
+      "same_software_read_fraction": 0.00017695983011856308,
+      "force_changes_per_s": 16.718722350307605,
+      "mean_selected_age_ms": 6.594003681633375,
+      "mean_held_output_age_ms": 14.286311373941068,
+      "measurement_age_ms": {
+        "min": 0.000763,
+        "p01": 0.13229929999999998,
+        "p50": 6.596247,
+        "p95": 12.510011700000002,
+        "p99": 13.20502934,
+        "max": 19.418265
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.007061,
+        "p01": 0.56753981,
+        "p50": 254.7758195,
+        "p95": 5797.166094850005,
+        "p99": 7390.3076920500125,
+        "max": 8776.923077
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9176.517218603274
+      },
+      "derivative_rms": 84.96461323441525,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9533822782878822,
+      "force_total_variation_ratio": 0.9657373340784794
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.6,
+      "comparisons": 11302,
+      "force_repeat_fraction": 0.7428773668377279,
+      "taxel_repeat_fraction": 0.7027074854008141,
+      "same_software_read_fraction": 8.847991505928154e-05,
+      "force_changes_per_s": 16.712971155251935,
+      "mean_selected_age_ms": 6.581366825702668,
+      "mean_held_output_age_ms": 14.27367451801036,
+      "measurement_age_ms": {
+        "min": 2.1e-05,
+        "p01": 0.12226136,
+        "p50": 6.5606195,
+        "p95": 12.52285185,
+        "p99": 13.18510514,
+        "max": 20.956726
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 2.1e-05,
+        "p01": 0.46243316,
+        "p50": 255.384615,
+        "p95": 5793.846154,
+        "p99": 7378.461538,
+        "max": 8763.076923
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9883.633804684512
+      },
+      "derivative_rms": 86.57810033308233,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.971487109788395,
+      "force_total_variation_ratio": 0.9676409854140869
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.7,
+      "comparisons": 11301,
+      "force_repeat_fraction": 0.7413503229802673,
+      "taxel_repeat_fraction": 0.7006459605344659,
+      "same_software_read_fraction": 0.00017697548889478808,
+      "force_changes_per_s": 16.812229006624797,
+      "mean_selected_age_ms": 6.5990367807831705,
+      "mean_held_output_age_ms": 14.291344473090863,
+      "measurement_age_ms": {
+        "min": 0.001973,
+        "p01": 0.1467126,
+        "p50": 6.569991,
+        "p95": 12.5505564,
+        "p99": 13.194811519999998,
+        "max": 22.495188
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.004103,
+        "p01": 0.5856496800000001,
+        "p50": 256.923077,
+        "p95": 5795.384615,
+        "p99": 7380.0,
+        "max": 8764.615385
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.69448026988
+      },
+      "derivative_rms": 87.00750410311551,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.97626857576345,
+      "force_total_variation_ratio": 0.9734269206681567
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.8,
+      "comparisons": 11298,
+      "force_repeat_fraction": 0.740750575323066,
+      "taxel_repeat_fraction": 0.7034873428925473,
+      "same_software_read_fraction": 0.0002655337227827934,
+      "force_changes_per_s": 16.85121260355325,
+      "mean_selected_age_ms": 6.567633615207781,
+      "mean_held_output_age_ms": 14.259941307515474,
+      "measurement_age_ms": {
+        "min": 0.00427,
+        "p01": 0.15960828,
+        "p50": 6.583688,
+        "p95": 12.460024799999998,
+        "p99": 13.165596529999998,
+        "max": 24.033649
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.00442,
+        "p01": 0.5726693700000001,
+        "p50": 258.461538,
+        "p95": 5796.923077,
+        "p99": 7381.538462,
+        "max": 8766.153846
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.693831914767
+      },
+      "derivative_rms": 86.05104142325807,
+      "native_derivative_rms": 89.13260073094257,
+      "derivative_rms_ratio": 0.9654272479158713,
+      "force_total_variation_ratio": 0.9711228084089307
+    },
+    {
+      "hz": 65,
+      "phase_fraction": 0.9,
+      "comparisons": 11298,
+      "force_repeat_fraction": 0.7402195078775005,
+      "taxel_repeat_fraction": 0.7036643653744026,
+      "same_software_read_fraction": 0.0001770224818551956,
+      "force_changes_per_s": 16.88573198838843,
+      "mean_selected_age_ms": 6.534019678249337,
+      "mean_held_output_age_ms": 14.22632737055703,
+      "measurement_age_ms": {
+        "min": 0.000281,
+        "p01": 0.12725519,
+        "p50": 6.497292,
+        "p95": 12.498632099999998,
+        "p99": 13.100125359999998,
+        "max": 25.572111
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000281,
+        "p01": 0.51699505,
+        "p50": 260.0,
+        "p95": 5798.461538,
+        "p99": 7381.692307649997,
+        "max": 8767.692308
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 65.00000162500004,
+        "p99": 159.2168372613275,
+        "max": 9974.69448026988
+      },
+      "derivative_rms": 86.00670424256911,
+      "native_derivative_rms": 89.15953104373502,
+      "derivative_rms_ratio": 0.9646383649144659,
+      "force_total_variation_ratio": 0.9740723752591565
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.0,
+      "comparisons": 10436,
+      "force_repeat_fraction": 0.7358183211958604,
+      "taxel_repeat_fraction": 0.6948064392487543,
+      "same_software_read_fraction": 0.0004791107704101188,
+      "force_changes_per_s": 15.850900728369881,
+      "mean_selected_age_ms": 6.557598613705973,
+      "mean_held_output_age_ms": 14.890931947039306,
+      "measurement_age_ms": {
+        "min": 0.0,
+        "p01": 0.11773937999999999,
+        "p50": 6.5523125,
+        "p95": 12.48864215,
+        "p99": 13.114479760000002,
+        "max": 19.788689
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.0,
+        "p01": 0.49420950999999996,
+        "p50": 251.555958,
+        "p95": 5800.0,
+        "p99": 7383.333333,
+        "max": 8766.666667
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 8470.631956361245
+      },
+      "derivative_rms": 81.19819573945728,
+      "native_derivative_rms": 89.12476268778686,
+      "derivative_rms_ratio": 0.911062125617129,
+      "force_total_variation_ratio": 0.9551702255895228
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.1,
+      "comparisons": 10434,
+      "force_repeat_fraction": 0.7342342342342343,
+      "taxel_repeat_fraction": 0.6938853747364385,
+      "same_software_read_fraction": 9.584052137243626e-05,
+      "force_changes_per_s": 15.94594594612934,
+      "mean_selected_age_ms": 6.575554842236263,
+      "mean_held_output_age_ms": 14.908888175569597,
+      "measurement_age_ms": {
+        "min": 0.000627,
+        "p01": 0.13638775,
+        "p50": 6.5578635,
+        "p95": 12.4862205,
+        "p99": 13.16011635,
+        "max": 19.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.009862,
+        "p01": 0.6078183500000001,
+        "p50": 251.7515425,
+        "p95": 5801.666667,
+        "p99": 7385.0,
+        "max": 8768.333333
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 8470.631448123338
+      },
+      "derivative_rms": 81.57308978352945,
+      "native_derivative_rms": 89.13149187822928,
+      "derivative_rms_ratio": 0.9151994212659869,
+      "force_total_variation_ratio": 0.9564958745008566
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.2,
+      "comparisons": 10434,
+      "force_repeat_fraction": 0.7343300747556066,
+      "taxel_repeat_fraction": 0.6945562583860456,
+      "same_software_read_fraction": 9.584052137243626e-05,
+      "force_changes_per_s": 15.94019551429695,
+      "mean_selected_age_ms": 6.57503047491863,
+      "mean_held_output_age_ms": 14.908363808251963,
+      "measurement_age_ms": {
+        "min": 0.001067,
+        "p01": 0.1478556,
+        "p50": 6.547347,
+        "p95": 12.49905175,
+        "p99": 13.150152999999996,
+        "max": 21.469547
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001067,
+        "p01": 0.5016986999999999,
+        "p50": 253.418209,
+        "p95": 5803.333333,
+        "p99": 7386.666667,
+        "max": 8770.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.979381443298969,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 8470.631448123338
+      },
+      "derivative_rms": 82.10303563909339,
+      "native_derivative_rms": 89.12923615737132,
+      "derivative_rms_ratio": 0.9211683974731691,
+      "force_total_variation_ratio": 0.9533634719425753
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.3,
+      "comparisons": 10434,
+      "force_repeat_fraction": 0.7340425531914894,
+      "taxel_repeat_fraction": 0.6948437799501629,
+      "same_software_read_fraction": 9.584052137243626e-05,
+      "force_changes_per_s": 15.957446808694165,
+      "mean_selected_age_ms": 6.593147116121004,
+      "mean_held_output_age_ms": 14.926480449454338,
+      "measurement_age_ms": {
+        "min": 0.001773,
+        "p01": 0.1358991,
+        "p50": 6.5861715,
+        "p95": 12.52524675,
+        "p99": 13.19756685,
+        "max": 23.136213
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001773,
+        "p01": 0.5192942,
+        "p50": 255.0,
+        "p95": 5805.0,
+        "p99": 7388.333333,
+        "max": 8771.666667
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9123.354463714324
+      },
+      "derivative_rms": 82.99580494345676,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.9312552649535009,
+      "force_total_variation_ratio": 0.9521148773079031
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.4,
+      "comparisons": 10433,
+      "force_repeat_fraction": 0.7341129109556216,
+      "taxel_repeat_fraction": 0.693568484616122,
+      "same_software_read_fraction": 9.584970765839164e-05,
+      "force_changes_per_s": 15.953225342876781,
+      "mean_selected_age_ms": 6.578746103685973,
+      "mean_held_output_age_ms": 14.912079437019308,
+      "measurement_age_ms": {
+        "min": 0.001627,
+        "p01": 0.16705272000000002,
+        "p50": 6.580356,
+        "p95": 12.5044724,
+        "p99": 13.157788479999999,
+        "max": 24.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001627,
+        "p01": 0.49272267999999997,
+        "p50": 256.666667,
+        "p95": 5806.365973999999,
+        "p99": 7382.666666519991,
+        "max": 8773.333333
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9207.41042759105
+      },
+      "derivative_rms": 83.04633215151404,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.9318222060002054,
+      "force_total_variation_ratio": 0.9549461805232795
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.5,
+      "comparisons": 10433,
+      "force_repeat_fraction": 0.7321959168024538,
+      "taxel_repeat_fraction": 0.6920348892935877,
+      "same_software_read_fraction": 9.584970765839164e-05,
+      "force_changes_per_s": 16.068244991513946,
+      "mean_selected_age_ms": 6.563383987362375,
+      "mean_held_output_age_ms": 14.896717320695709,
+      "measurement_age_ms": {
+        "min": 0.000167,
+        "p01": 0.11637772,
+        "p50": 6.55129,
+        "p95": 12.485987399999999,
+        "p99": 13.126611239999997,
+        "max": 26.469547
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000167,
+        "p01": 0.5260590799999999,
+        "p50": 258.320655,
+        "p95": 5803.797227799989,
+        "p99": 7384.333333519991,
+        "max": 8775.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9207.409875146435
+      },
+      "derivative_rms": 83.47568075871112,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.9366397163698577,
+      "force_total_variation_ratio": 0.9598910882930806
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.6,
+      "comparisons": 10433,
+      "force_repeat_fraction": 0.7344004600785967,
+      "taxel_repeat_fraction": 0.6951020799386561,
+      "same_software_read_fraction": 9.584970765839164e-05,
+      "force_changes_per_s": 15.935972395406393,
+      "mean_selected_age_ms": 6.56670447888942,
+      "mean_held_output_age_ms": 14.900037812222754,
+      "measurement_age_ms": {
+        "min": 0.000148,
+        "p01": 0.13222215999999998,
+        "p50": 6.552248,
+        "p95": 12.485491999999999,
+        "p99": 13.152588799999998,
+        "max": 28.136213
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000148,
+        "p01": 0.47119288,
+        "p50": 259.056795,
+        "p95": 5793.333333,
+        "p99": 7376.666667,
+        "max": 8776.666667
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9207.409875146435
+      },
+      "derivative_rms": 83.77442276347165,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.9400272301144255,
+      "force_total_variation_ratio": 0.958988412618397
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.7,
+      "comparisons": 10429,
+      "force_repeat_fraction": 0.7339150445872088,
+      "taxel_repeat_fraction": 0.6953686834787611,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 15.965097325104262,
+      "mean_selected_age_ms": 6.583489802700891,
+      "mean_held_output_age_ms": 14.916823136034225,
+      "measurement_age_ms": {
+        "min": 0.001505,
+        "p01": 0.12164180000000001,
+        "p50": 6.559438,
+        "p95": 12.517969,
+        "p99": 13.122808400000002,
+        "max": 16.388545
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.001505,
+        "p01": 0.6032624,
+        "p50": 258.465123,
+        "p95": 5795.0,
+        "p99": 7378.333333,
+        "max": 8761.666667
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9207.41042759105
+      },
+      "derivative_rms": 81.96788709365025,
+      "native_derivative_rms": 89.13260073094257,
+      "derivative_rms_ratio": 0.9196173613409996,
+      "force_total_variation_ratio": 0.947939762333334
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.8,
+      "comparisons": 10428,
+      "force_repeat_fraction": 0.7344649021864211,
+      "taxel_repeat_fraction": 0.6949558879938627,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 15.932105868264713,
+      "mean_selected_age_ms": 6.589048738984674,
+      "mean_held_output_age_ms": 14.922382072318008,
+      "measurement_age_ms": {
+        "min": 0.003985,
+        "p01": 0.14667858,
+        "p50": 6.568986000000001,
+        "p95": 12.515535999999999,
+        "p99": 13.162420470000004,
+        "max": 16.455356
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.021094,
+        "p01": 0.54712808,
+        "p50": 257.8527425,
+        "p95": 5796.666667,
+        "p99": 7380.0,
+        "max": 8763.333333
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 179.99999640000007,
+        "max": 9207.409875146435
+      },
+      "derivative_rms": 81.97265737198093,
+      "native_derivative_rms": 89.16963620605354,
+      "derivative_rms_ratio": 0.9192889066246518,
+      "force_total_variation_ratio": 0.9451028397181647
+    },
+    {
+      "hz": 60,
+      "phase_fraction": 0.9,
+      "comparisons": 10427,
+      "force_repeat_fraction": 0.7346312458041623,
+      "taxel_repeat_fraction": 0.693296250119881,
+      "same_software_read_fraction": 9.59048623765225e-05,
+      "force_changes_per_s": 15.922125251872426,
+      "mean_selected_age_ms": 6.5610986935530216,
+      "mean_held_output_age_ms": 14.894432026886356,
+      "measurement_age_ms": {
+        "min": 0.000129,
+        "p01": 0.13420284,
+        "p50": 6.560066,
+        "p95": 12.4605152,
+        "p99": 13.120271120000002,
+        "max": 18.122022
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.009954,
+        "p01": 0.59495224,
+        "p50": 259.258455,
+        "p95": 5798.333333,
+        "p99": 7381.666667,
+        "max": 8765.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 59.99999880000003,
+        "p99": 169.70563427299678,
+        "max": 9207.409875146435
+      },
+      "derivative_rms": 83.22302943915243,
+      "native_derivative_rms": 89.16289904944192,
+      "derivative_rms_ratio": 0.9333818250234803,
+      "force_total_variation_ratio": 0.9549499823812843
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.0,
+      "comparisons": 8695,
+      "force_repeat_fraction": 0.7135135135135136,
+      "taxel_repeat_fraction": 0.6753306497987349,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 14.324324324324326,
+      "mean_selected_age_ms": 6.5370446943838285,
+      "mean_held_output_age_ms": 16.53704469438383,
+      "measurement_age_ms": {
+        "min": 0.0,
+        "p01": 0.12271482,
+        "p50": 6.567197,
+        "p95": 12.488211499999998,
+        "p99": 13.09215926,
+        "max": 15.463491
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.0,
+        "p01": 0.43686054,
+        "p50": 257.300361,
+        "p95": 5800.0,
+        "p99": 7380.0,
+        "max": 8760.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 165.83123951777,
+        "max": 7672.84171607886
+      },
+      "derivative_rms": 78.24997910186435,
+      "native_derivative_rms": 89.13485704508447,
+      "derivative_rms_ratio": 0.8778830380833557,
+      "force_total_variation_ratio": 0.9317218552435463
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.1,
+      "comparisons": 8694,
+      "force_repeat_fraction": 0.710950080515298,
+      "taxel_repeat_fraction": 0.6709224752703014,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 14.452495974235108,
+      "mean_selected_age_ms": 6.588491100045945,
+      "mean_held_output_age_ms": 16.588491100045946,
+      "measurement_age_ms": {
+        "min": 0.002628,
+        "p01": 0.1399402,
+        "p50": 6.566544,
+        "p95": 12.46884225,
+        "p99": 13.159084900000003,
+        "max": 16.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.00632,
+        "p01": 0.69659865,
+        "p50": 257.867686,
+        "p95": 5802.0,
+        "p99": 7382.0,
+        "max": 8762.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 158.11388300841898,
+        "max": 7672.84171607886
+      },
+      "derivative_rms": 77.9503655495147,
+      "native_derivative_rms": 89.13822259312491,
+      "derivative_rms_ratio": 0.8744886680691667,
+      "force_total_variation_ratio": 0.932840805240898
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.2,
+      "comparisons": 8694,
+      "force_repeat_fraction": 0.7127904301817345,
+      "taxel_repeat_fraction": 0.6703473659995399,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 14.360478490913277,
+      "mean_selected_age_ms": 6.587384954284402,
+      "mean_held_output_age_ms": 16.587384954284403,
+      "measurement_age_ms": {
+        "min": 0.000114,
+        "p01": 0.1189407,
+        "p50": 6.547041,
+        "p95": 12.47206825,
+        "p99": 13.119211500000002,
+        "max": 18.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.011998,
+        "p01": 0.5509051,
+        "p50": 257.41187,
+        "p95": 5804.0,
+        "p99": 7384.0,
+        "max": 8764.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 158.11388300841898,
+        "max": 7058.859681279972
+      },
+      "derivative_rms": 75.76919416523477,
+      "native_derivative_rms": 89.12812709248739,
+      "derivative_rms_ratio": 0.8501154084233118,
+      "force_total_variation_ratio": 0.9279557986134416
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.3,
+      "comparisons": 8694,
+      "force_repeat_fraction": 0.7154359328272372,
+      "taxel_repeat_fraction": 0.6674718196457327,
+      "same_software_read_fraction": 0.00011502185415228893,
+      "force_changes_per_s": 14.228203358638144,
+      "mean_selected_age_ms": 6.560029511486331,
+      "mean_held_output_age_ms": 16.56002951148633,
+      "measurement_age_ms": {
+        "min": 0.000208,
+        "p01": 0.11452999999999999,
+        "p50": 6.5513455,
+        "p95": 12.514289250000001,
+        "p99": 13.1839726,
+        "max": 20.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.004321,
+        "p01": 0.55592245,
+        "p50": 256.919019,
+        "p95": 5799.872401250001,
+        "p99": 7385.000000000015,
+        "max": 8766.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 158.11388300841898,
+        "max": 7058.859681279972
+      },
+      "derivative_rms": 75.88258398107442,
+      "native_derivative_rms": 89.12587196478864,
+      "derivative_rms_ratio": 0.8514091622133436,
+      "force_total_variation_ratio": 0.9268411764812702
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.4,
+      "comparisons": 8694,
+      "force_repeat_fraction": 0.7147458017023235,
+      "taxel_repeat_fraction": 0.6670117322291236,
+      "same_software_read_fraction": 0.00011502185415228893,
+      "force_changes_per_s": 14.26270991488383,
+      "mean_selected_age_ms": 6.582539900413509,
+      "mean_held_output_age_ms": 16.582539900413508,
+      "measurement_age_ms": {
+        "min": 0.000951,
+        "p01": 0.12756825,
+        "p50": 6.5989629999999995,
+        "p95": 12.499715,
+        "p99": 13.134587850000006,
+        "max": 22.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.034524,
+        "p01": 0.5537251999999999,
+        "p50": 258.2714635,
+        "p95": 5801.872401250001,
+        "p99": 7387.000000000015,
+        "max": 8768.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9896907216494846,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 158.11388300841898,
+        "max": 7058.859681279972
+      },
+      "derivative_rms": 75.47449778544429,
+      "native_derivative_rms": 89.11914472230144,
+      "derivative_rms_ratio": 0.8468943235555683,
+      "force_total_variation_ratio": 0.9252887120280615
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.5,
+      "comparisons": 8693,
+      "force_repeat_fraction": 0.7167836190037962,
+      "taxel_repeat_fraction": 0.671919935580352,
+      "same_software_read_fraction": 0.00011503508570113885,
+      "force_changes_per_s": 14.160819049810193,
+      "mean_selected_age_ms": 6.618920194600804,
+      "mean_held_output_age_ms": 16.618920194600804,
+      "measurement_age_ms": {
+        "min": 0.000148,
+        "p01": 0.13561312,
+        "p50": 6.567069,
+        "p95": 12.5045186,
+        "p99": 13.201039439999999,
+        "max": 24.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000148,
+        "p01": 0.5737093999999999,
+        "p50": 254.12007,
+        "p95": 5790.0,
+        "p99": 7370.0,
+        "max": 8770.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 0.9876675842278297,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.979381443298969,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 158.11388300841898,
+        "max": 7058.859681279972
+      },
+      "derivative_rms": 75.25064525425287,
+      "native_derivative_rms": 89.12250815312265,
+      "derivative_rms_ratio": 0.8443506226840437,
+      "force_total_variation_ratio": 0.9233696125898564
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.6,
+      "comparisons": 8689,
+      "force_repeat_fraction": 0.714581654966049,
+      "taxel_repeat_fraction": 0.6721141673380135,
+      "same_software_read_fraction": 0.00011508804235239959,
+      "force_changes_per_s": 14.27091725169755,
+      "mean_selected_age_ms": 6.558259504424778,
+      "mean_held_output_age_ms": 16.55825950442478,
+      "measurement_age_ms": {
+        "min": 0.002692,
+        "p01": 0.118786,
+        "p50": 6.570304,
+        "p95": 12.497917,
+        "p99": 13.156721,
+        "max": 26.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.002692,
+        "p01": 0.466239,
+        "p50": 255.453351,
+        "p95": 5792.0,
+        "p99": 7372.0,
+        "max": 8772.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9690721649484536,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 165.83123951777,
+        "max": 7602.795538484511
+      },
+      "derivative_rms": 75.22131385607771,
+      "native_derivative_rms": 89.1359656855743,
+      "derivative_rms_ratio": 0.8438940811099719,
+      "force_total_variation_ratio": 0.9175706523300159
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.7,
+      "comparisons": 8689,
+      "force_repeat_fraction": 0.7175739440672114,
+      "taxel_repeat_fraction": 0.6775233053285764,
+      "same_software_read_fraction": 0.00011508804235239959,
+      "force_changes_per_s": 14.121302796639432,
+      "mean_selected_age_ms": 6.542686538558786,
+      "mean_held_output_age_ms": 16.542686538558787,
+      "measurement_age_ms": {
+        "min": 0.000146,
+        "p01": 0.128206,
+        "p50": 6.55424,
+        "p95": 12.497562,
+        "p99": 13.171301,
+        "max": 28.80288
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.022039,
+        "p01": 0.578021,
+        "p50": 254.0,
+        "p95": 5794.0,
+        "p99": 7374.0,
+        "max": 8774.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9690721649484536,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 165.83123951777,
+        "max": 7602.795538484511
+      },
+      "derivative_rms": 75.26949318882617,
+      "native_derivative_rms": 89.17300535710253,
+      "derivative_rms_ratio": 0.8440838445155202,
+      "force_total_variation_ratio": 0.9171032633550957
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.8,
+      "comparisons": 8689,
+      "force_repeat_fraction": 0.716307975601335,
+      "taxel_repeat_fraction": 0.6769478651168144,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 14.184601219933251,
+      "mean_selected_age_ms": 6.569806742328469,
+      "mean_held_output_age_ms": 16.569806742328467,
+      "measurement_age_ms": {
+        "min": 0.002874,
+        "p01": 0.138729,
+        "p50": 6.519751,
+        "p95": 12.485952,
+        "p99": 13.174882,
+        "max": 15.119843
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.002888,
+        "p01": 0.532235,
+        "p50": 256.0,
+        "p95": 5796.0,
+        "p99": 7376.0,
+        "max": 8776.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 0.6666666666666666,
+      "short_peak_amplitude_ratio_mean": 0.6666666666666666,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 0.9690721649484536,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 165.83123951777,
+        "max": 7672.84171607886
+      },
+      "derivative_rms": 75.98548843533453,
+      "native_derivative_rms": 89.17300535710254,
+      "derivative_rms_ratio": 0.8521131269608194,
+      "force_total_variation_ratio": 0.9193225915263541
+    },
+    {
+      "hz": 50,
+      "phase_fraction": 0.9,
+      "comparisons": 8686,
+      "force_repeat_fraction": 0.7148284595901451,
+      "taxel_repeat_fraction": 0.6774119272392356,
+      "same_software_read_fraction": 0.0,
+      "force_changes_per_s": 14.25857702049275,
+      "mean_selected_age_ms": 6.579755355139113,
+      "mean_held_output_age_ms": 16.579755355139113,
+      "measurement_age_ms": {
+        "min": 0.000334,
+        "p01": 0.12078699,
+        "p50": 6.5446805,
+        "p95": 12.531153949999998,
+        "p99": 13.151367280000002,
+        "max": 15.842
+      },
+      "time_since_force_payload_change_ms": {
+        "min": 0.000709,
+        "p01": 0.61624547,
+        "p50": 258.0,
+        "p95": 5798.0,
+        "p99": 7378.0,
+        "max": 8758.0
+      },
+      "short_peak_count": 3,
+      "short_peak_retained90_fraction": 1.0,
+      "short_peak_amplitude_ratio_mean": 1.0,
+      "rise_proxy_count": 97,
+      "rise_proxy_retained90_fraction": 1.0,
+      "derivative_counts_per_s": {
+        "min": 0.0,
+        "p01": 0.0,
+        "p50": 0.0,
+        "p95": 50.0,
+        "p99": 165.83123951777,
+        "max": 7672.84171607886
+      },
+      "derivative_rms": 78.66349928774727,
+      "native_derivative_rms": 89.16963620605355,
+      "derivative_rms_ratio": 0.8821780892541866,
+      "force_total_variation_ratio": 0.9317851099651373
+    }
+  ]
+}

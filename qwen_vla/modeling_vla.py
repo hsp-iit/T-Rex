@@ -40,6 +40,7 @@ from transformers.cache_utils import DynamicCache
 
 from .modeling_qwen3vl_mot import Qwen3VLModelMoT
 from diffusion import ActionEmbedder, TimestepEmbedder, FinalLayer
+from .flow_matching import flow_time
 from models import DeformEncoder
 
 
@@ -573,6 +574,7 @@ class Qwen3VLVLAModel(nn.Module):
         state_embeds: Optional[torch.Tensor] = None,
         fast_embeds: Optional[torch.Tensor] = None,
         num_steps: int = 10,
+        flow_time_precision: str = 'fp32',
     ) -> torch.Tensor:
         """Action-expert-only full flow τ ∈ [0, 1].
 
@@ -589,8 +591,11 @@ class Qwen3VLVLAModel(nn.Module):
         """
         device = noise.device
         dtype  = torch.bfloat16
-        dt     = torch.tensor(-1.0 / num_steps, dtype=dtype, device=device)
-        x_t    = noise.to(dtype)
+        if flow_time_precision not in ('fp32', 'legacy_bf16'):
+            raise ValueError('invalid flow_time_precision')
+        precise = flow_time_precision == 'fp32'
+        dt     = torch.tensor(-1.0 / num_steps, dtype=torch.float32 if precise else dtype, device=device)
+        x_t    = noise.float() if precise else noise.to(dtype)
         time   = torch.tensor(1.0, dtype=dtype, device=device)
         n_chunk = noise.shape[1]
         B      = inputs_embeds.shape[0]
@@ -605,9 +610,11 @@ class Qwen3VLVLAModel(nn.Module):
 
         past_kv = None
         n_act = 0
-        for _ in range(num_steps):
+        for step in range(num_steps):
+            if precise:
+                time = flow_time(step, num_steps, device=device)
             timesteps = self.t_embedder(time.expand(B)).unsqueeze(1)
-            noisy_act = self.x_embedder(x_t)
+            noisy_act = self.x_embedder(x_t.to(dtype))
             act_parts = [fast_embeds]
             if n_state > 0:
                 act_parts.append(state_embeds)
@@ -643,11 +650,12 @@ class Qwen3VLVLAModel(nn.Module):
 
             hidden = outputs.last_hidden_state
             v_act  = self.final_layer(hidden[:, -n_chunk:, :])
-            x_t    = x_t + dt * v_act
-            time   = time + dt
+            x_t    = x_t + dt * (v_act.float() if precise else v_act)
+            if not precise:
+                time = time + dt
             past_kv = outputs.past_key_values
 
-        return x_t
+        return x_t.to(dtype)
 
 
     # il suo output è una tupla di 4 elementi
@@ -664,6 +672,7 @@ class Qwen3VLVLAModel(nn.Module):
         num_steps_total: int = 10,
         split_step: int = 6,
         refresh_clean_kv: bool = True,
+        flow_time_precision: str = 'fp32',
     ) -> Tuple[torch.Tensor, "DynamicCache", int, float]:
         """Cascaded slow-tick: run the action expert for `split_step` of
         `num_steps_total` Euler steps, stopping at τ = 1 − split_step/num_steps_total.
@@ -683,10 +692,13 @@ class Qwen3VLVLAModel(nn.Module):
 
         device = noise.device
         dtype  = torch.bfloat16
+        if flow_time_precision not in ('fp32', 'legacy_bf16'):
+            raise ValueError('invalid flow_time_precision')
+        precise = flow_time_precision == 'fp32'
         # Same dt as the full flow, so the cascaded trajectory is consistent
         # with what a 10-step monolithic flow would integrate.
-        dt     = torch.tensor(-1.0 / num_steps_total, dtype=dtype, device=device)
-        x_t    = noise.to(dtype)
+        dt     = torch.tensor(-1.0 / num_steps_total, dtype=torch.float32 if precise else dtype, device=device)
+        x_t    = noise.float() if precise else noise.to(dtype)
         time   = torch.tensor(1.0, dtype=dtype, device=device)
         n_chunk = noise.shape[1]
         B      = inputs_embeds.shape[0]
@@ -703,13 +715,15 @@ class Qwen3VLVLAModel(nn.Module):
         n_act = 0
         # Per 6 steps
         for i in range(split_step):
+            if precise:
+                time = flow_time(i, num_steps_total, device=device)
 
             # A ogni step vengono creati nuovamente:
             # - Il token del tempo corrente.
             # - I 16 token delle azioni rumorose correnti.
             # - La sequenza action che contiene anche i token fast e l'eventuale stato.
             timesteps = self.t_embedder(time.expand(B)).unsqueeze(1)
-            noisy_act = self.x_embedder(x_t)
+            noisy_act = self.x_embedder(x_t.to(dtype))
             act_parts = [fast_embeds] # importante anche la presenza dei fast tokens
             if n_state > 0:
                 act_parts.append(state_embeds)
@@ -756,11 +770,14 @@ class Qwen3VLVLAModel(nn.Module):
             # È x_t, dopo il completamento del processo, a rappresentare il chunk generato.
             v_act  = self.final_layer(hidden[:, -n_chunk:, :])
             # viene aggiornato lo stato
-            x_t    = x_t + dt * v_act
+            x_t    = x_t + dt * (v_act.float() if precise else v_act)
             # viene aggiornato il tempo
-            time   = time + dt
+            if not precise:
+                time = time + dt
             past_kv = outputs.past_key_values
 
+        if precise:
+            time = flow_time(split_step, num_steps_total, device=device)
         # `time` is now τ_split.  Refresh KV with the partially-denoised state
         # at τ_split so the tactile expert attends to a coherent action context.
         # Refresh per avere cache e stato coerenti
@@ -769,7 +786,7 @@ class Qwen3VLVLAModel(nn.Module):
             split_timesteps = self.t_embedder(
                 time.expand(B)
             ).unsqueeze(1)
-            split_actions = self.x_embedder(x_t)
+            split_actions = self.x_embedder(x_t.to(dtype))
             clean_parts = [fast_embeds]
             if n_state > 0:
                 clean_parts.append(state_embeds)
@@ -796,9 +813,12 @@ class Qwen3VLVLAModel(nn.Module):
         else:
             n_action_in_cache = n_act
 
-        tau_split = float(time.item())
+        tau_split = (num_steps_total - split_step) / num_steps_total if precise else float(time.item())
         # n_action_in_cache = L_fast + n_state + 1 + 16
-        return x_t, past_kv, n_action_in_cache, tau_split
+        past_kv._trex_handover = {'action_steps': split_step, 'total_steps': num_steps_total,
+            'tau': tau_split, 'precision': flow_time_precision, 'length': past_kv.get_seq_length(),
+            'n_action': n_action_in_cache}
+        return x_t.to(dtype), past_kv, n_action_in_cache, tau_split
 
     @torch.no_grad()
     def tactile_flow_continue(
@@ -814,6 +834,7 @@ class Qwen3VLVLAModel(nn.Module):
         tactile_f6_history: Optional[torch.Tensor] = None,
         num_steps_total: int = 10,
         split_step: int = 6,
+        flow_time_precision: str = 'fp32',
     ) -> torch.Tensor:
         """Cascaded fast-tick: continue the flow from x_split at τ=tau_split
         down to τ=0 using the tactile expert.  Returns the final clean action
@@ -830,9 +851,23 @@ class Qwen3VLVLAModel(nn.Module):
         # Se modificasse direttamente self.cached_kv, non potremmo riutilizzare lo stesso
         # snapshot al tick veloce successivo. La clonazione permette quindi di preservare
         # il contesto prodotto dall'Action Expert.
+        expected_tau = (num_steps_total - split_step) / num_steps_total
+        if flow_time_precision == 'fp32' and abs(tau_split - expected_tau) > 1e-6:
+            raise ValueError('tactile handover time does not match action schedule')
+        metadata = getattr(cached_kv, '_trex_handover', None)
+        if metadata is not None:
+            if (metadata['action_steps'] != split_step or metadata['total_steps'] != num_steps_total
+                    or metadata['precision'] != flow_time_precision or metadata['n_action'] != n_action_in_cache
+                    or abs(metadata['tau'] - tau_split) > 1e-6):
+                raise ValueError('inference handover cache metadata mismatch')
+            if cached_kv.get_seq_length() != metadata['length']:
+                raise ValueError('inference handover cache has been mutated')
         cache = self._clone_dynamic_cache(cached_kv)
         device = x_split.device
         dtype  = torch.bfloat16
+        if flow_time_precision not in ('fp32', 'legacy_bf16'):
+            raise ValueError('invalid flow_time_precision')
+        precise = flow_time_precision == 'fp32'
         B      = x_split.shape[0]
         n_chunk, action_dim = x_split.shape[1], x_split.shape[2]
 
@@ -850,18 +885,20 @@ class Qwen3VLVLAModel(nn.Module):
         # Same dt as the action expert used in the slow tick — the cascaded
         # trajectory's integration step matches what a monolithic 10-step flow
         # would use.  `remaining` steps complete the integration.
-        dt   = torch.tensor(-1.0 / num_steps_total, dtype=dtype, device=device)
+        dt   = torch.tensor(-1.0 / num_steps_total, dtype=torch.float32 if precise else dtype, device=device)
         time = torch.tensor(tau_split, dtype=dtype, device=device)
         remaining = num_steps_total - split_step
-        x = x_split.to(dtype)
+        x = x_split.float() if precise else x_split.to(dtype)
 
         for step in range(remaining):
+            if precise:
+                time = flow_time(split_step + step, num_steps_total, device=device)
             # Ad ogni iterazione
             # x_{tau-0.1} = x_tau -0.1 v_T(x_tau, tau, F, C), tau -> tau - 0.1
 
 
             tau_emb = self.t_embedder(time.expand(B)).unsqueeze(1)
-            x_emb   = self.x_embedder(x)
+            x_emb   = self.x_embedder(x.to(dtype))
             full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1)
             if step > 0:
                 # Al primo step, la cache clonata contiene soltanto il contesto latent e action.
@@ -879,11 +916,12 @@ class Qwen3VLVLAModel(nn.Module):
             )
             hidden = outputs.last_hidden_state
             v = self.final_layer_tactile(hidden[:, -n_chunk:, :])
-            x    = x + dt * v
-            time = time + dt
+            x    = x + dt * (v.float() if precise else v)
+            if not precise:
+                time = time + dt
             
         # Questo x è il chunk denoisato a tau=0, ancora nello spazio normalizzato delle azioni.
-        return x
+        return x.to(dtype)
 
 
     # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
@@ -900,6 +938,7 @@ class Qwen3VLVLAModel(nn.Module):
         tactile_deform: Optional[torch.Tensor] = None,
         tactile_codes: Optional[torch.Tensor] = None,
         tactile_f6_history: Optional[torch.Tensor] = None,
+        flow_time_precision: str = 'fp32',
     ) -> torch.Tensor:
         """Single tactile-only forward at (x_τ, τ) for cascaded training.
 
@@ -908,6 +947,17 @@ class Qwen3VLVLAModel(nn.Module):
         expert's L_flow loss — both experts are trained as velocity predictors
         for the same flow trajectory, just on disjoint τ ranges.
         """
+        metadata = getattr(cached_kv, '_trex_handover', None)
+        if metadata is not None:
+            if metadata['precision'] != flow_time_precision or metadata['n_action'] != n_action_in_cache:
+                raise ValueError('training handover cache metadata mismatch')
+            if cached_kv.get_seq_length() != metadata['length']:
+                raise ValueError('training handover cache has been mutated')
+            limit = metadata['tau'] if flow_time_precision == 'fp32' else (metadata['total_steps']-metadata['action_steps'])/metadata['total_steps']
+            tolerance = 1e-6 if flow_time_precision == 'fp32' else 0.002
+            if torch.any(tau <= 0) or torch.any(tau.float() > limit + tolerance):
+                raise ValueError('tactile training time outside selected handover')
+        cached_kv = self._clone_dynamic_cache(cached_kv)
         device = x_tau.device
         dtype  = torch.bfloat16
         B      = x_tau.shape[0]
@@ -924,7 +974,7 @@ class Qwen3VLVLAModel(nn.Module):
         # IMPORTANTE: il Tactile Expert utilizza gli stessi moduli t_embedder e x_embedder dell'Action Expert.
         # Non sono presenti due copie separate di questi embedder nella funzione.
         # Questa condivisione ha conseguenze sui gradienti, come abbiamo visto studiando il training.
-        tau_emb = self.t_embedder(tau.to(dtype)).unsqueeze(1)            # [B, 1, H]
+        tau_emb = self.t_embedder(tau.to(dtype) if flow_time_precision == 'legacy_bf16' else tau.float()).unsqueeze(1)            # [B, 1, H]
         x_emb   = self.x_embedder(x_tau.to(dtype))                       # [B, 16, H]
 
         # Tactile obs (#n_obs), tau(#1), noisy action(#16)
