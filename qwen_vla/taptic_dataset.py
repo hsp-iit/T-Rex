@@ -1,8 +1,17 @@
 """Isolated TAPTIC adapter for the unchanged cascaded T-Rex loop.
 
-Full taxels enter the existing vector embedder as five 360-D tokens. No future
-observations, VQ codes, deformation images, contact labels or risk labels.
-The historical `tactile_f6s` key now carries taxels; it does not imply six axes.
+Two tactile inputs (--taptic_tactile_input):
+  taxels    : full taxels enter the vector embedder as five 360-D tokens.
+              No VQ codes. Missing-taxel episodes get zeros (not masked).
+  sdk_force : recorded SDK fingertip force. Current sample -> five 3-D tokens
+              (normalized with the VQ-VAE train-only stats), plus a causal
+              native-rate (~76 Hz) history window [W,5,3] raw that the embedded
+              VQ-VAE turns into five per-finger codes. Legacy 10 Hz episodes and
+              stale/missing samples are marked invalid and excluded from the
+              tactile-expert loss via `tactile_loss_mask` (they still train the
+              action expert and FLARE). Never interpolated.
+No future observations, deformation images, contact labels or risk labels.
+The historical `tactile_f6s` key carries taxels or forces; it does not imply six axes.
 """
 from __future__ import annotations
 import copy
@@ -18,15 +27,60 @@ from taptic.data import (Source, CAMERAS, finite, normalize, denormalize,
                          tactile_at, tactile_stream_between)
 from taptic.video import VideoReader
 from taptic.timing import build_quality, latest_quality
+from taptic.force_history import build_force_track, history_at
 from .flow_matching import validate_split_config
+
+TACTILE_INPUTS = ('taxels', 'sdk_force')
+TAPTIC_FORCE_SIGNAL = 'taptic_sdk_force'
+
+
+def tactile_input(cfg):
+    mode = getattr(cfg, 'taptic_tactile_input', 'taxels')
+    if mode not in TACTILE_INPUTS:
+        raise ValueError(f'taptic_tactile_input must be one of {TACTILE_INPUTS}')
+    return mode
+
+
+def tactile_feature_dim(cfg):
+    """Width of each of the five per-finger vector tokens."""
+    return 360 if tactile_input(cfg) == 'taxels' else 3
+
+
+def validate_vqvae_config(vq):
+    """The embedded VQ-VAE must be the TAPTIC native SDK-force one."""
+    got = (vq.get('input_signal'), vq.get('n_hands'), vq.get('n_fingers'), vq.get('per_finger_dim'))
+    if got != (TAPTIC_FORCE_SIGNAL, 1, 5, 3):
+        raise ValueError('TAPTIC needs a VQ-VAE trained with tactile_vqvae.train --data_format taptic '
+                         f'(input_signal, n_hands, n_fingers, per_finger_dim) = {got}')
+
+
+def load_force_stats(cfg):
+    """Train-only SDK-force stats + provenance from the TAPTIC VQ-VAE checkpoint."""
+    from tactile_vqvae.data.stats import TacF6Stats
+    path = getattr(cfg, 'tactile_f6_stats_ckpt', '') or getattr(cfg, 'vqvae_ckpt', '')
+    if not path:
+        raise ValueError('sdk_force input needs --vqvae_ckpt or --tactile_f6_stats_ckpt '
+                         '(TAPTIC VQ-VAE checkpoint carrying the force statistics)')
+    blob = torch.load(path, map_location='cpu', weights_only=False)
+    validate_vqvae_config(blob['config'])
+    stats = TacF6Stats.from_dict(blob['stats'])
+    if stats.dim != 15:
+        raise ValueError('TAPTIC force stats must have 15 channels')
+    return stats, blob.get('data', {})
 
 
 def validate_config(cfg):
     if (cfg.action_dim, cfg.action_chunk) != (21, 16):
         raise ValueError('TAPTIC requires action_dim=21, action_chunk=16')
-    for k in ('use_tactile_deform', 'use_tactile_vqvae', 'use_tactile_code'):
-        if getattr(cfg, k, 0):
-            raise ValueError(f'TAPTIC raw taxels require {k}=0')
+    mode = tactile_input(cfg)
+    if getattr(cfg, 'use_tactile_deform', 0):
+        raise ValueError('TAPTIC requires use_tactile_deform=0')
+    if mode == 'taxels':
+        for k in ('use_tactile_vqvae', 'use_tactile_code'):
+            if getattr(cfg, k, 0):
+                raise ValueError(f'TAPTIC raw taxels require {k}=0 (use --taptic_tactile_input sdk_force for VQ)')
+    elif getattr(cfg, 'use_tactile_code', 0) and not getattr(cfg, 'use_tactile_vqvae', 0):
+        raise ValueError('TAPTIC has no pre-computed code sidecars; use the embedded VQ-VAE (use_tactile_vqvae=1)')
     if not getattr(cfg, 'use_tactile_vec', 0):
         raise ValueError('TAPTIC requires use_tactile_vec=1')
     if tuple(getattr(cfg, 'tactile_delay_offsets', (0,))) != (0,):
@@ -61,6 +115,18 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         self.flare_frame_stride = int(getattr(config, 'flare_frame_stride', 1))
         if self.flare_frame_stride < 1:
             raise ValueError('FLARE stride must be positive')
+        self.tactile_input = tactile_input(config)
+        self.use_vqvae = bool(getattr(config, 'use_tactile_vqvae', 0))
+        self.vq_window = int(getattr(config, 'vqvae_window', 16))
+        if self.tactile_input == 'sdk_force':
+            self.force_stats, vq_data = load_force_stats(config)
+            if vq_data.get('source_identity') not in (None, self.source.identity):
+                raise ValueError('VQ-VAE force statistics belong to a different dataset')
+            vq_train = set(vq_data.get('train_episodes', []))
+            if vq_train and not vq_train <= set(ids):
+                raise ValueError('VQ-VAE was trained on non-training episodes')
+            if self.use_vqvae and vq_data.get('window', self.vq_window) != self.vq_window:
+                raise ValueError('VQ-VAE window does not match vqvae_window')
         self._cache_key = None
         self._video = VideoReader()
         self._set_split(split)
@@ -102,6 +168,8 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             native = not bool(self.source.episodes.loc[ep, 'tactile_interpolated'])
             gap_ms = getattr(self.config, 'tactile_gap_ms', 50.) if native else 150.
             self._cache_quality = build_quality(sm, available, native, int(gap_ms*1e6))
+            self._cache_force = (build_force_track(sm, available, times, int(gap_ms*1e6))
+                                 if self.tactile_input == 'sdk_force' and native else None)
             self._cache = (d, s, a, times, sm, available)
             self._cache_key = ep
         return self._cache
@@ -153,9 +221,23 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                 v = np.asarray(d.iloc[t][key])
                 finite(v, key)
                 haptics[key.removeprefix('observation.haptics.')] = v.copy()
+        force_history, force_valid_tick, n_real = None, False, 0
+        if self.tactile_input == 'sdk_force':
+            # Native ~76 Hz causal history; legacy (10 Hz) episodes are missing, never upsampled.
+            if self._cache_force is not None:
+                force_history, force_valid_tick, n_real, _ = history_at(
+                    self._cache_force, int(times[t]), self.vq_window, stale_ns)
+            else:
+                force_history = np.zeros((self.vq_window, 5, 3), np.float32)
+            policy_tactile = (self.force_stats.normalize(force_history[-1]).astype(np.float32)
+                              if force_valid_tick else np.zeros((5, 3), np.float32))
+        else:
+            policy_tactile = scaled.reshape(5, 360)
         return {'head': self._img(ep, CAMERAS[0], t), 'fast': [self._img(ep, CAMERAS[1], t)],
                 'language': self.source.episodes.loc[ep, 'caption'], 'action_chunk': chunk_21d(s, a, t),
-                'tactile_f6': scaled.reshape(5, 360), 'tactile_taxels': taxels,
+                'tactile_f6': policy_tactile, 'tactile_taxels': taxels,
+                'force_history': force_history, 'force_valid': force_valid_tick,
+                'force_history_n_real': n_real,
                 'tactile_valid': np.full(5, valid), 'sdk_force': force, 'sdk_force_valid': force_valid,
                 'tactile_stream': stream, 'tactile_quality': current_quality,
                 'state_raw': state, 'recorded_haptics': haptics, 'flare_frames': flare,
@@ -195,6 +277,11 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         norm_tac = torch.from_numpy(np.stack([x["tactile_f6"] for x in batch]))
         norm_tac_d = norm_tac  # same inference tick; no future tactile leakage
         hist = None
+        loss_mask = None
+        if self.tactile_input == 'sdk_force':
+            loss_mask = torch.tensor([bool(x['force_valid']) for x in batch])
+            if self.use_vqvae:
+                hist = torch.from_numpy(np.stack([x['force_history'] for x in batch]))  # [B,W,5,3] raw
 
         all_ids, all_pv, all_thw = [], [], []
         for x in batch:
@@ -255,4 +342,6 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             "recorded_haptics": {k: torch.from_numpy(np.stack([x["recorded_haptics"][k] for x in batch]))
                                  for k in batch[0]["recorded_haptics"]},
             "contact_features": None, "contact_risk": None,
+            "tactile_loss_mask": loss_mask,
+            "force_history_n_real": torch.tensor([x['force_history_n_real'] for x in batch]),
         }

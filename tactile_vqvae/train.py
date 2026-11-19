@@ -45,7 +45,19 @@ from tactile_vqvae.models.tactile_vqvae import TactileVQVAEConfig
 def parse_args() -> argparse.Namespace:
     p = argparse.ArgumentParser()
     # Data
-    p.add_argument("--data_root", type=str, required=True,
+    p.add_argument("--data_format", type=str, default="merged", choices=["merged", "taptic"],
+                   help="merged: original bimanual F6 [T,5,6] windows. taptic: native "
+                        "~76 Hz SDK force [T,5,3] windows from a TAPTIC LeRobot root.")
+    p.add_argument("--lerobot_root", type=str, default="",
+                   help="TAPTIC export root (required for --data_format taptic).")
+    p.add_argument("--tactile_gap_ms", type=float, default=50.,
+                   help="TAPTIC: native read gap that splits a force segment.")
+    p.add_argument("--pad_short", type=int, default=1,
+                   help="TAPTIC: also train on left-padded windows at segment starts "
+                        "(what the policy sees after episode start / sensor reset).")
+    p.add_argument("--max_episodes", type=int, default=0,
+                   help="TAPTIC: limit train episodes (debug/smoke only).")
+    p.add_argument("--data_root", type=str, default="",
                    help="Merged midtrain root (contains */pretrain_manifest.json)")
     p.add_argument("--window", type=int, default=16)
     p.add_argument("--stride", type=int, default=4,
@@ -65,7 +77,10 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--revive_threshold", type=float, default=1.0)
     p.add_argument("--use_magnitude_weight", type=int, default=1)
     p.add_argument("--weight_alpha", type=float, default=2.0)
-    p.add_argument("--weight_tau", type=float, default=4.0)
+    p.add_argument("--weight_tau", type=float, default=4.0,
+                   help="Raw-magnitude scale for recon weighting. <=0: auto = 75th "
+                        "percentile of train window magnitudes (recommended for taptic, "
+                        "whose SDK counts have a different scale from F6).")
     p.add_argument("--granularity", type=str, default="hand",
                    choices=["hand", "finger"],
                    help="hand: 1 code per (hand, window).  finger: 5 codes per "
@@ -98,7 +113,12 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--smoke_test", type=int, default=0,
                    help="If 1, run 5 train steps + 1 val pass and exit.")
 
-    return p.parse_args()
+    args = p.parse_args()
+    if args.data_format == "taptic" and not args.lerobot_root:
+        p.error("--data_format taptic requires --lerobot_root")
+    if args.data_format == "merged" and not args.data_root:
+        p.error("--data_format merged requires --data_root")
+    return args
 
 
 # ─── helpers ──────────────────────────────────────────────────────────────────
@@ -113,9 +133,14 @@ def cosine_lr(step: int, total: int, warmup: int, base_lr: float, min_ratio: flo
 
 
 def _build_config(args) -> TactileVQVAEConfig:
+    taptic = args.data_format == "taptic"
+    per_finger_dim = 3 if taptic else 6
     return TactileVQVAEConfig(
         window=args.window,
-        in_channels=30,
+        in_channels=5 * per_finger_dim,
+        per_finger_dim=per_finger_dim,
+        n_hands=1 if taptic else 2,
+        input_signal="taptic_sdk_force" if taptic else "f6",
         hidden_channels=args.hidden_channels,
         bottleneck_channels=args.bottleneck_channels,
         embed_dim=args.embed_dim,
@@ -141,6 +166,7 @@ def _save_checkpoint(
     cfg: TactileVQVAEConfig,
     step: int,
     epoch: int,
+    data_meta: Optional[dict] = None,
 ):
     if not accelerator.is_main_process:
         return
@@ -153,6 +179,7 @@ def _save_checkpoint(
         "epoch":        epoch,
         "config":       cfg.to_dict(),
         "stats":        stats.to_dict(),
+        "data":         data_meta or {},
     }
     ckpt_path = os.path.join(out_dir, f"checkpoint_epoch{epoch:03d}.pt")
     torch.save(state, ckpt_path)
@@ -218,20 +245,37 @@ def main():
     accelerator.print(f"[VQ-VAE] device  = {device}, mixed_precision={args.mixed_precision}")
 
     # ── Stats + datasets ──────────────────────────────────────────────────────
-    accelerator.print(f"[VQ-VAE] Scanning {args.data_root} for episodes …")
-    stats = TacF6Stats.from_data_root(args.data_root)
+    data_meta = {"input_signal": "f6"}
+    if args.data_format == "taptic":
+        from tactile_vqvae.data.taptic import build_taptic_datasets
+        accelerator.print(f"[VQ-VAE] TAPTIC native SDK force from {args.lerobot_root}")
+        train_ds, val_ds, stats, data_meta = build_taptic_datasets(
+            args.lerobot_root, window=args.window, stride=args.stride,
+            gap_ms=args.tactile_gap_ms, pad_short=bool(args.pad_short),
+            max_episodes=args.max_episodes, log=accelerator.print)
+        if args.weight_tau <= 0:
+            args.weight_tau = float(np.percentile(train_ds.magnitudes(200_000, args.seed), 75))
+            accelerator.print(f"[VQ-VAE] auto weight_tau = {args.weight_tau:.3f} (p75 raw magnitude)")
+        data_meta["weight_tau"] = args.weight_tau
+        if accelerator.is_main_process:
+            with open(os.path.join(run_dir, "taptic_force_stats.json"), "w") as f:
+                json.dump({"stats": stats.to_dict(), "data": data_meta}, f, indent=2)
+    else:
+        if args.weight_tau <= 0:
+            raise ValueError("--weight_tau auto is only implemented for --data_format taptic")
+        accelerator.print(f"[VQ-VAE] Scanning {args.data_root} for episodes …")
+        stats = TacF6Stats.from_data_root(args.data_root)
+        train_ds, val_ds, _ = build_train_val_datasets(
+            data_root=args.data_root,
+            window=args.window,
+            stride=args.stride,
+            val_ratio=args.val_ratio,
+            seed=args.seed,
+            stats=stats,
+        )
     accelerator.print(
-        f"[VQ-VAE] tacf6_min[:6] = {stats.tacf6_min[:6]}, "
-        f"tacf6_max[:6] = {stats.tacf6_max[:6]}")
-
-    train_ds, val_ds, _ = build_train_val_datasets(
-        data_root=args.data_root,
-        window=args.window,
-        stride=args.stride,
-        val_ratio=args.val_ratio,
-        seed=args.seed,
-        stats=stats,
-    )
+        f"[VQ-VAE] stats min[:6] = {stats.tacf6_min[:6]}, "
+        f"max[:6] = {stats.tacf6_max[:6]}")
     accelerator.print(
         f"[VQ-VAE] train: {train_ds.num_episodes} eps / {len(train_ds)} windows ;"
         f" val: {val_ds.num_episodes} eps / {len(val_ds)} windows")
@@ -349,7 +393,7 @@ def main():
         if (epoch + 1) % args.save_every_epoch == 0:
             _save_checkpoint(
                 accelerator, run_dir,
-                model, optimizer, stats, cfg, global_step, epoch,
+                model, optimizer, stats, cfg, global_step, epoch, data_meta,
             )
 
     # Final save (smoke test or last epoch).
@@ -357,6 +401,7 @@ def main():
         accelerator, run_dir,
         model, optimizer, stats, cfg, global_step,
         epoch=args.epochs - 1 if not args.smoke_test else 0,
+        data_meta=data_meta,
     )
 
     if use_wandb and accelerator.is_main_process:

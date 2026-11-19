@@ -58,6 +58,35 @@ from qwen_vla.flow_matching import validate_split_config, select_handover, tacti
 import cv2
 
 logger = logging.getLogger(__name__)
+
+
+def reinit_tactile_expert(model):
+    """Fresh tactile expert (no midtrain checkpoint to resume it from).
+
+    Matrices: Xavier. RMSNorm gains: ones (a zero gain zeroes the norm's output and
+    switches the whole tactile branch off at step 0). Other 1-D params (biases): zeros.
+    Same rule as upstream T-Rex scripts/train.py (PR #17, fix/tactile-norm-init).
+    """
+    for name, param in model.named_parameters():
+        if "_tactile" in name:
+            if param.ndim >= 2:
+                nn.init.xavier_uniform_(param)
+            elif "norm" in name:
+                nn.init.ones_(param)  # RMSNorm gain: zero would kill its branch
+            elif param.ndim == 1:
+                nn.init.zeros_(param)
+
+
+def tactile_flow_loss(pred, target, mask=None):
+    """Tactile-expert MSE. With a per-sample mask (TAPTIC sdk_force), samples
+    without a valid native tactile observation (legacy 10 Hz episodes, stale or
+    missing reads) contribute nothing; an all-invalid batch gives a zero loss
+    that keeps the graph connected."""
+    if mask is None:
+        return nn.MSELoss()(pred, target)
+    per = (pred.float() - target.float()).pow(2).mean(dim=tuple(range(1, pred.dim())))
+    m = mask.to(device=per.device, dtype=per.dtype)
+    return (per * m).sum() / m.sum().clamp_min(1.0)
 logging.basicConfig(level="INFO")
 
 
@@ -1070,8 +1099,12 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
 
         with open(os.path.join(save_dir, "training_args.json"), "w") as f:
             json.dump({
-                **({"data_format": "taptic", "tacf6_dim": 360,
-                    "tactile_layout": "thumb..little x 120 taxels x xyz",
+                **({"data_format": "taptic",
+                    "taptic_tactile_input": getattr(args, "taptic_tactile_input", "taxels"),
+                    "tacf6_dim": 360 if getattr(args, "taptic_tactile_input", "taxels") == "taxels" else 3,
+                    "tactile_layout": ("thumb..little x 120 taxels x xyz"
+                                       if getattr(args, "taptic_tactile_input", "taxels") == "taxels"
+                                       else "thumb..little x SDK force xyz; VQ history native ~76 Hz"),
                     "tactile_delay_offsets": [0], "taptic_stats": args.taptic_stats}
                    if getattr(args, "data_format", "json") == "taptic" else {}),
                 "model_path": args.model_path,
@@ -1266,7 +1299,7 @@ def run_validation(model, val_dataloader, accelerator, args,
                 tactile_codes=batch.get("tactile_codes"),
                 tactile_f6_history=batch.get("tactile_f6_history"),
             )
-            loss_tac = nn.MSELoss()(v_pred_r, v_target_r)
+            loss_tac = tactile_flow_loss(v_pred_r, v_target_r, batch.get("tactile_loss_mask"))
         else:
             # Stage-1 / tactile-free validation: action expert only.
             full_embeds = torch.cat([
@@ -1375,7 +1408,15 @@ def train(args):
 
     if args.data_format == "taptic":
         # Resume auto-detection must not silently enable the incompatible F6 VQ path.
+        from qwen_vla.taptic_dataset import validate_vqvae_config
         validate_config(args)
+        if vqvae_config is not None:
+            validate_vqvae_config(vqvae_config)
+
+    tacf6_dim = 6
+    if args.data_format == "taptic":
+        from qwen_vla.taptic_dataset import tactile_feature_dim
+        tacf6_dim = tactile_feature_dim(args)
 
     # Creazione del modello VLA che verrà chiamato
     # Sta soltanto costruendo la struttura dei moduli e caricando i pesi di partenza.
@@ -1383,7 +1424,7 @@ def train(args):
         pretrained_path=args.model_path,
         action_dim=args.action_dim,
         action_chunk=args.action_chunk,
-        tacf6_dim=360 if args.data_format == "taptic" else 6,
+        tacf6_dim=tacf6_dim,
         use_tactile_deform=bool(args.use_tactile_deform),
         use_robot_state=bool(args.use_robot_state),
         torch_dtype=torch.bfloat16,
@@ -1448,12 +1489,7 @@ def train(args):
     if not freeze_tactile and not resumed_tactile:
         # Tactile expert is a velocity predictor under cascaded flow matching,
         # so the head must start non-trivial (no final-layer zero-init here).
-        for name, param in model.named_parameters():
-            if "_tactile" in name:
-                if param.ndim >= 2:
-                    nn.init.xavier_uniform_(param)
-                elif param.ndim == 1:
-                    nn.init.zeros_(param)
+        reinit_tactile_expert(model)
         accelerator.print("Tactile expert re-initialized (resume_source=pretrain or no resume).")
     elif resumed_tactile:
         accelerator.print("Tactile expert weights kept from resumed midtrain checkpoint.")
@@ -1797,7 +1833,7 @@ def train(args):
                 # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
                 # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
                 # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
-                loss_tac = nn.MSELoss()(
+                loss_tac = tactile_flow_loss(
                     raw_model.tactile_flow_train_step(
                         cached_kv=cached_kv,
                         latent_position_ids=pos_ids,
@@ -1811,6 +1847,7 @@ def train(args):
                         tactile_f6_history=tac_hist_in,
                     ),
                     v_target_r,
+                    batch.get("tactile_loss_mask"),
                 )
             else:
                 loss_tac = 0.0
@@ -1929,6 +1966,8 @@ def train(args):
                         "flare_loss":  m["flare_loss"],
                         "lr": lr_now,
                         "flow/tau_split": handover.tau,
+                        **({"tactile/valid_frac": float(batch["tactile_loss_mask"].float().mean())}
+                           if batch.get("tactile_loss_mask") is not None else {}),
                         "flow/action_steps": handover.action_steps,
                         "flow/tactile_steps": handover.tactile_steps,
                     }
@@ -1951,6 +1990,15 @@ def train(args):
                     wandb.log(val_m, step=global_step)
 
             global_step += 1
+            if args.max_train_steps and global_step >= args.max_train_steps:
+                break
+
+        if args.max_train_steps and global_step >= args.max_train_steps:
+            # Probe mode (memory/throughput check): stop without writing checkpoints.
+            if torch.cuda.is_available():
+                accelerator.print(f"[probe] {global_step} steps done; peak CUDA memory "
+                                  f"{torch.cuda.max_memory_allocated() / 2**30:.1f} GiB on this rank")
+            break
 
         if (epoch + 1) % args.save_freq == 0 or epoch == args.n_epochs - 1:
             accelerator.wait_for_everyone()
@@ -1974,6 +2022,9 @@ if __name__ == "__main__":
     parser.add_argument("--lerobot_root", type=str, default="",
                         help="LeRobot dataset dir (required when --data_format lerobot).")
     parser.add_argument("--taptic_stats", type=str, default="", help="Train-only statistics from python -m taptic.inspect_dataset")
+    parser.add_argument("--taptic_tactile_input", type=str, default="taxels", choices=["taxels", "sdk_force"],
+                        help="taxels: 5x360 raw taxels, no VQ. sdk_force: 5x3 SDK force + native ~76 Hz "
+                             "history for the TAPTIC VQ-VAE; legacy 10 Hz episodes masked from tactile loss.")
     parser.add_argument("--lerobot_repo_id", type=str, default="")
     parser.add_argument("--num_workers", type=int, default=4)
     parser.add_argument("--output_dir", type=str, default="./outputs")
@@ -1981,6 +2032,8 @@ if __name__ == "__main__":
     parser.add_argument("--max_ckpts", type=int, default=10)
 
     parser.add_argument("--n_epochs", type=int, default=200)
+    parser.add_argument("--max_train_steps", type=int, default=0,
+                        help="Probe: stop after this many micro-steps, no checkpoint (0 = off).")
     parser.add_argument("--save_freq", type=int, default=50)
     parser.add_argument("--train_bsz_per_gpu", type=int, default=1)
     parser.add_argument("--gradient_accumulation_steps", type=int, default=1)

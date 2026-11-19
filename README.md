@@ -121,6 +121,10 @@ env path, and the data/checkpoint paths there for your machine (the scripts add
 `PROJECT_ROOT` to `PYTHONPATH` themselves). There is no need to export anything
 globally.
 
+> **TAPTIC midtrain (branch `mfincato/risk_gated`)**: to run the TAPTIC tactile VQ-VAE +
+> T-Rex midtrain on a new machine, follow [docs/TAPTIC_RUN_GUIDE.md](docs/TAPTIC_RUN_GUIDE.md).
+> It covers the pinned env, downloads, tests, batch choice, launch and the report to send back.
+
 ## Training pipeline
 
 Three sequential stages, each resuming from the previous stage's

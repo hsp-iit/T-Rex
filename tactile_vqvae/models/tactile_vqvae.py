@@ -35,6 +35,15 @@ class TactileVQVAEConfig:
     granularity: str = "hand"
     n_fingers: int = 5
     per_finger_dim: int = 6
+    # Hands in the raw history passed to the VLA (2 = original bimanual F6
+    # [T,10,6]; 1 = TAPTIC right hand [T,5,3]).  Sizes the normalization stats.
+    n_hands: int = 2
+    # Provenance of the input signal (documentation + guards, not used in forward).
+    input_signal: str = "f6"
+
+    @property
+    def stats_dim(self) -> int:
+        return self.n_hands * self.n_fingers * self.per_finger_dim
     # Misc
     init_mode: str = "uniform"
 
@@ -90,6 +99,7 @@ class TactileVQVAE(nn.Module):
                 bottleneck_channels=cfg.bottleneck_channels,
                 embed_dim=cfg.embed_dim,
                 n_strided_blocks=cfg.n_strided_blocks,
+                n_fingers=cfg.n_fingers,
             )
 
         self.quantizer = VQEMAQuantizer(

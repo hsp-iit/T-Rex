@@ -131,18 +131,21 @@ class Qwen3VLVLAModel(nn.Module):
                     "(the TactileVQVAEConfig fields from the VQ-VAE checkpoint).")
             from tactile_vqvae.models.tactile_vqvae import (
                 TactileVQVAE, TactileVQVAEConfig)
-            self.tactile_vqvae = TactileVQVAE(TactileVQVAEConfig.from_dict(vqvae_config))
+            vq_cfg = TactileVQVAEConfig.from_dict(vqvae_config)
+            self.tactile_vqvae = TactileVQVAE(vq_cfg)
             self.tactile_vqvae.eval()
             for p in self.tactile_vqvae.parameters():
                 p.requires_grad = False
-            # F6 min-max normalization stats ([60] = 10 fingers × 6 dims),
-            # registered as buffers so they travel with the checkpoint.
+            # Min-max normalization stats, registered as buffers so they travel
+            # with the checkpoint: [60] = 2 hands × 5 fingers × 6 (original F6),
+            # [15] = 1 hand × 5 fingers × 3 (TAPTIC SDK force).
+            stats_dim = vq_cfg.stats_dim
             self.register_buffer("tacf6_vqvae_min",
-                                 torch.zeros(60, dtype=torch.float32), persistent=True)
+                                 torch.zeros(stats_dim, dtype=torch.float32), persistent=True)
             self.register_buffer("tacf6_vqvae_max",
-                                 torch.ones(60, dtype=torch.float32), persistent=True)
+                                 torch.ones(stats_dim, dtype=torch.float32), persistent=True)
             self.register_buffer("tacf6_vqvae_mask",
-                                 torch.ones(60, dtype=torch.bool), persistent=True)
+                                 torch.ones(stats_dim, dtype=torch.bool), persistent=True)
 
         if use_robot_state:
             self.state_embedder = ActionEmbedder(action_dim, H)
@@ -344,7 +347,8 @@ class Qwen3VLVLAModel(nn.Module):
     def encode_tactile_f6_history(self, f6_history_raw: torch.Tensor) -> torch.Tensor:
         """Encode a raw (un-normalized) F6 history window into per-hand codes.
 
-        f6_history_raw : [B, T, 10, 6]  (two hands × 5 fingers; T = VQ-VAE window).
+        f6_history_raw : [B, T, 10, 6]  (two hands × 5 fingers; T = VQ-VAE window),
+                         or [B, T, 5, 3] for the TAPTIC SDK-force VQ-VAE (one hand).
                          Normalized internally with the embedded VQ-VAE stats,
                          so callers pass raw F6 — exactly what the dataloader /
                          robot reads off the sensor.
@@ -362,18 +366,23 @@ class Qwen3VLVLAModel(nn.Module):
         w_dtype = next(vq.parameters()).dtype
         x = f6_history_raw.to(device=self.tacf6_vqvae_min.device, dtype=torch.float32)
         B, T, NF, D = x.shape
+        n_fingers = vq.cfg.n_fingers
+        if D != vq.cfg.per_finger_dim or NF * D != self.tacf6_vqvae_min.numel():
+            raise ValueError(
+                f"tactile history [*, {T}, {NF}, {D}] does not match the embedded VQ-VAE "
+                f"(per_finger_dim={vq.cfg.per_finger_dim}, stats={self.tacf6_vqvae_min.numel()})")
         # Min-max normalize to [-1, 1] (matches TacF6Stats.normalize).
-        flat = x.reshape(B, T, NF * D)                                  # [B, T, 60]
+        flat = x.reshape(B, T, NF * D)                                  # [B, T, NF*D]
         denom = (self.tacf6_vqvae_max - self.tacf6_vqvae_min) + 1e-8
         normed = torch.clamp(
             2.0 * (flat - self.tacf6_vqvae_min) / denom - 1.0, -1.0, 1.0)
         normed = torch.where(self.tacf6_vqvae_mask, normed, flat)
         normed = normed.reshape(B, T, NF, D)
 
-        n_hands = NF // 5
+        n_hands = NF // n_fingers
         per_hand_codes = []
         for h in range(n_hands):
-            wh = normed[:, :, h * 5:(h + 1) * 5, :].to(w_dtype)         # [B, T, 5, 6]
+            wh = normed[:, :, h * n_fingers:(h + 1) * n_fingers, :].to(w_dtype)  # [B, T, 5, D]
             idx = vq.encode(wh)                                          # [B] or [B, 5]
             if idx.dim() == 1:
                 idx = idx.unsqueeze(1)                                   # [B, 1]

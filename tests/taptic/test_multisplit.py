@@ -184,11 +184,12 @@ def test_all_splits_forward_cache_times_and_backward(real,steps):
     model,b = make_model(real)
     h = Handover(steps)
     optimizer = torch.optim.AdamW([p for p in model.parameters() if p.requires_grad],lr=1e-3)
-    # Mimic the trainer's tactile initialization; the first step may only reach
-    # the zero-initialized final norm/bias. A few tiny steps test deeper paths.
-    for name,p in model.named_parameters():
-        if '_tactile' in name:
-            torch.nn.init.xavier_uniform_(p) if p.ndim >= 2 else torch.nn.init.zeros_(p)
+    # The trainer's own tactile initialization (RMSNorm gains = 1): the tactile
+    # branch is live from the first step, so its inputs get gradients at once.
+    import sys
+    sys.path.insert(0, str(Path(__file__).resolve().parents[2] / 'scripts'))
+    from midtrain import reinit_tactile_expert
+    reinit_tactile_expert(model)
     diagnostics = {}
     with torch.autocast('cpu',dtype=torch.bfloat16,cache_enabled=False):
         for iteration in range(3):
@@ -222,10 +223,9 @@ def test_all_splits_forward_cache_times_and_backward(real,steps):
                            for n,v in tactile_grads.items())
             assert not any(n.startswith('visual.') for n in tactile_grads)
             assert any('_tactile' in n and v>0 for n,v in tactile_grads.items())
-            if iteration == 2:
-                assert any(n.startswith('tacf6_embedder.') and v>0 for n,v in tactile_grads.items())
-                assert any(n.startswith('x_embedder.') and v>0 for n,v in tactile_grads.items())
-                assert any(n.startswith('t_embedder.') and v>0 for n,v in tactile_grads.items())
+            assert any(n.startswith('tacf6_embedder.') and v>0 for n,v in tactile_grads.items())
+            assert any(n.startswith('x_embedder.') and v>0 for n,v in tactile_grads.items())
+            assert any(n.startswith('t_embedder.') and v>0 for n,v in tactile_grads.items())
             model.zero_grad(set_to_none=True)
             loss_act.backward()
             assert any(p.grad is not None and p.grad.abs().sum()>0 for n,p in model.named_parameters() if n.startswith('final_layer.'))
@@ -307,12 +307,31 @@ def test_fixed_baseline_against_original_and_weight_schema(real):
     assert torch.equal(full_old,full_legacy)
     assert full_revised.shape == full_old.shape and torch.isfinite(full_revised).all()
     assert all(torch.equal(v,model.state_dict()[k]) for k,v in weights.items())
+    # Weight schema of the original configurations is unchanged: the b068f70
+    # constructor and the current one build identical parameter/buffer names and
+    # shapes (without VQ-VAE and with the original bimanual F6 VQ-VAE). The TAPTIC
+    # force VQ-VAE only sizes its normalization buffers from its own config.
+    from qwen_vla import Qwen3VLVLAModel
+    from tactile_vqvae.models.tactile_vqvae import TactileVQVAEConfig
+    from transformers import AutoConfig
+    import types
     src = subprocess.check_output(['git','show','b068f70:qwen_vla/modeling_vla.py'],text=True)
-    now = Path('qwen_vla/modeling_vla.py').read_text()
-    def constructor(s):
-        cls = next(n for n in ast.parse(s).body if isinstance(n,ast.ClassDef) and n.name=='Qwen3VLVLAModel')
-        return ast.dump(next(n for n in cls.body if isinstance(n,ast.FunctionDef) and n.name=='__init__'))
-    assert constructor(src) == constructor(now)
+    old_mod = types.ModuleType('qwen_vla._baseline_modeling_vla')
+    old_mod.__package__ = 'qwen_vla'
+    exec(compile(src,'<baseline:modeling_vla>','exec'),old_mod.__dict__)
+    cfg = AutoConfig.from_pretrained(os.environ['TAPTIC_PROCESSOR'],local_files_only=True).text_config
+    cfg.hidden_size,cfg.intermediate_size,cfg.num_hidden_layers = 64,128,1
+    cfg.num_attention_heads,cfg.num_key_value_heads,cfg.head_dim = 2,1,32
+    cfg.rope_scaling = {'rope_type':'default','mrope_section':[6,5,5],'mrope_interleaved':True}
+    cfg._attn_implementation = 'eager'
+    f6_vq = TactileVQVAEConfig(granularity='finger',codebook_size=64).to_dict()
+    for kw in (dict(tacf6_dim=360,use_robot_state=True),
+               dict(tacf6_dim=6,use_tactile_code=True,vqvae_codebook_size=64,use_tactile_vqvae=True,vqvae_config=f6_vq)):
+        with torch.device('meta'):
+            shapes = [{k:tuple(v.shape) for k,v in c(cfg,action_dim=21,action_chunk=16,
+                       tactile_intermediate_size=64,**kw).state_dict().items()}
+                      for c in (old_mod.Qwen3VLVLAModel,Qwen3VLVLAModel)]
+        assert shapes[0] == shapes[1]
     def delta(a,c):
         d = (a.float()-c.float()).abs()
         return {'max_abs':float(d.max()),'rms':float(d.square().mean().sqrt())}

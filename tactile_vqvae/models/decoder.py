@@ -42,10 +42,12 @@ class F6Decoder(nn.Module):
         bottleneck_channels: int = 256,
         embed_dim: int = 256,
         n_strided_blocks: int = 2,
+        n_fingers: int = 5,
     ):
         super().__init__()
         self.window = window
         self.embed_dim = embed_dim
+        self.n_fingers = n_fingers
 
         # Reproduce the encoder's strides to recover bottleneck length.
         cur_T = window
@@ -97,7 +99,7 @@ class F6Decoder(nn.Module):
                 x = torch.nn.functional.pad(x, (0, pad))
 
         x = x.transpose(1, 2).contiguous()                        # [B, T, 30]
-        x = x.reshape(B, self.window, 5, 6)
+        x = x.reshape(B, self.window, self.n_fingers, -1)
         return x
 
 

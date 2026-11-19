@@ -850,6 +850,8 @@ def train(args):
             if "_tactile" in name:
                 if param.ndim >= 2:
                     nn.init.xavier_uniform_(param)
+                elif "norm" in name:
+                    nn.init.ones_(param)  # RMSNorm gain: zero would kill its branch
                 elif param.ndim == 1:
                     nn.init.zeros_(param)
         accelerator.print("Tactile expert re-initialized (resume_source=pretrain or no resume).")

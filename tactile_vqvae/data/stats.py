@@ -61,13 +61,18 @@ class TacF6Stats:
             tacf6_mask=np.ones(_F6_DIM, dtype=bool),
         )
 
+    @property
+    def dim(self) -> int:
+        """Flattened channel count: 60 for bimanual F6, 15 for TAPTIC 5x3 SDK force."""
+        return int(self.tacf6_min.shape[0])
+
     def normalize(self, x: np.ndarray) -> np.ndarray:
         """Min-max normalize F6 to [-1, 1].
 
-        Accepts shape [..., 10, 6] or [..., 60]. Returns the same shape.
+        Accepts shape [..., 10, 6] or [..., 60] (or any [..., dim]). Returns the same shape.
         """
         orig_shape = x.shape
-        flat = x.reshape(-1, _F6_DIM).astype(np.float32, copy=False)
+        flat = x.reshape(-1, self.dim).astype(np.float32, copy=False)
         denom = (self.tacf6_max - self.tacf6_min) + 1e-8
         normed = np.clip(2.0 * (flat - self.tacf6_min) / denom - 1.0, -1.0, 1.0)
         # Apply mask (mask is currently all-True; kept for parity with trainer)
@@ -76,7 +81,7 @@ class TacF6Stats:
 
     def denormalize(self, x_norm: np.ndarray) -> np.ndarray:
         orig_shape = x_norm.shape
-        flat = x_norm.reshape(-1, _F6_DIM).astype(np.float32, copy=False)
+        flat = x_norm.reshape(-1, self.dim).astype(np.float32, copy=False)
         denom = (self.tacf6_max - self.tacf6_min)
         out = (flat + 1.0) * 0.5 * denom + self.tacf6_min
         out = np.where(self.tacf6_mask, out, flat)
