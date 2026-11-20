@@ -1,0 +1,76 @@
+{
+ "ours": {
+  "episode": 24,
+  "first_anchor_row": 54,
+  "slow_ticks": 6,
+  "fast_ticks": 45,
+  "gate_thresholds": [
+   0.023482747696501213,
+   0.20106399537542177
+  ],
+  "risk_F_range": [
+   0.0,
+   0.27813143947639224
+  ],
+  "splits_used": [
+   0.2,
+   0.4,
+   0.6
+  ],
+  "transitions": 3,
+  "all_finite": true,
+  "statuses": [
+   "ok"
+  ],
+  "cpu_tiny_model_ms": {
+   "slow_ladder_build": {
+    "p50": 19.188870001016767,
+    "p99": 19.433772798947757,
+    "max": 19.436769998719683
+   },
+   "fast_tick": {
+    "p50": 4.398978999233805,
+    "p99": 10.60008224027115,
+    "max": 10.64461200076039
+   }
+  },
+  "note": "tiny random weights on CPU: plumbing/latency of the toy model only, no performance claim"
+ },
+ "external_gate_no_risk_tokens": {
+  "episode": 24,
+  "first_anchor_row": 54,
+  "slow_ticks": 6,
+  "fast_ticks": 45,
+  "gate_thresholds": [
+   0.023482747696501213,
+   0.20106399537542177
+  ],
+  "risk_F_range": [
+   0.0,
+   0.27813143947639224
+  ],
+  "splits_used": [
+   0.2,
+   0.4,
+   0.6
+  ],
+  "transitions": 3,
+  "all_finite": true,
+  "statuses": [
+   "ok"
+  ],
+  "cpu_tiny_model_ms": {
+   "slow_ladder_build": {
+    "p50": 19.311282001581276,
+    "p99": 19.72471625012986,
+    "max": 19.72934500008705
+   },
+   "fast_tick": {
+    "p50": 4.13082999875769,
+    "p99": 10.366495998750906,
+    "max": 10.453857998072635
+   }
+  },
+  "note": "tiny random weights on CPU: plumbing/latency of the toy model only, no performance claim"
+ }
+}

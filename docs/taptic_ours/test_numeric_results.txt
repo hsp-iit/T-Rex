@@ -1,0 +1,12 @@
+...MULTISPLIT_RESULT {"action_steps": 8, "action_loss": 1.3890454769134521, "tactile_loss": 1.6828035116195679, "cache_length": 180, "n_action": 89, "tau": 0.2}
+.MULTISPLIT_RESULT {"action_steps": 6, "action_loss": 1.3888510465621948, "tactile_loss": 1.6180670261383057, "cache_length": 180, "n_action": 89, "tau": 0.4}
+.MULTISPLIT_RESULT {"action_steps": 4, "action_loss": 1.3891290426254272, "tactile_loss": 1.577200174331665, "cache_length": 180, "n_action": 89, "tau": 0.6}
+.BASELINE_RESULT {"legacy_bitwise_equal": true, "old_tau": 0.39453125, "revised_tau": 0.4, "partial_output_difference": {"max_abs": 0.03125, "rms": 0.008160494267940521}, "final_output_difference": {"max_abs": 0.046875, "rms": 0.010113298892974854}}
+..VALIDATION_RESULT {"tau": 0.2, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4886562824249268}
+VALIDATION_RESULT {"tau": 0.4, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.5096096992492676}
+VALIDATION_RESULT {"tau": 0.6, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4808523654937744}
+TRAIN_STEP_RESULT {"tau": 0.2, "loss_act": 1.7898366451263428, "loss_tac": 2.673990488052368, "supervised_slots": [14, 15], "risk_S": [0.0, 0.0], "risk_F": [0.0, 0.0]}
+TRAIN_STEP_RESULT {"tau": 0.4, "loss_act": 1.7898366451263428, "loss_tac": 2.5035905838012695, "supervised_slots": [14, 15], "risk_S": [0.0, 0.0], "risk_F": [0.0, 0.0]}
+TRAIN_STEP_RESULT {"tau": 0.6, "loss_act": 1.7898366451263428, "loss_tac": 2.31536865234375, "supervised_slots": [14, 15], "risk_S": [0.0, 0.0], "risk_F": [0.0, 0.0]}
+VANILLA_REGRESSION fixed {"val/action_loss": 1.715104103088379, "val/tactile_loss": 2.038606643676758}
+VANILLA_REGRESSION multi {"val/action_loss": 1.83203125, "val/tactile_loss": 2.2198104858398438}
