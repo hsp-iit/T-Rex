@@ -1,10 +1,10 @@
 # TAPTIC: risk-conditioned adaptive T-Rex (OURS): implementation report
 
-Branch **`mfincato/taptic-ours`**, created from **`05c932853ac5984ac7128561de2583c34b568262`**
+Branch **`mfincato/trex-ours`** (first published as `mfincato/taptic-ours`), created from **`05c932853ac5984ac7128561de2583c34b568262`**
 (the commit used to launch the vanilla TAPTIC midtrain), then fast-forwarded to `431adf4` (the
 vanilla branch's single-threaded AV1 decoding fix in `taptic/video.py`; frames are bit-exact), so
 OURS = vanilla tip + the OURS commits. Development happened in a separate
-worktree (`/home/mfincato-iit.local/T-Rex-ours`). The original branch `mfincato/risk_gated`, its
+worktree (`/home/mfincato-iit.local/T-Rex-ours`). The original branch `mfincato/risk_gated` (renamed `mfincato/trex-vanilla`; its tip is `431adf4`), its
 working tree, the vanilla launcher/configuration and every experiment output are untouched.
 
 **Status.** The whole architecture is implemented as one coherent code path and validated on CPU

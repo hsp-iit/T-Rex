@@ -1,4 +1,4 @@
-# commit 431adf4 (vanilla tip) + OURS working tree, branch mfincato/taptic-ours
+# commit 431adf4 (vanilla tip) + OURS working tree, branch mfincato/trex-ours (then mfincato/taptic-ours)
 # 2026-11-20T17:03:59+01:00  torch 2.10.0+cu128 transformers 4.57.1  CPU only (CUDA_VISIBLE_DEVICES='')
 # TAPTIC_ROOT=taptic_trex_style_v2 (source identity 1cb54e3d...), TAPTIC_PROCESSOR=tiny_qwen3vl_test (random tiny weights)
 tests/taptic/test_adapter.py::test_load_episode_and_causal_windows PASSED [  1%]
