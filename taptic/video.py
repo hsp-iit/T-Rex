@@ -21,6 +21,11 @@ class VideoReader:
         c = self._open.pop(path, None)
         if c is None:
             c = av.open(path)
+            # Single-threaded AV1 decode. By default libdav1d starts ~1.5x n_cpus threads per open
+            # container (~158 threads per DataLoader worker with 8 open files) and occasionally
+            # deadlocks in dav1d_send_data, hanging a rank until the NCCL timeout. AV1 decoding is
+            # bit-exact, so the frames are identical.
+            c.streams.video[0].codec_context.thread_count = 1
             if len(self._open) >= self.max_open:
                 _, old = self._open.popitem(last=False)
                 old.close()
