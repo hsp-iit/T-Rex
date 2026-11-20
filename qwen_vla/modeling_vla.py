@@ -12,6 +12,8 @@ Architecture
   state_embed        : robot state    → hidden_size   (optional)
   final_layer        : hidden_size    → action_dim    (action expert velocity)
   final_layer_tactile: hidden_size    → action_dim    (tactile expert velocity)
+  risk_embedder_action : (r_S, valid) → hidden_size   (optional, OURS)
+  risk_embedder_tactile: (r_F, valid) → hidden_size   (optional, OURS)
 
 Cascaded flow matching
 ──────────────────────
@@ -24,9 +26,23 @@ Both experts predict the same velocity target ε − A_demo on disjoint
 sub-intervals; the action expert is additionally trained on the full [0, 1]
 range so it can run standalone if tactile drops out.
 
+Risk tokens (use_risk_tokens=True)
+──────────────────────────────────
+One learned token per expert stream, inserted before that stream's flow-time
+token (the causal rule, expert routing and prediction slices are unchanged —
+the chunk tokens stay last):
+  Action  : [latent | fast | state | risk_S | t | x_t(16)]      r_S at slow tick S
+  Tactile : [cache  | tac_obs(10) | risk_F | tau | x_tau(16)]  r_F at fast tick F
+r_S is baked into the Action KV cache; r_F is fresh at every fast tick and
+never overwrites the cached r_S. Missing risk = explicit validity bit, never r=0.
+When use_risk_tokens=False every method is numerically identical to the
+baseline and passing risk inputs is an error (no silent ignore).
+
 Methods:
   forward_flow_action_partial    — slow tick (action expert, upper segment).
+  forward_flow_action_ladder     — slow tick, snapshots at tau 0.6/0.4/0.2.
   tactile_flow_continue          — fast tick (tactile expert, lower segment).
+  tactile_flow_continue_from_ladder — fast tick from a selected snapshot.
   tactile_flow_train_step        — training-time single tactile forward.
 """
 
@@ -40,7 +56,9 @@ from transformers.cache_utils import DynamicCache
 
 from .modeling_qwen3vl_mot import Qwen3VLModelMoT
 from diffusion import ActionEmbedder, TimestepEmbedder, FinalLayer
-from .flow_matching import flow_time
+from .flow_matching import flow_time, Handover
+from .cache_ladder import ActionCacheLadder, ActionHandoverSnapshot
+from .risk_tokens import RiskEmbedder, RISK_TOKEN_VERSION
 from models import DeformEncoder
 
 
@@ -71,6 +89,8 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_codebook_size:     int  = 64,
         use_tactile_vqvae:       bool = False,
         vqvae_config:            dict = None,
+        use_risk_tokens:         bool = False,
+        risk_n_frequencies:      int  = 8,
     ):
         super().__init__()
         self.config             = config
@@ -93,6 +113,8 @@ class Qwen3VLVLAModel(nn.Module):
         self.use_tactile_code         = bool(use_tactile_code or use_tactile_vqvae)
         self.vqvae_codebook_size      = vqvae_codebook_size
         self.vqvae_config             = vqvae_config
+        self.use_risk_tokens          = bool(use_risk_tokens)
+        self.risk_n_frequencies       = int(risk_n_frequencies)
 
         self.visual = None
 
@@ -150,6 +172,12 @@ class Qwen3VLVLAModel(nn.Module):
         if use_robot_state:
             self.state_embedder = ActionEmbedder(action_dim, H)
 
+        # Risk tokens (OURS): one embedder per expert, trained with that expert.
+        # Created only when enabled, so the baseline weight schema is unchanged.
+        if self.use_risk_tokens:
+            self.risk_embedder_action  = RiskEmbedder(H, self.risk_n_frequencies)
+            self.risk_embedder_tactile = RiskEmbedder(H, self.risk_n_frequencies)
+
         # Flare visual prediction tokens for the latent expert
         if self.n_flare_tokens > 0:
             # flare_queries è un parametro addestrabile [1,K,H] K = 32
@@ -183,6 +211,8 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_codebook_size:      int  = 64,
         use_tactile_vqvae:        bool = False,
         vqvae_config:             dict = None,
+        use_risk_tokens:          bool = False,
+        risk_n_frequencies:       int  = 8,
     ) -> "Qwen3VLVLAModel":
         """
         Build a Qwen3VLVLAModel by:
@@ -231,6 +261,8 @@ class Qwen3VLVLAModel(nn.Module):
             vqvae_codebook_size = vqvae_codebook_size,
             use_tactile_vqvae = use_tactile_vqvae,
             vqvae_config = vqvae_config,
+            use_risk_tokens = use_risk_tokens,
+            risk_n_frequencies = risk_n_frequencies,
         )
         # Capture only the get_rope_index function — do NOT store the full
         # base model as an attribute, because nn.Module.__setattr__ would
@@ -419,6 +451,8 @@ class Qwen3VLVLAModel(nn.Module):
                         nn.init.zeros_(mm.bias)
         if self.use_tactile_code:
             nn.init.normal_(self.tactile_code_embedder.weight, mean=0.0, std=0.02)
+        if self.use_risk_tokens:
+            self.initialize_risk_weights()
         nn.init.zeros_(self.final_layer.mlp.fc2.weight)
         if self.final_layer.mlp.fc2.bias is not None:
             nn.init.zeros_(self.final_layer.mlp.fc2.bias)
@@ -428,6 +462,60 @@ class Qwen3VLVLAModel(nn.Module):
                     nn.init.xavier_uniform_(mm.weight)
                     if mm.bias is not None:
                         nn.init.zeros_(mm.bias)
+
+    # ── Risk tokens ────────────────────────────────────────────────────────
+    def initialize_risk_weights(self):
+        """Xavier/zero-bias init of the (new) risk embedders. Returns their param names."""
+        if not self.use_risk_tokens:
+            return []
+        names = []
+        for prefix, m in (('risk_embedder_action', self.risk_embedder_action),
+                          ('risk_embedder_tactile', self.risk_embedder_tactile)):
+            for mm in m.modules():
+                if isinstance(mm, nn.Linear):
+                    nn.init.xavier_uniform_(mm.weight)
+                    if mm.bias is not None:
+                        nn.init.zeros_(mm.bias)
+            names += [f'{prefix}.{n}' for n, _ in m.named_parameters()]
+        return names
+
+    @property
+    def n_risk_tokens(self) -> int:
+        return 1 if self.use_risk_tokens else 0
+
+    def risk_token(self, risk, risk_valid, expert, batch_size, device, dtype):
+        """[B, n_risk, H] risk token for `expert` ('action' = r_S, 'tactile' = r_F).
+
+        Strict contract: a risk-conditioned model REQUIRES (risk, risk_valid) on
+        every path (missing data = risk_valid False, never omitted); a baseline
+        model rejects them, so a configuration mix-up cannot be silently ignored.
+        """
+        H = self.config.hidden_size
+        if not self.use_risk_tokens:
+            if risk is not None or risk_valid is not None:
+                raise ValueError('this model has no risk tokens; pass risk=None, risk_valid=None')
+            return torch.empty((batch_size, 0, H), device=device, dtype=dtype)
+        if risk is None or risk_valid is None:
+            raise ValueError(f'risk-conditioned model needs {expert} risk and risk_valid '
+                             '(use risk_valid=False for missing measurements)')
+        risk = torch.as_tensor(risk).reshape(-1)
+        risk_valid = torch.as_tensor(risk_valid).reshape(-1)
+        if risk.shape[0] != batch_size or risk_valid.shape[0] != batch_size:
+            raise ValueError(f'{expert} risk batch {risk.shape[0]} != {batch_size}')
+        emb = {'action': self.risk_embedder_action, 'tactile': self.risk_embedder_tactile}[expert]
+        return emb(risk, risk_valid).unsqueeze(1).to(device)
+
+    def architecture_contract(self) -> dict:
+        """What a checkpoint of this model needs to be reloaded faithfully."""
+        return {'family': 'trex_qwen3vl_mot_cascaded', 'action_dim': self.action_dim,
+                'action_chunk': self.action_chunk, 'tacf6_dim': self.tacf6_dim,
+                'use_robot_state': self.use_robot_state, 'use_tactile_code': self.use_tactile_code,
+                'use_tactile_vqvae': self.use_tactile_vqvae, 'n_flare_tokens': self.n_flare_tokens,
+                'risk_tokens': self.use_risk_tokens,
+                'risk_token_version': RISK_TOKEN_VERSION if self.use_risk_tokens else None,
+                'risk_n_frequencies': self.risk_n_frequencies if self.use_risk_tokens else None,
+                'action_stream': 'fast|state|' + ('risk_S|' if self.use_risk_tokens else '') + 't|x',
+                'tactile_stream': 'tac_obs|' + ('risk_F|' if self.use_risk_tokens else '') + 'tau|x'}
 
     # 1. Costruisce gli embedding dei token testuali
     # 2. Sostituisce gli embedding dei segnaposto visivi
@@ -584,6 +672,8 @@ class Qwen3VLVLAModel(nn.Module):
         fast_embeds: Optional[torch.Tensor] = None,
         num_steps: int = 10,
         flow_time_precision: str = 'fp32',
+        risk: Optional[torch.Tensor] = None,
+        risk_valid: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Action-expert-only full flow τ ∈ [0, 1].
 
@@ -616,6 +706,8 @@ class Qwen3VLVLAModel(nn.Module):
             state_embeds = torch.empty((B, 0, H), device=device, dtype=dtype)
         n_state = state_embeds.shape[1]
         L_latent = inputs_embeds.shape[1]
+        risk_tok = self.risk_token(risk, risk_valid, 'action', B, device, dtype)   # r_S
+        n_risk = risk_tok.shape[1]
 
         past_kv = None
         n_act = 0
@@ -627,6 +719,8 @@ class Qwen3VLVLAModel(nn.Module):
             act_parts = [fast_embeds]
             if n_state > 0:
                 act_parts.append(state_embeds)
+            if n_risk > 0:
+                act_parts.append(risk_tok)
             act_parts += [timesteps, noisy_act]
             act_seq = torch.cat(act_parts, dim=1)
             n_act = act_seq.shape[1]
@@ -671,6 +765,59 @@ class Qwen3VLVLAModel(nn.Module):
     # x_t, past_kv, n_action_in_cache, tau_split
     @torch.no_grad()
     def forward_flow_action_partial(
+        self, inputs_embeds: torch.Tensor, position_ids: torch.Tensor,
+        noise: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
+        state_embeds: Optional[torch.Tensor] = None,
+        fast_embeds: Optional[torch.Tensor] = None,
+        num_steps_total: int = 10, split_step: int = 6,
+        refresh_clean_kv: bool = True, flow_time_precision: str = 'fp32',
+        risk: Optional[torch.Tensor] = None, risk_valid: Optional[torch.Tensor] = None,
+    ) -> Tuple[torch.Tensor, "DynamicCache", int, float]:
+        """Single-split slow tick (r_S token when the model has risk tokens).
+        Numerically identical to the baseline when use_risk_tokens=False."""
+        return self._action_trajectory(
+            inputs_embeds, position_ids, noise, attention_mask, state_embeds, fast_embeds,
+            num_steps_total, split_step, refresh_clean_kv, flow_time_precision, risk, risk_valid)
+
+    @torch.no_grad()
+    def forward_flow_action_ladder(
+        self, inputs_embeds: torch.Tensor, position_ids: torch.Tensor,
+        noise: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
+        state_embeds: Optional[torch.Tensor] = None,
+        fast_embeds: Optional[torch.Tensor] = None,
+        risk: Optional[torch.Tensor] = None, risk_valid: Optional[torch.Tensor] = None,
+        slow_tick_ns: Optional[int] = None,
+    ) -> ActionCacheLadder:
+        """One slow tick: ONE Action trajectory (8 Euler updates + 1 refresh =
+        9 forwards) with coherent snapshots at tau 0.6 / 0.4 / 0.2, all
+        conditioned on the same r_S. Requires eval mode, FP32 flow time, latent-only
+        position ids and an unpadded context (the continuation forwards after the
+        first one do not carry a padding mask — pre-existing T-Rex behaviour)."""
+        if self.training:
+            raise ValueError('cache ladder requires model.eval()')
+        if (position_ids.ndim not in (2, 3)
+                or position_ids.shape[-1] != inputs_embeds.shape[1]
+                or position_ids.shape[-2] != inputs_embeds.shape[0]
+                or (position_ids.ndim == 3 and position_ids.shape[0] != 3)):
+            raise ValueError('cache ladder requires latent-only position IDs')
+        if noise.shape != (inputs_embeds.shape[0], self.action_chunk, self.action_dim):
+            raise ValueError('cache ladder noise shape must be [B, action_chunk, action_dim]')
+        if attention_mask is not None and (attention_mask.ndim != 2
+                or attention_mask.shape[0] != inputs_embeds.shape[0]
+                or not torch.all(attention_mask == 1)):
+            raise ValueError('cache ladder requires an unpadded attention context')
+        sink = {}
+        meta = dict(slow_tick_ns=None if slow_tick_ns is None else int(slow_tick_ns),
+                    risk_S=None if risk is None else tuple(torch.as_tensor(risk).reshape(-1).float().tolist()),
+                    risk_S_valid=None if risk_valid is None else tuple(
+                        bool(v) for v in torch.as_tensor(risk_valid).reshape(-1).tolist()))
+        self._action_trajectory(
+            inputs_embeds, position_ids, noise, attention_mask, state_embeds, fast_embeds,
+            10, 8, True, 'fp32', risk, risk_valid, _snapshot_sink=sink, _snapshot_meta=meta)
+        return ActionCacheLadder(tuple(sink[i] for i in (4, 6, 8)))
+
+    @torch.no_grad()
+    def _action_trajectory(
         self,
         inputs_embeds: torch.Tensor, # Contesto latent [B,L_latent,H]
         position_ids: torch.Tensor, # # Informazioni posizionali del contesto 
@@ -682,6 +829,9 @@ class Qwen3VLVLAModel(nn.Module):
         split_step: int = 6,
         refresh_clean_kv: bool = True,
         flow_time_precision: str = 'fp32',
+        risk: Optional[torch.Tensor] = None,
+        risk_valid: Optional[torch.Tensor] = None,
+        *, _snapshot_sink=None, _snapshot_meta=None,
     ) -> Tuple[torch.Tensor, "DynamicCache", int, float]:
         """Cascaded slow-tick: run the action expert for `split_step` of
         `num_steps_total` Euler steps, stopping at τ = 1 − split_step/num_steps_total.
@@ -719,6 +869,17 @@ class Qwen3VLVLAModel(nn.Module):
             state_embeds = torch.empty((B, 0, H), device=device, dtype=dtype)
         n_state = state_embeds.shape[1]
         L_latent = inputs_embeds.shape[1]
+        # r_S token: computed once from the slow-tick measurements and baked into
+        # every Action forward (and hence into the handover KV cache).
+        risk_tok = self.risk_token(risk, risk_valid, 'action', B, device, dtype)
+        n_risk = risk_tok.shape[1]
+
+        def capture(step, cache, x_state, act_positions):
+            _snapshot_sink[step] = ActionHandoverSnapshot.capture(
+                x_fp32=x_state, cache=cache, position_ids=position_ids,
+                action_position_ids=act_positions, handover=Handover(step, num_steps_total),
+                n_fast=fast_embeds.shape[1], n_state=n_state, n_risk=n_risk,
+                clone_cache=self._clone_dynamic_cache, **(_snapshot_meta or {}))
 
         past_kv = None
         n_act = 0
@@ -736,6 +897,8 @@ class Qwen3VLVLAModel(nn.Module):
             act_parts = [fast_embeds] # importante anche la presenza dei fast tokens
             if n_state > 0:
                 act_parts.append(state_embeds)
+            if n_risk > 0:
+                act_parts.append(risk_tok)   # r_S, before the timestep token
             act_parts += [timesteps, noisy_act]
             act_seq = torch.cat(act_parts, dim=1)
             n_act = act_seq.shape[1]
@@ -771,6 +934,12 @@ class Qwen3VLVLAModel(nn.Module):
                     action_indexes=torch.arange(0, n_act, device=device),
                     tactile_indexes=torch.arange(0, 0, device=device),
                 )
+            # Ladder: this forward's KV is exactly the (x_tau, tau) refresh a
+            # single-split run would do at this handover; snapshot BEFORE the
+            # Euler update (no extra forward). Clone first: the next iteration crops.
+            if _snapshot_sink is not None and i in (4, 6):
+                capture(i, outputs.past_key_values, x_t,
+                        self.model._extend_position_ids(position_ids, n_act, 0)[..., -n_act:])
             # hidden[:, -n_chunk:, :] seleziona gli hidden states dei 16 token action finali.
             hidden = outputs.last_hidden_state
             # la HEAD self.final_layer(...) li trasforma in v_A
@@ -799,6 +968,8 @@ class Qwen3VLVLAModel(nn.Module):
             clean_parts = [fast_embeds]
             if n_state > 0:
                 clean_parts.append(state_embeds)
+            if n_risk > 0:
+                clean_parts.append(risk_tok)
             clean_parts += [split_timesteps, split_actions]
             clean_seq = torch.cat(clean_parts, dim=1)
             n_act_final = clean_seq.shape[1]
@@ -826,7 +997,9 @@ class Qwen3VLVLAModel(nn.Module):
         # n_action_in_cache = L_fast + n_state + 1 + 16
         past_kv._trex_handover = {'action_steps': split_step, 'total_steps': num_steps_total,
             'tau': tau_split, 'precision': flow_time_precision, 'length': past_kv.get_seq_length(),
-            'n_action': n_action_in_cache}
+            'n_action': n_action_in_cache, 'n_risk': n_risk}
+        if _snapshot_sink is not None:
+            capture(split_step, past_kv, x_t, act_pos_final)
         return x_t.to(dtype), past_kv, n_action_in_cache, tau_split
 
     @torch.no_grad()
@@ -844,6 +1017,8 @@ class Qwen3VLVLAModel(nn.Module):
         num_steps_total: int = 10,
         split_step: int = 6,
         flow_time_precision: str = 'fp32',
+        risk: Optional[torch.Tensor] = None,
+        risk_valid: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Cascaded fast-tick: continue the flow from x_split at τ=tau_split
         down to τ=0 using the tactile expert.  Returns the final clean action
@@ -871,6 +1046,8 @@ class Qwen3VLVLAModel(nn.Module):
                 raise ValueError('inference handover cache metadata mismatch')
             if cached_kv.get_seq_length() != metadata['length']:
                 raise ValueError('inference handover cache has been mutated')
+            if metadata.get('n_risk', 0) != self.n_risk_tokens:
+                raise ValueError('handover cache risk-token layout does not match this model')
         cache = self._clone_dynamic_cache(cached_kv)
         device = x_split.device
         dtype  = torch.bfloat16
@@ -885,7 +1062,10 @@ class Qwen3VLVLAModel(nn.Module):
             tactile_codes=tactile_codes,
             tactile_f6_history=tactile_f6_history)
         n_obs = tac_obs.shape[1]
-        n_tac_seq = n_obs + 1 + n_chunk
+        # Fresh r_F token for THIS fast tick; the cached r_S is untouched.
+        risk_tok = self.risk_token(risk, risk_valid, 'tactile', B, device, dtype)
+        n_risk = risk_tok.shape[1]
+        n_tac_seq = n_obs + n_risk + 1 + n_chunk
 
         extended_pos = self.model._extend_position_ids(
             latent_position_ids, n_action_in_cache, n_tac_seq)
@@ -908,7 +1088,7 @@ class Qwen3VLVLAModel(nn.Module):
 
             tau_emb = self.t_embedder(time.expand(B)).unsqueeze(1)
             x_emb   = self.x_embedder(x.to(dtype))
-            full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1)
+            full_embeds = torch.cat([tac_obs] + ([risk_tok] if n_risk else []) + [tau_emb, x_emb], dim=1)
             if step > 0:
                 # Al primo step, la cache clonata contiene soltanto il contesto latent e action.
                 # Dopo il primo forward vengono aggiunte le KV dei token tattili.
@@ -932,6 +1112,33 @@ class Qwen3VLVLAModel(nn.Module):
         # Questo x è il chunk denoisato a tau=0, ancora nello spazio normalizzato delle azioni.
         return x.to(dtype)
 
+    @torch.no_grad()
+    def tactile_flow_continue_from_ladder(
+        self, ladder: ActionCacheLadder, selected_split: float,
+        tactile_f6: Optional[torch.Tensor] = None,
+        tactile_deform: Optional[torch.Tensor] = None,
+        tactile_codes: Optional[torch.Tensor] = None,
+        tactile_f6_history: Optional[torch.Tensor] = None,
+        risk: Optional[torch.Tensor] = None,
+        risk_valid: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """One physical fast tick: restart the selected immutable snapshot with
+        the current tactile inputs and fresh r_F, integrating to tau=0. Calls never
+        consume or modify ladder levels (the continuation clones the cache)."""
+        if self.training:
+            raise ValueError('cache ladder requires model.eval()')
+        if not isinstance(ladder, ActionCacheLadder):
+            raise TypeError('expected ActionCacheLadder')
+        snap = ladder[selected_split]
+        if snap.n_risk != self.n_risk_tokens:
+            raise ValueError('ladder risk-token layout does not match this model')
+        return self.tactile_flow_continue(
+            snap._cache, snap._latent_positions, snap.n_action_in_cache, snap._x_tau, snap.tau,
+            tactile_f6=tactile_f6, tactile_deform=tactile_deform, tactile_codes=tactile_codes,
+            tactile_f6_history=tactile_f6_history, num_steps_total=snap.handover.total_steps,
+            split_step=snap.handover.action_steps, flow_time_precision='fp32',
+            risk=risk, risk_valid=risk_valid)
+
 
     # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
     # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
@@ -948,6 +1155,8 @@ class Qwen3VLVLAModel(nn.Module):
         tactile_codes: Optional[torch.Tensor] = None,
         tactile_f6_history: Optional[torch.Tensor] = None,
         flow_time_precision: str = 'fp32',
+        risk: Optional[torch.Tensor] = None,
+        risk_valid: Optional[torch.Tensor] = None,
     ) -> torch.Tensor:
         """Single tactile-only forward at (x_τ, τ) for cascaded training.
 
@@ -966,6 +1175,8 @@ class Qwen3VLVLAModel(nn.Module):
             tolerance = 1e-6 if flow_time_precision == 'fp32' else 0.002
             if torch.any(tau <= 0) or torch.any(tau.float() > limit + tolerance):
                 raise ValueError('tactile training time outside selected handover')
+            if metadata.get('n_risk', 0) != self.n_risk_tokens:
+                raise ValueError('training handover cache risk-token layout does not match this model')
         cached_kv = self._clone_dynamic_cache(cached_kv)
         device = x_tau.device
         dtype  = torch.bfloat16
@@ -986,8 +1197,12 @@ class Qwen3VLVLAModel(nn.Module):
         tau_emb = self.t_embedder(tau.to(dtype) if flow_time_precision == 'legacy_bf16' else tau.float()).unsqueeze(1)            # [B, 1, H]
         x_emb   = self.x_embedder(x_tau.to(dtype))                       # [B, 16, H]
 
-        # Tactile obs (#n_obs), tau(#1), noisy action(#16)
-        full_embeds = torch.cat([tac_obs, tau_emb, x_emb], dim=1) # concatenazione
+        # r_F token (fresh fast-tick risk), trained jointly with the tactile expert.
+        risk_tok = self.risk_token(risk, risk_valid, 'tactile', B, device, dtype)
+
+        # Tactile obs (#n_obs), [risk_F (#1)], tau(#1), noisy action(#16)
+        full_embeds = torch.cat([tac_obs] + ([risk_tok] if risk_tok.shape[1] else [])
+                                + [tau_emb, x_emb], dim=1) # concatenazione
         n_tac_seq = full_embeds.shape[1]
 
         # Il codice costruisce gli indici posizionali:

@@ -29,8 +29,9 @@ import pyarrow.parquet as pq
 from .timing import build_quality
 
 FRAME_PAUSE_NS = 150_000_000
-_SIDE_COLUMNS = ('read_end_ns', 'available_ns', 'force', 'sequence',
+_SIDE_COLUMNS = ('read_end_ns', 'available_ns', 'force', 'joints', 'sequence',
                  'reset_sequence', 'read_errors', 'dropped', 'interpolated')
+N_JOINTS = 12
 
 
 def read_force_samples(root, ep):
@@ -52,7 +53,10 @@ def build_force_track(sm, available, frame_ns, gap_ns=50_000_000):
     """Usable native force samples of one episode.
 
     Returns dict with force [N,5,3] float32 (raw counts), read_ns, available_ns,
-    segment [N] int64 (-1 = excluded).
+    segment [N] int64 (-1 = excluded), and joints [N,12] float64 (measured XHand
+    joint positions, rad, from the same EtherCAT read as the force) or None when
+    the sidecar has no `joints` column. The joint stream shares the force rows,
+    timestamps and segmentation; it is never resampled.
     """
     frame_ns = np.asarray(frame_ns, np.int64)
     q = build_quality(sm, available, True, gap_ns)
@@ -62,6 +66,12 @@ def build_force_track(sm, available, frame_ns, gap_ns=50_000_000):
              if n else np.empty((0, 5, 3), np.float32))
     if not np.isfinite(force).all():
         raise ValueError('nonfinite SDK force')
+    joints = None
+    if 'joints' in sm:
+        joints = (np.stack(sm.joints.to_numpy()).astype(np.float64).reshape(n, N_JOINTS)
+                  if n else np.empty((0, N_JOINTS), np.float64))
+        if not np.isfinite(joints).all():
+            raise ValueError('nonfinite measured joints')
     initial = np.flatnonzero((read <= frame_ns[0]) & (avail <= frame_ns[0]))
     lower = int(initial[-1]) if len(initial) else 0
     excluded = (np.arange(n) < lower) | (read > frame_ns[-1])
@@ -78,7 +88,7 @@ def build_force_track(sm, available, frame_ns, gap_ns=50_000_000):
     segment = np.cumsum(breaks).astype(np.int64)
     segment[excluded] = -1
     return {'force': force, 'read_ns': read.copy(), 'available_ns': avail.copy(),
-            'segment': segment}
+            'segment': segment, 'joints': joints}
 
 
 def window_indices(segment, end, window):

@@ -4,6 +4,8 @@ Native episodes: SDK force + taxels at ~76.4 Hz (13.09 ms) on the frame clock,
 with pre-roll before the first frame. Legacy episodes: one recorded sample per
 10 Hz frame plus synthetic `interpolated=True` rows, zero taxels. Special
 episodes inject a sensor reset, a >50 ms read gap and a >150 ms recorder pause.
+Every sidecar row carries measured `joints` [12] (rad): a smooth trajectory
+quantized at 0.5 mrad like the XHand encoders (legacy: frame rows only real).
 """
 import json
 from pathlib import Path
@@ -73,6 +75,9 @@ def build(root, seed=0):
             values = rng.integers(0, 50, (n, 1800)).astype(np.float64)
             interp = np.zeros(n, bool)
             avail = read + 500_000
+            tt = (read - read[0]) / 1e9
+            joints = np.round((0.4 + 0.3 * np.sin(2 * np.pi * 0.5 * tt[:, None] + np.arange(12)[None]))
+                              / 5e-4) * 5e-4
         else:
             base = frames - 1_000_000
             interp_t = (base[:-1, None] + np.arange(1, 8) * 12_000_000).ravel()
@@ -83,9 +88,11 @@ def build(root, seed=0):
             force = np.cumsum(rng.integers(-3, 4, (n, 15)), 0).astype(np.float64)
             values = np.zeros((n, 1800))
             avail = read.copy()
+            joints = np.round((0.4 + 0.3 * np.sin(2 * np.pi * 0.5 * ((read - read[0]) / 1e9)[:, None]
+                                                  + np.arange(12)[None])) / 5e-4) * 5e-4
             avail[interp] += 30_000_000          # interpolation becomes available later
         pd.DataFrame({'read_end_ns': read, 'available_ns': avail,
-                      'force': list(force), 'values': list(values),
+                      'force': list(force), 'values': list(values), 'joints': list(joints),
                       'sequence': np.arange(n, dtype=np.int64), 'reset_sequence': reset,
                       'read_errors': np.zeros(n, np.int64), 'dropped': np.zeros(n, np.int64),
                       'interpolated': interp}).to_parquet(root / f'tactile_raw/episode_{ep:06d}_right.parquet')

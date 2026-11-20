@@ -12,6 +12,20 @@ Two tactile inputs (--taptic_tactile_input):
               action expert and FLARE). Never interpolated.
 No future observations, deformation images, contact labels or risk labels.
 The historical `tactile_f6s` key carries taxels or forces; it does not imply six axes.
+
+Delayed tactile conditioning (--tactile_delay_ms, sdk_force only). Each sample
+has a slow anchor S = observation_ns of frame t (images, language, action
+conditioning and r_S use data available by S) and a physical fast tick
+F = S + delta, delta drawn uniformly from tactile_delay_ms (train) or
+deterministically from the index (val). The current force, the VQ-VAE history
+and r_F use only samples with read_ns <= F and available_ns <= F. The action
+chunk keeps its recorded 10 Hz targets/timestamps (no shift, no interpolation);
+target slot k is supervised for the tactile expert only if its recorded time
+times[t+k] >= F (`tactile_slot_mask`), i.e. it has not elapsed at F.
+With tactile_delay_ms=[0] (default) F = S and the batch is the baseline's.
+
+Contact risk (--risk_stats): r_S at S and r_F at F from taptic.risk, with
+explicit validity; legacy 10 Hz episodes are always risk-invalid.
 """
 from __future__ import annotations
 import copy
@@ -28,10 +42,21 @@ from taptic.data import (Source, CAMERAS, finite, normalize, denormalize,
 from taptic.video import VideoReader
 from taptic.timing import build_quality, latest_quality
 from taptic.force_history import build_force_track, history_at
+from taptic.risk import (RiskConfig, RiskStats, risk_features, features_at, joint_track_from_frames,
+                         SCALAR_KEYS as RISK_KEYS)
 from .flow_matching import validate_split_config
 
 TACTILE_INPUTS = ('taxels', 'sdk_force')
 TAPTIC_FORCE_SIGNAL = 'taptic_sdk_force'
+MAX_TACTILE_DELAY_MS = 500
+
+
+def tactile_delays_ms(cfg):
+    d = tuple(getattr(cfg, 'tactile_delay_ms', None) or (0,))
+    if (len(set(d)) != len(d) or any(isinstance(x, bool) or int(x) != x or not 0 <= x <= MAX_TACTILE_DELAY_MS
+                                     for x in d)):
+        raise ValueError(f'tactile_delay_ms must be distinct integers in [0, {MAX_TACTILE_DELAY_MS}]')
+    return tuple(int(x) for x in d)
 
 
 def tactile_input(cfg):
@@ -84,7 +109,14 @@ def validate_config(cfg):
     if not getattr(cfg, 'use_tactile_vec', 0):
         raise ValueError('TAPTIC requires use_tactile_vec=1')
     if tuple(getattr(cfg, 'tactile_delay_offsets', (0,))) != (0,):
-        raise ValueError('TAPTIC causal baseline requires tactile_delay_offsets=[0]')
+        raise ValueError('TAPTIC causal baseline requires tactile_delay_offsets=[0] '
+                         '(frame offsets; physical delays use --tactile_delay_ms)')
+    if tactile_delays_ms(cfg) != (0,) and mode != 'sdk_force':
+        raise ValueError('delayed tactile conditioning (tactile_delay_ms) requires sdk_force input')
+    if getattr(cfg, 'use_risk_tokens', 0) and not getattr(cfg, 'risk_stats', ''):
+        raise ValueError('use_risk_tokens=1 requires --risk_stats (train-only risk statistics)')
+    if getattr(cfg, 'risk_stats', '') and mode != 'sdk_force':
+        raise ValueError('contact-risk features require sdk_force input')
     validate_split_config(cfg)
 
 
@@ -127,6 +159,14 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                 raise ValueError('VQ-VAE was trained on non-training episodes')
             if self.use_vqvae and vq_data.get('window', self.vq_window) != self.vq_window:
                 raise ValueError('VQ-VAE window does not match vqvae_window')
+        self.delays_ns = tuple(int(d) * 1_000_000 for d in tactile_delays_ms(config))
+        self.emit_slot_mask = self.delays_ns != (0,)
+        self.risk_stats = self.risk_cfg = None
+        if getattr(config, 'risk_stats', ''):
+            self.risk_cfg = RiskConfig.from_args(config)
+            self.risk_stats = RiskStats.load(config.risk_stats)
+            self.risk_stats.check_config(self.risk_cfg)
+            self.risk_stats.check_source(self.source, ids)
         self._cache_key = None
         self._video = VideoReader()
         self._set_split(split)
@@ -170,6 +210,9 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             self._cache_quality = build_quality(sm, available, native, int(gap_ms*1e6))
             self._cache_force = (build_force_track(sm, available, times, int(gap_ms*1e6))
                                  if self.tactile_input == 'sdk_force' and native else None)
+            self._cache_joint = (joint_track_from_frames(times, s)
+                                 if self.risk_cfg is not None and self.risk_cfg.joint_source == 'state10hz'
+                                 else None)
             self._cache = (d, s, a, times, sm, available)
             self._cache_key = ep
         return self._cache
@@ -181,9 +224,24 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         ts = float(row[f'videos/{cam}/from_timestamp']) + t / 10
         return self._video.frame(str(self.source.root / path), ts, 10)
 
+    def _delay_ns(self, idx):
+        if len(self.delays_ns) == 1:
+            return self.delays_ns[0]
+        if self.split == 'train':   # torch RNG: seeded per DataLoader worker
+            return self.delays_ns[int(torch.randint(len(self.delays_ns), ()))]
+        return self.delays_ns[idx % len(self.delays_ns)]   # reproducible validation
+
     def __getitem__(self, idx):
         ep, t = self._rows[idx]
         d, s, a, times, sm, available = self._episode(ep)
+        slow_ns = int(times[t])
+        delay_ns = self._delay_ns(idx)
+        fast_ns = slow_ns + delay_ns
+        slot_ns = times[t:t+16]
+        # F stays inside this anchor's continuous chunk window (anchors exclude
+        # recorder pauses), so no paused interval or other episode is touched.
+        aligned = bool(fast_ns <= int(slot_ns[-1]) and not np.any(np.diff(times[t:t+16]) > 150_000_000))
+        slot_mask = (slot_ns >= fast_ns) if aligned else np.zeros(16, bool)
         native = not bool(self.source.episodes.loc[ep, 'tactile_interpolated'])
         stale_ms = getattr(self.config, 'tactile_stale_ms', 50.) if native else getattr(self.config, 'tactile_legacy_stale_ms', 150.)
         stale_ns = int(stale_ms * 1e6)
@@ -225,14 +283,23 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         if self.tactile_input == 'sdk_force':
             # Native ~76 Hz causal history; legacy (10 Hz) episodes are missing, never upsampled.
             if self._cache_force is not None:
+                # History/current force end at the latest sample available by F (not S).
                 force_history, force_valid_tick, n_real, _ = history_at(
-                    self._cache_force, int(times[t]), self.vq_window, stale_ns)
+                    self._cache_force, fast_ns, self.vq_window, stale_ns)
+                force_valid_tick = bool(force_valid_tick and aligned and slot_mask.any())
             else:
                 force_history = np.zeros((self.vq_window, 5, 3), np.float32)
             policy_tactile = (self.force_stats.normalize(force_history[-1]).astype(np.float32)
                               if force_valid_tick else np.zeros((5, 3), np.float32))
         else:
             policy_tactile = scaled.reshape(5, 360)
+        risk_S = risk_F = None
+        if self.risk_stats is not None:
+            feats = risk_features(self._cache_force if native else None, np.array([slow_ns, fast_ns]),
+                                  self.risk_stats, self.risk_cfg, self._cache_joint)
+            risk_S, risk_F = features_at(feats, 0), features_at(feats, 1)
+            if not aligned:
+                risk_F['risk_valid'] = False
         return {'head': self._img(ep, CAMERAS[0], t), 'fast': [self._img(ep, CAMERAS[1], t)],
                 'language': self.source.episodes.loc[ep, 'caption'], 'action_chunk': chunk_21d(s, a, t),
                 'tactile_f6': policy_tactile, 'tactile_taxels': taxels,
@@ -244,7 +311,10 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                 'meta': {'episode': ep, 'frame': t, 'observation_ns': int(times[t]),
                          'tactile_available_ns': sample_ns, 'clock_is_nominal': not native,
                          'recording_gap_before_tick': recorder_gap,
-                         'action_timestamps_ns': times[t:t+16].copy()}, 'delay_k': 0}
+                         'action_timestamps_ns': times[t:t+16].copy(),
+                         'slow_ns': slow_ns, 'fast_ns': fast_ns, 'tactile_delay_ns': delay_ns,
+                         'fast_tick_aligned': aligned}, 'delay_k': 0,
+                'risk_S': risk_S, 'risk_F': risk_F, 'tactile_slot_mask': slot_mask}
 
     def normalize_actions(self, x):
         return normalize(x, self.action_stats)
@@ -312,6 +382,21 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             attn.append(a)
         # Variable native sample counts, including empty intervals. Padding is
         # never a measurement: consumers must use sample_mask/lengths.
+        risk = {}
+        if batch[0]['risk_S'] is not None:
+            for tag in ('S', 'F'):
+                recs = [x['risk_' + tag] for x in batch]
+                risk[f'risk_{tag}'] = torch.tensor([r['risk'] for r in recs], dtype=torch.float32)
+                risk[f'risk_{tag}_valid'] = torch.tensor([r['risk_valid'] for r in recs], dtype=torch.bool)
+                feats = {k: torch.tensor([r[k] for r in recs]) for k in RISK_KEYS}
+                feats['magnitude'] = torch.tensor([r['magnitude'] for r in recs], dtype=torch.float32)
+                feats['rate'] = torch.tensor([r['rate'] for r in recs], dtype=torch.float32)
+                risk[f'risk_features_{tag}'] = feats
+        else:
+            risk = {f'risk_{tag}{suf}': None for tag in 'SF' for suf in ('', '_valid')}
+            risk.update(risk_features_S=None, risk_features_F=None)
+        slot_mask = (torch.from_numpy(np.stack([x['tactile_slot_mask'] for x in batch]))
+                     if self.emit_slot_mask else None)
         streams = [x['tactile_stream'] for x in batch]
         lengths = torch.tensor([len(s['available_ns']) for s in streams], dtype=torch.long)
         stream_batch = {key: torch.nn.utils.rnn.pad_sequence(
@@ -344,4 +429,7 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             "contact_features": None, "contact_risk": None,
             "tactile_loss_mask": loss_mask,
             "force_history_n_real": torch.tensor([x['force_history_n_real'] for x in batch]),
+            "tactile_slot_mask": slot_mask,
+            "tactile_delay_ns": torch.tensor([x['meta']['tactile_delay_ns'] for x in batch], dtype=torch.long),
+            **risk,
         }

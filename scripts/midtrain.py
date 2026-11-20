@@ -55,6 +55,7 @@ from transformers import AutoProcessor, set_seed
 
 from qwen_vla import Qwen3VLVLAModel, extend_position_ids_for_flare, split_slow_fast_embeds
 from qwen_vla.flow_matching import validate_split_config, select_handover, tactile_training_pair
+from qwen_vla.contract import architecture_from_training_args, load_with_contract, validate_variant
 import cv2
 
 logger = logging.getLogger(__name__)
@@ -77,16 +78,232 @@ def reinit_tactile_expert(model):
                 nn.init.zeros_(param)
 
 
-def tactile_flow_loss(pred, target, mask=None):
+def tactile_flow_loss(pred, target, mask=None, slot_mask=None):
     """Tactile-expert MSE. With a per-sample mask (TAPTIC sdk_force), samples
     without a valid native tactile observation (legacy 10 Hz episodes, stale or
     missing reads) contribute nothing; an all-invalid batch gives a zero loss
-    that keeps the graph connected."""
-    if mask is None:
-        return nn.MSELoss()(pred, target)
-    per = (pred.float() - target.float()).pow(2).mean(dim=tuple(range(1, pred.dim())))
-    m = mask.to(device=per.device, dtype=per.dtype)
-    return (per * m).sum() / m.sum().clamp_min(1.0)
+    that keeps the graph connected.
+
+    slot_mask [B, chunk] (delayed tactile conditioning): only action slots whose
+    recorded time has not elapsed at the fast tick F are supervised. The noisy
+    chunk keeps all slots (same layout as inference); the loss is the mean over
+    supervised (sample, slot) pairs of the per-slot MSE over action dims. With
+    slot_mask=None the original formula is used unchanged (bitwise)."""
+    if slot_mask is None:
+        if mask is None:
+            return nn.MSELoss()(pred, target)
+        per = (pred.float() - target.float()).pow(2).mean(dim=tuple(range(1, pred.dim())))
+        m = mask.to(device=per.device, dtype=per.dtype)
+        return (per * m).sum() / m.sum().clamp_min(1.0)
+    err = (pred.float() - target.float()).pow(2).mean(dim=-1)                 # [B, chunk]
+    m = slot_mask.to(device=err.device, dtype=torch.bool)
+    if mask is not None:
+        m = m & mask.to(device=err.device, dtype=torch.bool)[:, None]
+    m = m.to(err.dtype)
+    return (err * m).sum() / m.sum().clamp_min(1.0)
+
+
+def _risk_inputs(raw_model, batch, tag):
+    """(risk, valid) for the model's risk token, or (None, None) for a risk-free
+    model (risk features may still be in the batch for logging / external gate)."""
+    if not getattr(raw_model, 'use_risk_tokens', False):
+        return None, None
+    if batch.get(f'risk_{tag}') is None:
+        raise ValueError(f'risk-token model but the batch has no risk_{tag} (pass --risk_stats)')
+    return batch[f'risk_{tag}'], batch[f'risk_{tag}_valid']
+
+
+def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_flare, K,
+                    training, merge_default=2):
+    """Action loss (single grad forward, tau ~ full [0,1]) + tactile loss at
+    tau in (0, tau_split] from a no-grad Action handover cache. Shared by the
+    training and validation loops; statement and RNG order are the original
+    loops' (randn for the cache noise, then — training only — the dropout draw).
+
+    Risk tokens: r_S conditions the Action forward and the no-grad cache; r_F
+    conditions the tactile step (marked missing when tactile dropout fires)."""
+    # viene eseguito il vision encoder
+    # input_ids [B,L] -> text embeddings
+    #                                   ===> input_embeds [B,L,H]
+    # pixel valuse -> vision encoder
+    inputs_embeds = raw_model.prepare_inputs_embeds(
+        input_ids=batch["input_ids"],
+        pixel_values=batch.get("pixel_values"),
+        image_grid_thw=batch.get("image_grid_thw"))
+    n_slow_imgs = batch["n_slow_images"]
+    grid_thw = batch.get("image_grid_thw")
+    B = inputs_embeds.shape[0]
+    if grid_thw is not None and grid_thw.shape[0] > n_slow_imgs:
+        merge = getattr(raw_model.visual, "spatial_merge_size", merge_default)
+        n_imgs_per_sample = grid_thw.shape[0] // B
+        n_slow_img_tokens = sum(
+            int(g[0] * (g[1] // merge) * (g[2] // merge))
+            for g in grid_thw[:n_imgs_per_sample][:n_slow_imgs])
+        # SEPARAZIONE DELLE DUE CAMERE
+        slow_embeds, fast_embeds = split_slow_fast_embeds(
+            inputs_embeds, batch["input_ids"], raw_model.image_token_id, n_slow_img_tokens)
+    else:
+        slow_embeds = inputs_embeds
+        fast_embeds = inputs_embeds[:, :0]
+    L_slow = slow_embeds.shape[1]
+    # Quindi è importante distinguere:
+    # - inputs_embeds: contenuto dei token;
+    # - position_ids: informazioni utilizzate per costruire le rotazioni posizionali di query e key.
+    # I position_ids non vengono concatenati come normali token al tensore inputs_embeds.
+    pos_ids, _ = raw_model.get_rope_index(
+        input_ids=batch["input_ids"], image_grid_thw=batch.get("image_grid_thw"),
+        attention_mask=batch["attention_mask"])
+    pos_ids = pos_ids[:, :, :L_slow]
+    if use_flare:
+        flare_q = raw_model.flare_queries.expand(B, -1, -1).to(device=slow_embeds.device, dtype=slow_embeds.dtype)
+        # I 32 token flare attraversano il Latent Expert insieme al contesto visivo e linguistico.
+        slow_embeds_ext = torch.cat([slow_embeds, flare_q], dim=1)
+        pos_ids = extend_position_ids_for_flare(pos_ids, K)
+        L_latent = slow_embeds_ext.shape[1]  # L_slow + K
+    else:
+        slow_embeds_ext = slow_embeds
+        L_latent = L_slow
+    if args.use_robot_state and batch["state_raw"] is not None:
+        state_vec = batch["state_raw"].to(slow_embeds.device, dtype=slow_embeds.dtype)
+        state_embeds = raw_model.state_embedder(state_vec).unsqueeze(1)
+    else:
+        # Se use_robot_state=0, come nella configurazione che stiamo considerando
+        # la rete non riceve un token di stato robotico esplicito.
+        # state_embeds.shape = [B, 0, H]
+        # n_state = 0
+        state_embeds = torch.empty((B, 0, slow_embeds.shape[2]), device=slow_embeds.device, dtype=slow_embeds.dtype)
+    n_state = state_embeds.shape[1]
+    # r_S: slow-tick risk token, Action-routed, before the timestep token.
+    risk_S, risk_S_valid = _risk_inputs(raw_model, batch, 'S')
+    risk_S_tok = raw_model.risk_token(risk_S, risk_S_valid, 'action', B, slow_embeds.device, slow_embeds.dtype)
+    n_risk = risk_S_tok.shape[1]
+    # Prima dell'embedder batch["noisy_actions"].shape = [B, 16, D]
+    # Dopo batch["noisy_actions"].shape = [B, 16, H]
+    noisy_actions = raw_model.x_embedder(batch["noisy_actions"].to(slow_embeds.dtype))
+    # Prima dell'embedder batch["timesteps"].shape = [B]
+    # Dopo batch["timesteps"].shape = [B, H]
+    # Dopo unsqueeze(1) timesteps.shape = [B, 1, H]
+    timesteps = raw_model.t_embedder(batch["timesteps"].to(slow_embeds.dtype)).unsqueeze(1)
+    chunk = args.action_chunk
+    target = batch["target"].to(slow_embeds.dtype)
+    n_fast = fast_embeds.shape[1]
+    has_any_tac = bool(args.use_tactile_vec or args.use_tactile_deform)
+
+    # Cascaded: shared flow split between action + tactile experts.
+    # L_flow — action expert single-step (full τ ∈ [0,1] training).
+    # Questa singola istruzione costruisce la sequenza finale in ingresso al MoT:
+    # [latent | fast | state | (risk_S) | t | x_t] — one forward with gradient.
+    parts = [slow_embeds_ext, fast_embeds, state_embeds] + ([risk_S_tok] if n_risk else []) + [timesteps, noisy_actions]
+    full_embeds = torch.cat(parts, dim=1)
+    L_total = full_embeds.shape[1]
+    # Chiamata al transformer
+    # Questa è la prima vera chiamata ai 28 layer MoT.
+    # latent_indexes = [0, ..., L_latent-1]
+    # action_indexes = [L_latent, ..., L_total-1]   (include risk_S quando presente)
+    # tactile_indexes = []
+    outputs = model.model(
+        inputs_embeds=full_embeds, position_ids=pos_ids, attention_mask=batch["attention_mask"],
+        # use_cache=False: in questo forward action del training non viene costruita
+        # una KV cache destinata al Tactile Expert. Stiamo addestrando il campo di
+        # velocità a un tempo tau campionato, con un singolo forward con gradiente.
+        # La cache per il training tattile viene costruita dopo, con un'altra funzione.
+        use_cache=False, output_hidden_states=use_flare,
+        latent_indexes=torch.arange(0, L_latent, device=full_embeds.device),
+        action_indexes=torch.arange(L_latent, L_total, device=full_embeds.device),
+        tactile_indexes=torch.arange(0, 0, device=full_embeds.device))
+    hidden = outputs.last_hidden_state
+    # Calcola la posizione del primo token corrispondente alle azioni rumorose
+    # (dopo latent, fast, state, risk_S e il token del tempo).
+    act_pred_start = L_latent + n_fast + n_state + n_risk + 1
+    # Estrae  hidden[:, act_pred_start:act_pred_start + 16, :]  ->  v_act.shape = [B, 16, D]
+    v_act = raw_model.final_layer(hidden[:, act_pred_start: act_pred_start + chunk, :])
+    # il calcolo di loss_act non aggiorna ancora alcun peso.
+    # Il grafo di autograd è stato costruito, ma il backward avverrà dopo
+    # che il codice avrà calcolato anche le altre loss.
+    loss_act = nn.MSELoss()(v_act, target)
+
+    res = {'loss_act': loss_act, 'loss_tac': 0.0, 'outputs': outputs, 'hidden': hidden, 'L_slow': L_slow,
+           'B': B, 'r_target_norm': None, 'tactile_dropped': False, 'n_risk': n_risk}
+    if has_any_tac and not is_stage1:
+        fe = fast_embeds if n_fast > 0 else None
+        se = state_embeds if n_state > 0 else None
+        # Questa istruzione genera nuovo rumore gaussiano.
+        # questo rumore è indipendente da quello utilizzato per calcolare loss_act.
+        ahat_noise = torch.randn_like(batch["noisy_actions"])
+        with torch.no_grad():
+            # cached_kv at tau_split, conditioned on the SAME r_S (matches inference).
+            # Qui gli autori conservano la KV cache e il numero di token action.
+            # Non conservano x_t per la loss tattile: nel training il Tactile Expert viene
+            # supervisionato con un altro punto rumoroso, costruito dalle azioni ground truth.
+            _, cached_kv, n_action_in_cache, _ = raw_model.forward_flow_action_partial(
+                inputs_embeds=slow_embeds_ext, position_ids=pos_ids, noise=ahat_noise,
+                attention_mask=batch["attention_mask"], state_embeds=se, fast_embeds=fe,
+                num_steps_total=args.cascaded_total_steps, split_step=handover.action_steps,
+                flow_time_precision=args.flow_time_precision, refresh_clean_kv=True,
+                risk=risk_S, risk_valid=risk_S_valid)
+        # INIZIO DELLA PARTE TATTILE
+        # Sono state già eseguite due operazioni:
+        # - 1. Un forward dell'Action Expert con gradiente per calcolare loss_act.
+        # - 2. Un forward dell'Action Expert senza gradiente per costruire la KV cache al passo τ_split.
+        # L_flow_tactile — tactile expert as velocity predictor at τ ∈ [0, τ_split]
+        # AZIONI CORRETTE: sono le azioni provenienti dalle dimostrazioni, dopo la normalizzazione.
+        # a in [B,16,D]
+        norm_actions_gt = batch["norm_actions"].to(slow_embeds.dtype)
+        # Nuovo rumore gaussiano (collate_fn())
+        eps_r = batch["eps_r"].to(slow_embeds.dtype)
+        x_tau, tau_t, v_target_r = tactile_training_pair(
+            norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
+        res['r_target_norm'] = v_target_r.float().abs().mean().detach()
+        dropout = getattr(args, 'cascaded_tactile_dropout', 0.) if training else 0.
+        # Tactile dropout — zero the values, not the tensor shape.
+        # Con il valore predefinito 0.1, ogni training step ha una probabilità del 10% di azzerare gli input tattili interessati.
+        drop = (dropout > 0 and torch.rand((), device=full_embeds.device).item() < dropout)
+        tac_f6_in = batch.get("tactile_f6s_delayed")
+        tac_def_in = batch.get("tactile_deforms_delayed")
+        tac_codes_in = batch.get("tactile_codes")
+        tac_hist_in = batch.get("tactile_f6_history")
+        risk_F, risk_F_valid = _risk_inputs(raw_model, batch, 'F')
+        if drop:
+            tac_f6_in = torch.zeros_like(tac_f6_in) if tac_f6_in is not None else None
+            tac_def_in = torch.zeros_like(tac_def_in) if tac_def_in is not None else None
+            tac_codes_in = torch.zeros_like(tac_codes_in) if tac_codes_in is not None else None
+            tac_hist_in = torch.zeros_like(tac_hist_in) if tac_hist_in is not None else None
+            # No tactile signal -> no fast-tick risk either: explicit "missing", not r=0.
+            risk_F_valid = torch.zeros_like(risk_F_valid) if risk_F_valid is not None else None
+        res['tactile_dropped'] = bool(drop)
+        # Calcolo della loss e chiamata a tactile_flow_train_step
+        # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
+        # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
+        # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
+        v_pred_r = raw_model.tactile_flow_train_step(
+            cached_kv=cached_kv, latent_position_ids=pos_ids, n_action_in_cache=n_action_in_cache,
+            x_tau=x_tau, tau=tau_t, flow_time_precision=args.flow_time_precision,
+            tactile_f6=tac_f6_in, tactile_deform=tac_def_in, tactile_codes=tac_codes_in,
+            tactile_f6_history=tac_hist_in, risk=risk_F, risk_valid=risk_F_valid)
+        res['loss_tac'] = tactile_flow_loss(v_pred_r, v_target_r, batch.get("tactile_loss_mask"),
+                                            batch.get("tactile_slot_mask"))
+    return res
+
+
+def batch_diagnostics(batch):
+    """Scalar logging of risk / delay inputs (no effect on training)."""
+    d = {}
+    for tag in ('S', 'F'):
+        r, v = batch.get(f'risk_{tag}'), batch.get(f'risk_{tag}_valid')
+        if r is not None:
+            vf = v.float()
+            d[f'risk/{tag}_valid_frac'] = float(vf.mean())
+            d[f'risk/{tag}_mean'] = float((r.float() * vf).sum() / vf.sum().clamp_min(1))
+            f = batch.get(f'risk_features_{tag}') or {}
+            for k in ('M', 'R', 'V', 'R_pos', 'R_neg'):
+                if k in f:
+                    kv = f[(k[0] if k.startswith('R_') else k) + '_valid'].float()
+                    d[f'risk/{tag}_{k}_mean'] = float((f[k].float() * kv).sum() / kv.sum().clamp_min(1))
+    if batch.get('tactile_delay_ns') is not None:
+        d['tactile/delay_ms_mean'] = float(batch['tactile_delay_ns'].float().mean() / 1e6)
+    if batch.get('tactile_slot_mask') is not None:
+        d['tactile/supervised_slot_frac'] = float(batch['tactile_slot_mask'].float().mean())
+    return d
 logging.basicConfig(level="INFO")
 
 
@@ -1077,6 +1294,21 @@ class MidtrainTacFlareDataset(Dataset):
         }
 
 
+def _sha256(path):
+    import hashlib
+    if not path or not os.path.isfile(path):
+        return None
+    with open(path, 'rb') as f:
+        return hashlib.sha256(f.read()).hexdigest()
+
+
+def _risk_definition(args):
+    if not getattr(args, "risk_stats", ""):
+        return None
+    from taptic.risk import RiskConfig
+    return RiskConfig.from_args(args).to_dict()
+
+
 def save_checkpoint(model, processor, accelerator, args, epoch, global_step, stats_data):
     save_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}-{global_step}")
 
@@ -1105,8 +1337,18 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
                     "tactile_layout": ("thumb..little x 120 taxels x xyz"
                                        if getattr(args, "taptic_tactile_input", "taxels") == "taxels"
                                        else "thumb..little x SDK force xyz; VQ history native ~76 Hz"),
-                    "tactile_delay_offsets": [0], "taptic_stats": args.taptic_stats}
+                    "tactile_delay_offsets": [0], "taptic_stats": args.taptic_stats,
+                    "tactile_delay_ms": list(getattr(args, "tactile_delay_ms", [0])),
+                    "risk_stats": getattr(args, "risk_stats", ""),
+                    "risk_stats_sha256": _sha256(getattr(args, "risk_stats", "")),
+                    "risk_definition": _risk_definition(args)}
                    if getattr(args, "data_format", "json") == "taptic" else {}),
+                "variant": getattr(args, "variant", ""),
+                "architecture": accelerator.unwrap_model(model).architecture_contract(),
+                "use_risk_tokens": int(getattr(args, "use_risk_tokens", 0)),
+                "risk_n_frequencies": getattr(args, "risk_n_frequencies", 8),
+                "resume_checkpoint": getattr(args, "resume_checkpoint", ""),
+                "resume_load_report": getattr(args, "resume_load_report", None),
                 "model_path": args.model_path,
                 "action_dim": args.action_dim,
                 "action_chunk": args.action_chunk,
@@ -1193,131 +1435,10 @@ def run_validation(model, val_dataloader, accelerator, args,
             break
         raw_model = accelerator.unwrap_model(model)
         handover = select_handover(args, device)
-
-        inputs_embeds = raw_model.prepare_inputs_embeds(
-            input_ids=batch["input_ids"],
-            pixel_values=batch.get("pixel_values"),
-            image_grid_thw=batch.get("image_grid_thw"))
-
-        n_slow_imgs = batch["n_slow_images"]
-        grid_thw = batch.get("image_grid_thw")
-        B = inputs_embeds.shape[0]
-        if grid_thw is not None and grid_thw.shape[0] > n_slow_imgs:
-            merge = getattr(raw_model.visual, "spatial_merge_size", 2)
-            n_imgs_per_sample = grid_thw.shape[0] // B
-            n_slow_img_tokens = sum(
-                int(g[0] * (g[1] // merge) * (g[2] // merge))
-                for g in grid_thw[:n_imgs_per_sample][:n_slow_imgs])
-            slow_embeds, fast_embeds = split_slow_fast_embeds(
-                inputs_embeds, batch["input_ids"],
-                raw_model.image_token_id, n_slow_img_tokens)
-        else:
-            slow_embeds = inputs_embeds
-            fast_embeds = inputs_embeds[:, :0]
-
-        L_slow = slow_embeds.shape[1]
-        pos_ids, _ = raw_model.get_rope_index(
-            input_ids=batch["input_ids"],
-            image_grid_thw=batch.get("image_grid_thw"),
-            attention_mask=batch["attention_mask"])
-        pos_ids = pos_ids[:, :, :L_slow]
-
-        if use_flare:
-            flare_q = raw_model.flare_queries.expand(B, -1, -1).to(
-                device=slow_embeds.device, dtype=slow_embeds.dtype)
-            # I 32 token flare attraversano il Latent Expert insieme al contesto visivo e linguistico.
-            slow_embeds_ext = torch.cat([slow_embeds, flare_q], dim=1)
-            pos_ids = extend_position_ids_for_flare(pos_ids, K)
-            L_latent = slow_embeds_ext.shape[1]
-        else:
-            slow_embeds_ext = slow_embeds
-            L_latent = L_slow
-
-        if args.use_robot_state and batch["state_raw"] is not None:
-            state_vec = batch["state_raw"].to(slow_embeds.device, dtype=slow_embeds.dtype)
-            state_embeds = raw_model.state_embedder(state_vec).unsqueeze(1)
-        else:
-            state_embeds = torch.empty((B, 0, slow_embeds.shape[2]),
-                                       device=slow_embeds.device, dtype=slow_embeds.dtype)
-        n_state = state_embeds.shape[1]
-
-        noisy_actions = raw_model.x_embedder(batch["noisy_actions"].to(slow_embeds.dtype))
-        timesteps = raw_model.t_embedder(batch["timesteps"].to(slow_embeds.dtype)).unsqueeze(1)
-        chunk = args.action_chunk
-        target = batch["target"].to(slow_embeds.dtype)
-        n_fast = fast_embeds.shape[1]
-        has_any_tac = bool(args.use_tactile_vec or args.use_tactile_deform)
-
-        if has_any_tac and not is_stage1:
-            # Cascaded validation — full L_flow on action expert + L_flow_tactile
-            # on tactile expert at τ ∈ [0, τ_split].
-            full_embeds = torch.cat([
-                slow_embeds_ext, fast_embeds, state_embeds, timesteps, noisy_actions,
-            ], dim=1)
-            L_total = full_embeds.shape[1]
-            outputs = model.model(
-                inputs_embeds=full_embeds, position_ids=pos_ids,
-                attention_mask=batch["attention_mask"], use_cache=False,
-                output_hidden_states=use_flare,
-                latent_indexes=torch.arange(0, L_latent, device=full_embeds.device),
-                action_indexes=torch.arange(L_latent, L_total, device=full_embeds.device),
-                tactile_indexes=torch.arange(0, 0, device=full_embeds.device))
-            hidden = outputs.last_hidden_state
-            act_start = L_latent + n_fast + n_state + 1
-            v_act = raw_model.final_layer(hidden[:, act_start:act_start + chunk, :])
-            loss_act = nn.MSELoss()(v_act, target)
-
-            fe = fast_embeds if n_fast > 0 else None
-            se = state_embeds if n_state > 0 else None
-            ahat_noise = torch.randn_like(batch["noisy_actions"])
-            _, cached_kv, n_action_in_cache, _ = (
-                raw_model.forward_flow_action_partial(
-                    inputs_embeds=slow_embeds_ext,
-                    position_ids=pos_ids,
-                    noise=ahat_noise,
-                    attention_mask=batch["attention_mask"],
-                    state_embeds=se,
-                    fast_embeds=fe,
-                    num_steps_total=args.cascaded_total_steps,
-                    split_step=handover.action_steps,
-                    flow_time_precision=args.flow_time_precision,
-                    refresh_clean_kv=True,
-                ))
-            norm_actions_gt = batch["norm_actions"].to(slow_embeds.dtype)
-            eps_r = batch["eps_r"].to(slow_embeds.dtype)
-            x_tau, tau_t, v_target_r = tactile_training_pair(
-                norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
-            v_pred_r = raw_model.tactile_flow_train_step(
-                cached_kv=cached_kv,
-                latent_position_ids=pos_ids,
-                n_action_in_cache=n_action_in_cache,
-                x_tau=x_tau,
-                tau=tau_t,
-                flow_time_precision=args.flow_time_precision,
-                tactile_f6=batch.get("tactile_f6s_delayed"),
-                tactile_deform=batch.get("tactile_deforms_delayed"),
-                tactile_codes=batch.get("tactile_codes"),
-                tactile_f6_history=batch.get("tactile_f6_history"),
-            )
-            loss_tac = tactile_flow_loss(v_pred_r, v_target_r, batch.get("tactile_loss_mask"))
-        else:
-            # Stage-1 / tactile-free validation: action expert only.
-            full_embeds = torch.cat([
-                slow_embeds_ext, fast_embeds, state_embeds, timesteps, noisy_actions,
-            ], dim=1)
-            L_total = full_embeds.shape[1]
-            outputs = model.model(
-                inputs_embeds=full_embeds, position_ids=pos_ids,
-                attention_mask=batch["attention_mask"], use_cache=False,
-                output_hidden_states=use_flare,
-                latent_indexes=torch.arange(0, L_latent, device=full_embeds.device),
-                action_indexes=torch.arange(L_latent, L_total, device=full_embeds.device),
-                tactile_indexes=torch.arange(0, 0, device=full_embeds.device))
-            hidden = outputs.last_hidden_state
-            act_start = L_latent + n_fast + n_state + 1
-            v_act = raw_model.final_layer(hidden[:, act_start:act_start + chunk, :])
-            loss_act = nn.MSELoss()(v_act, target)
-            loss_tac = 0.0
+        # Same computation as a training step, without tactile dropout / FLARE.
+        res = cascaded_losses(model, raw_model, batch, args, handover, is_stage1=is_stage1,
+                              use_flare=use_flare, K=K, training=False)
+        loss_act, loss_tac = res['loss_act'], res['loss_tac']
 
         val_act += loss_act.item()
         val_tac += (loss_tac.item() if torch.is_tensor(loss_tac) else loss_tac)
@@ -1338,6 +1459,7 @@ def run_validation(model, val_dataloader, accelerator, args,
 
 def train(args):
     validate_split_config(args)
+    validate_variant(args)
     if getattr(args, "data_format", "json") == "taptic":
         from qwen_vla.taptic_dataset import validate_config
         validate_config(args)
@@ -1436,11 +1558,16 @@ def train(args):
         vqvae_codebook_size=getattr(args, "vqvae_codebook_size", 64),
         use_tactile_vqvae=bool(getattr(args, "use_tactile_vqvae", 0)),
         vqvae_config=vqvae_config,
+        use_risk_tokens=bool(getattr(args, "use_risk_tokens", 0)),
+        risk_n_frequencies=getattr(args, "risk_n_frequencies", 8),
     )
     if args.use_tactile_deform:
         model.load_deform_encoder_weights(args.deform_encoder_ckpt)
     # Inizializzazione dei pesi    
     model.initialize_vla_weights()
+    if model.use_risk_tokens:
+        accelerator.print(f"[risk] risk tokens ON: initialized {len(model.initialize_risk_weights())} "
+                          f"new risk-embedder parameters (Action r_S + Tactile r_F)")
     if vqvae_blob is not None:
         model.load_tactile_vqvae(vqvae_blob)
     if args.use_flare:
@@ -1471,19 +1598,16 @@ def train(args):
         resume_sd = torch.load(ckpt_path, map_location="cpu")
         if "state_dict" in resume_sd:
             resume_sd = resume_sd["state_dict"]
-        # Filter out keys with shape mismatch (e.g. tactile MLP from pretrain)
-        model_sd = model.state_dict()
-        filtered_sd = {}
-        skipped = []
-        for k, v in resume_sd.items():
-            if k in model_sd and model_sd[k].shape != v.shape:
-                skipped.append(k)
-            else:
-                filtered_sd[k] = v
-        if skipped:
-            accelerator.print(f"Skipped {len(skipped)} keys with shape mismatch (e.g. {skipped[0]})")
-        missing, unexpected = model.load_state_dict(filtered_sd, strict=False)
-        accelerator.print(f"Resumed: missing={len(missing)}, unexpected={len(unexpected)}")
+        # Explicit architecture contract: shape-mismatched keys are still skipped
+        # (e.g. tactile MLP from pretrain) but listed; risk weights are never
+        # silently dropped and newly introduced risk parameters are logged.
+        load_report = load_with_contract(model, resume_sd, architecture_from_training_args(resume_ta),
+                                         log=accelerator.print)
+        args.resume_load_report = {k: v for k, v in load_report.items()
+                                   if k in ('new_risk_parameters_initialized', 'shape_mismatch_skipped',
+                                            'checkpoint_architecture')}
+        accelerator.print(f"Resumed: missing={len(load_report['missing'])}, "
+                          f"unexpected={len(load_report['unexpected'])}")
 
     resumed_tactile = bool(args.resume_checkpoint) and args.resume_source == "midtrain"
     if not freeze_tactile and not resumed_tactile:
@@ -1637,220 +1761,17 @@ def train(args):
             raw_model = accelerator.unwrap_model(model)
             handover = select_handover(args, device)
 
-            # viene eseguito il vision encoder
-            # input_ids [B,L] -> text embeddings
-            #                                   ===> input_embeds [B,L,H]
-            # pixel valuse -> vision encoder
-
-            inputs_embeds = raw_model.prepare_inputs_embeds(
-                input_ids=batch["input_ids"],
-                pixel_values=batch.get("pixel_values"),
-                image_grid_thw=batch.get("image_grid_thw"),
-            )
-
-            n_slow_imgs = batch["n_slow_images"]
-            grid_thw = batch.get("image_grid_thw")
-            B = inputs_embeds.shape[0]
-            if grid_thw is not None and grid_thw.shape[0] > n_slow_imgs:
-                merge = getattr(raw_model.visual, "spatial_merge_size",
-                                getattr(processor.image_processor, "merge_size", 2))
-                n_imgs_per_sample = grid_thw.shape[0] // B
-                n_slow_img_tokens = sum(
-                    int(g[0] * (g[1] // merge) * (g[2] // merge))
-                    for g in grid_thw[:n_imgs_per_sample][:n_slow_imgs]
-                )
-                # SEPARAZIONE DELLE DUE CAMERE
-                slow_embeds, fast_embeds = split_slow_fast_embeds(
-                    inputs_embeds, batch["input_ids"],
-                    raw_model.image_token_id, n_slow_img_tokens)
-            else:
-                slow_embeds = inputs_embeds
-                fast_embeds = inputs_embeds[:, :0]
-
-            L_slow = slow_embeds.shape[1]
-            
-            torch.set_printoptions(profile="full")
-            # print(batch["input_ids"])
-            # print("---------------------")
-            # print(inputs_embeds.shape)
-            # print(slow_embeds.shape)
-            # print(fast_embeds.shape)
-            # input("pause")
-
-            # Quindi è importante distinguere:
-            # - inputs_embeds: contenuto dei token;
-            # - position_ids: informazioni utilizzate per costruire le rotazioni posizionali di query e key.
-            # I position_ids non vengono concatenati come normali token al tensore inputs_embeds.
-            pos_ids, _ = raw_model.get_rope_index(
-                input_ids=batch["input_ids"],
-                image_grid_thw=batch.get("image_grid_thw"),
-                attention_mask=batch["attention_mask"],
-            )
-            pos_ids = pos_ids[:, :, :L_slow]
-
-            if use_flare:
-                flare_q = raw_model.flare_queries.expand(B, -1, -1).to(device=slow_embeds.device, dtype=slow_embeds.dtype)
-                # I 32 token flare attraversano il Latent Expert insieme al contesto visivo e linguistico.
-                slow_embeds_ext = torch.cat([slow_embeds, flare_q], dim=1)
-                pos_ids = extend_position_ids_for_flare(pos_ids, K)
-                L_latent = slow_embeds_ext.shape[1]  # L_slow + K
-            else:
-                slow_embeds_ext = slow_embeds
-                L_latent = L_slow
-
-            if args.use_robot_state and batch["state_raw"] is not None:
-                state_vec = batch["state_raw"].to(slow_embeds.device,
-                                                   dtype=slow_embeds.dtype)
-                state_embeds = raw_model.state_embedder(state_vec).unsqueeze(1)
-            else:
-                # Se use_robot_state=0, come nella configurazione che stiamo considerando
-                # la rete non riceve un token di stato robotico esplicito.
-                # state_embeds.shape = [B, 0, H]
-                # n_state = 0
-                state_embeds = torch.empty((B, 0, slow_embeds.shape[2]), device=slow_embeds.device, dtype=slow_embeds.dtype)
-            n_state = state_embeds.shape[1]
-
-            # Prima dell'embedder batch["noisy_actions"].shape = [B, 16, D]
-            # Dopo batch["noisy_actions"].shape = [B, 16, H]
-            noisy_actions = raw_model.x_embedder(
-                batch["noisy_actions"].to(slow_embeds.dtype))
-            # Prima dell'embedder batch["timesteps"].shape = [B]
-            # Dopo batch["timesteps"].shape = [B, H]
-            # Dopo unsqueeze(1) timesteps.shape = [B, 1, H]
-            timesteps = raw_model.t_embedder(
-                batch["timesteps"].to(slow_embeds.dtype)).unsqueeze(1)
-
-            chunk = args.action_chunk
-            target = batch["target"].to(slow_embeds.dtype)
-            n_fast = fast_embeds.shape[1]
-            r_target_norm = None  # set only when tactile expert ran this step
-            has_any_tac = bool(args.use_tactile_vec or args.use_tactile_deform)
-
-            # Cascaded: shared flow split between action + tactile experts.
-            # L_flow — action expert single-step (full τ ∈ [0,1] training).
-
-            # Questa singola istruzione costruisce la sequenza finale in ingresso al MoT.
-            full_embeds = torch.cat([
-                slow_embeds_ext,
-                fast_embeds, state_embeds, timesteps, noisy_actions,
-            ], dim=1)
-            L_total = full_embeds.shape[1]
-
-            # Chiamata al transformer
-            # Questa è la prima vera chiamata ai 28 layer MoT.
-            # latent_indexes = [0, ..., L_latent-1]
-            # action_indexes = [L_latent, ..., L_total-1]
-            # tactile_indexes = []
-            outputs = model.model(
-                inputs_embeds=full_embeds,
-                position_ids=pos_ids,
-                attention_mask=batch["attention_mask"],
-                use_cache=False, # use_cache=False
-                                # In questo specifico forward action del training non viene
-                                # costruita una KV cache destinata al Tactile Expert.
-                                # Il motivo è che stiamo addestrando il campo di velocità a un
-                                # tempo \(\tau\) campionato, attraverso un singolo forward con
-                                # gradiente. La cache per il training tattile verrà costruita
-                                # successivamente, tramite un'altra funzione.
-                output_hidden_states=use_flare,
-                latent_indexes=torch.arange(0, L_latent, device=full_embeds.device),
-                action_indexes=torch.arange(L_latent, L_total, device=full_embeds.device),
-                tactile_indexes=torch.arange(0, 0, device=full_embeds.device),
-            )
-            hidden = outputs.last_hidden_state
-            # Calcola la posizione del primo token corrispondente alle azioni rumorose.
-            act_pred_start = L_latent + n_fast + n_state + 1
-            # Estrae  hidden[:, act_pred_start:act_pred_start + 16, :]
-            # v_act.shape = [B, 16, 62]
-            v_act = raw_model.final_layer(
-                hidden[:, act_pred_start: act_pred_start + chunk, :])
-            
-            # il calcolo di loss_act non aggiorna ancora alcun peso.
-            # Il grafo di autograd è stato costruito, ma il backward avverrà dopo
-            # che il codice avrà calcolato anche le altre loss.
-            loss_act = nn.MSELoss()(v_act, target)
-
-            if has_any_tac and not is_stage1:
-                fe = fast_embeds if n_fast > 0 else None
-                se = state_embeds if n_state > 0 else None
-                # Questa istruzione genera nuovo rumore gaussiano.
-                # questo rumore è indipendente da quello utilizzato per calcolare loss_act.
-                ahat_noise = torch.randn_like(batch["noisy_actions"])
-                # cached_kv at τ=tau_split (matches inference).
-                with torch.no_grad():
-                    # Qui gli autori conservano la KV cache e il numero di token action.
-                    #Non conservano x_t per la loss tatttile
-                    #Questo perché, nel training, il Tactile Expert viene supervisionato usando un altro punto rumoroso, costruito direttamente dalle azioni ground truth.
-                    _, cached_kv, n_action_in_cache, _ = (
-                        raw_model.forward_flow_action_partial(
-                            inputs_embeds=slow_embeds_ext,
-                            position_ids=pos_ids,
-                            noise=ahat_noise,
-                            attention_mask=batch["attention_mask"],
-                            state_embeds=se,
-                            fast_embeds=fe,
-                            num_steps_total=args.cascaded_total_steps,
-                            split_step=handover.action_steps,
-                            flow_time_precision=args.flow_time_precision,
-                            refresh_clean_kv=True,
-                        ))
-
-                # INIZIO DELLA PARTE TATTILE
-                # Sono state già eseguite due operazioni:
-                # - 1. Un forward dell'Action Expert con gradiente per calcolare loss_act.
-                # - 2. Un forward dell'Action Expert senza gradiente per costruire la KV cache al passo τ_split.
-                # L_flow_tactile — tactile expert as velocity predictor at τ ∈ [0, τ_split]
-                
-                # AZIONI CORRETTE: sono le azioni provenienti dalle dimostrazioni, dopo la normalizzazione.
-                # a in [B,16,D]
-                norm_actions_gt = batch["norm_actions"].to(slow_embeds.dtype)
-
-                # Nuovo rumore gaussiano (riga 930 collate_fn())
-                eps_r = batch["eps_r"].to(slow_embeds.dtype)
-                x_tau, tau_t, v_target_r = tactile_training_pair(
-                    norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
-                r_target_norm = v_target_r.float().abs().mean().detach()
-
-                # Tactile dropout — zero the values, not the tensor shape.
-                # Con il valore predefinito 0.1, ogni training step ha una probabilità del 10% di azzerare gli input tattili interessati.
-                drop = (args.cascaded_tactile_dropout > 0
-                        and torch.rand((), device=full_embeds.device).item()
-                        < args.cascaded_tactile_dropout)
-                tac_f6_in    = batch.get("tactile_f6s_delayed")
-                tac_def_in   = batch.get("tactile_deforms_delayed")
-                tac_codes_in = batch.get("tactile_codes")
-                tac_hist_in  = batch.get("tactile_f6_history")
-                if drop:
-                    if tac_f6_in is not None:
-                        tac_f6_in = torch.zeros_like(tac_f6_in)
-                    if tac_def_in is not None:
-                        tac_def_in = torch.zeros_like(tac_def_in)
-                    if tac_codes_in is not None:
-                        tac_codes_in = torch.zeros_like(tac_codes_in)
-                    if tac_hist_in is not None:
-                        tac_hist_in = torch.zeros_like(tac_hist_in)
-                # Calcolo della loss e chiamata a tactile_flow_train_step
-                # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
-                # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
-                # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
-                loss_tac = tactile_flow_loss(
-                    raw_model.tactile_flow_train_step(
-                        cached_kv=cached_kv,
-                        latent_position_ids=pos_ids,
-                        n_action_in_cache=n_action_in_cache,
-                        x_tau=x_tau,
-                        tau=tau_t,
-                        flow_time_precision=args.flow_time_precision,
-                        tactile_f6=tac_f6_in,
-                        tactile_deform=tac_def_in,
-                        tactile_codes=tac_codes_in,
-                        tactile_f6_history=tac_hist_in,
-                    ),
-                    v_target_r,
-                    batch.get("tactile_loss_mask"),
-                )
-            else:
-                loss_tac = 0.0
+            # Vision encoder, slow/fast split, M-RoPE, FLARE queries, (risk_S),
+            # action loss, no-grad handover cache and tactile loss: shared with
+            # run_validation (see cascaded_losses for the step-by-step comments).
+            res = cascaded_losses(
+                model, raw_model, batch, args, handover, is_stage1=is_stage1, use_flare=use_flare,
+                K=K, training=True,
+                merge_default=getattr(processor.image_processor, "merge_size", 2))
+            loss_act, loss_tac = res['loss_act'], res['loss_tac']
+            outputs, hidden = res['outputs'], res['hidden']
+            L_slow, B = res['L_slow'], res['B']
+            r_target_norm = res['r_target_norm']
 
             # FLARE è un obiettivo ausiliario di previsione di rappresentazioni visive future.
             # Il modello cerca di predire feature visive future
@@ -1973,6 +1894,8 @@ def train(args):
                     }
                     if r_target_norm is not None:
                         log_dict["refine/r_target_norm"] = float(r_target_norm)
+                    log_dict.update(batch_diagnostics(batch))
+                    log_dict["tactile/dropout_fired"] = float(res['tactile_dropped'])
                     wandb.log(log_dict, step=global_step)
 
             # ── Validation ──
@@ -2064,6 +1987,28 @@ if __name__ == "__main__":
                         default=[0, 4, 8, 12],
                         help="Delay offsets (frames) sampled uniformly when reading "
                              "tactile observations for the tactile expert.")
+    parser.add_argument("--tactile_delay_ms", type=int, nargs="+", default=[0],
+                        help="TAPTIC physical fast-tick offsets F-S (ms), sampled uniformly per "
+                             "sample: tactile force/VQ history/r_F at F, Action context/r_S at S, "
+                             "elapsed target slots masked. [0] = baseline alignment.")
+
+    # Contact risk (OURS) — see taptic/risk.py and docs/taptic_ours/REPORT.md.
+    parser.add_argument("--variant", default="", choices=["", "vanilla", "multisplit", "ours"],
+                        help="Optional guard: refuse flags inconsistent with the named variant.")
+    parser.add_argument("--risk_stats", type=str, default="",
+                        help="Train-only risk statistics (python -m taptic.risk fit). Enables r_S/r_F "
+                             "features in the batch (logging, gate, risk tokens).")
+    parser.add_argument("--use_risk_tokens", type=int, default=0,
+                        help="1: learned risk token in the Action (r_S) and Tactile (r_F) streams.")
+    parser.add_argument("--risk_n_frequencies", type=int, default=8)
+    parser.add_argument("--risk_coefficients", type=float, nargs=3, default=[0.25, 0.50, 0.25],
+                        help="(a, b, c) in r = clip(a*M + b*R + c*M*V, 0, 1); fixed, not learned.")
+    parser.add_argument("--risk_rate_window_ms", type=int, default=100)
+    parser.add_argument("--risk_velocity_window_ms", type=int, default=100)
+    parser.add_argument("--risk_joint_source", default="sidecar", choices=["sidecar", "state10hz"])
+    parser.add_argument("--risk_rate_mode", default="vector", choices=["vector", "positive"],
+                        help="R100: vector force variation (increases, decreases, direction changes; "
+                             "default) or positive |F| increases only (previous definition, ablation).")
 
     # Cascaded flow matching (see train_qwen3vl_flare.py for details).
     parser.add_argument("--cascaded_split_mode", choices=["fixed", "multi"], default="fixed")
@@ -2135,6 +2080,7 @@ if __name__ == "__main__":
 
     args = parser.parse_args()
     validate_split_config(args)
+    validate_variant(args)
 
     if args.data_format in ("lerobot", "taptic"):
         if not args.lerobot_root:
