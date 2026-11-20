@@ -5,4 +5,4 @@ cd "$(dirname "$0")/.."
 : "${TAPTIC_PROCESSOR:?Set TAPTIC_PROCESSOR to local Qwen3-VL processor/config files}"
 export OMP_NUM_THREADS=2 MKL_NUM_THREADS=2 OPENBLAS_NUM_THREADS=2
 export CUDA_VISIBLE_DEVICES=''
-"${TAPTIC_PYTHON:-python3}" -m pytest tests/taptic/test_adapter.py tests/taptic/test_multisplit.py -q --tb=short "$@"
+"${TAPTIC_PYTHON:-python3}" -m pytest tests/taptic/test_adapter.py tests/taptic/test_multisplit.py tests/taptic/test_cache_ladder.py -q --tb=short "$@"

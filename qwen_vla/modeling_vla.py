@@ -40,7 +40,8 @@ from transformers.cache_utils import DynamicCache
 
 from .modeling_qwen3vl_mot import Qwen3VLModelMoT
 from diffusion import ActionEmbedder, TimestepEmbedder, FinalLayer
-from .flow_matching import flow_time
+from .flow_matching import flow_time, Handover
+from .cache_ladder import ActionCacheLadder, ActionHandoverSnapshot
 from models import DeformEncoder
 
 
@@ -667,10 +668,85 @@ class Qwen3VLVLAModel(nn.Module):
         return x_t.to(dtype)
 
 
-    # il suo output è una tupla di 4 elementi
-    # x_t, past_kv, n_action_in_cache, tau_split
     @torch.no_grad()
     def forward_flow_action_partial(
+        self, inputs_embeds: torch.Tensor, position_ids: torch.Tensor,
+        noise: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
+        state_embeds: Optional[torch.Tensor] = None,
+        fast_embeds: Optional[torch.Tensor] = None,
+        num_steps_total: int = 10, split_step: int = 6,
+        refresh_clean_kv: bool = True, flow_time_precision: str = 'fp32',
+    ) -> Tuple[torch.Tensor, "DynamicCache", int, float]:
+        """Single-split API; defaults and numerical behavior are preserved."""
+        return self._forward_flow_action_trajectory(
+            inputs_embeds, position_ids, noise, attention_mask, state_embeds,
+            fast_embeds, num_steps_total, split_step, refresh_clean_kv, flow_time_precision)
+
+    @torch.no_grad()
+    def forward_flow_action_ladder(
+        self, inputs_embeds: torch.Tensor, position_ids: torch.Tensor,
+        noise: torch.Tensor, attention_mask: Optional[torch.Tensor] = None,
+        state_embeds: Optional[torch.Tensor] = None,
+        fast_embeds: Optional[torch.Tensor] = None,
+        num_steps_total: int = 10, flow_time_precision: str = 'fp32',
+    ) -> ActionCacheLadder:
+        """One slow tick: 8 action updates, 9 forwards, snapshots at .6/.4/.2.
+
+        Uses eval mode and latent-only positions. Padded contexts are rejected:
+        the existing continuation does not propagate padding masks after its
+        first forward. Use unpadded items or an equal-length batch.
+        """
+        if self.training:
+            raise ValueError('cache ladder requires model.eval()')
+        if num_steps_total != 10 or flow_time_precision != 'fp32':
+            raise ValueError('cache ladder requires 10 steps and fp32 flow time')
+        if (position_ids.ndim not in (2, 3)
+                or position_ids.shape[-1] != inputs_embeds.shape[1]
+                or position_ids.shape[-2] != inputs_embeds.shape[0]
+                or (position_ids.ndim == 3 and position_ids.shape[0] != 3)):
+            raise ValueError('cache ladder requires latent-only position IDs')
+        if noise.shape != (inputs_embeds.shape[0], self.action_chunk, self.action_dim):
+            raise ValueError('cache ladder noise shape must be [B, action_chunk, action_dim]')
+        if attention_mask is not None and (attention_mask.ndim != 2
+                or attention_mask.shape[0] != inputs_embeds.shape[0]
+                or not torch.all(attention_mask == 1)):
+            raise ValueError('cache ladder requires unpadded attention context')
+        snapshots = {}
+        self._forward_flow_action_trajectory(
+            inputs_embeds, position_ids, noise, attention_mask, state_embeds,
+            fast_embeds, 10, 8, True, 'fp32', _snapshot_sink=snapshots)
+        return ActionCacheLadder(tuple(snapshots[i] for i in (4, 6, 8)))
+
+    @torch.no_grad()
+    def tactile_flow_continue_from_ladder(
+        self, ladder: ActionCacheLadder, selected_split: float,
+        tactile_f6: Optional[torch.Tensor] = None,
+        tactile_deform: Optional[torch.Tensor] = None,
+        tactile_codes: Optional[torch.Tensor] = None,
+        tactile_f6_history: Optional[torch.Tensor] = None,
+    ) -> torch.Tensor:
+        """One physical fast tick, restarting a snapshot with current tactile.
+
+        Each call integrates a fresh numerical flow to zero. Calls do not consume
+        ladder levels or advance robot time. Reuse only within the same slow tick.
+        """
+        if self.training:
+            raise ValueError('cache ladder requires model.eval()')
+        if not isinstance(ladder, ActionCacheLadder):
+            raise TypeError('expected ActionCacheLadder')
+        snapshot = ladder[selected_split]
+        # Existing continuation clones this private cache before any mutation.
+        # Avoid a second full-cache clone through the public inspection property.
+        return self.tactile_flow_continue(
+            snapshot._cache, snapshot._latent_positions, snapshot.n_action_in_cache,
+            snapshot._x_tau, snapshot.tau, tactile_f6=tactile_f6,
+            tactile_deform=tactile_deform, tactile_codes=tactile_codes,
+            tactile_f6_history=tactile_f6_history,
+            num_steps_total=snapshot.handover.total_steps,
+            split_step=snapshot.handover.action_steps, flow_time_precision='fp32')
+
+    @torch.no_grad()
+    def _forward_flow_action_trajectory(
         self,
         inputs_embeds: torch.Tensor, # Contesto latent [B,L_latent,H]
         position_ids: torch.Tensor, # # Informazioni posizionali del contesto 
@@ -682,6 +758,7 @@ class Qwen3VLVLAModel(nn.Module):
         split_step: int = 6,
         refresh_clean_kv: bool = True,
         flow_time_precision: str = 'fp32',
+        *, _snapshot_sink=None,
     ) -> Tuple[torch.Tensor, "DynamicCache", int, float]:
         """Cascaded slow-tick: run the action expert for `split_step` of
         `num_steps_total` Euler steps, stopping at τ = 1 − split_step/num_steps_total.
@@ -771,6 +848,14 @@ class Qwen3VLVLAModel(nn.Module):
                     action_indexes=torch.arange(0, n_act, device=device),
                     tactile_indexes=torch.arange(0, 0, device=device),
                 )
+            # KV now corresponds to (x_tau, tau), before the Euler update.
+            # These forwards also supply the next velocity: no extra refresh.
+            if _snapshot_sink is not None and i in (4, 6):
+                _snapshot_sink[i] = ActionHandoverSnapshot.capture(
+                    x_fp32=x_t, cache=outputs.past_key_values,
+                    position_ids=position_ids, action_position_ids=act_pos,
+                    handover=Handover(i), n_fast=fast_embeds.shape[1], n_state=n_state,
+                    clone_cache=self._clone_dynamic_cache)
             # hidden[:, -n_chunk:, :] seleziona gli hidden states dei 16 token action finali.
             hidden = outputs.last_hidden_state
             # la HEAD self.final_layer(...) li trasforma in v_A
@@ -827,6 +912,11 @@ class Qwen3VLVLAModel(nn.Module):
         past_kv._trex_handover = {'action_steps': split_step, 'total_steps': num_steps_total,
             'tau': tau_split, 'precision': flow_time_precision, 'length': past_kv.get_seq_length(),
             'n_action': n_action_in_cache}
+        if _snapshot_sink is not None:
+            _snapshot_sink[split_step] = ActionHandoverSnapshot.capture(
+                x_fp32=x_t, cache=past_kv, position_ids=position_ids,
+                action_position_ids=act_pos_final, handover=Handover(split_step),
+                n_fast=fast_embeds.shape[1], n_state=n_state, clone_cache=self._clone_dynamic_cache)
         return x_t.to(dtype), past_kv, n_action_in_cache, tau_split
 
     @torch.no_grad()

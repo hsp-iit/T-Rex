@@ -1,0 +1,19 @@
+.........[LeRobot] test_official_loader_still_col0: 0 frames, fps=30, wrist=False, tactile=False
+.LADDER_BUILD {"episode": 0, "frame": 71, "slow_tick_ns": 1132876997034203, "fast_tick_ns": 1132877086641081, "elapsed_to_fast_ms": 89.606878, "initial_read_ns": 1132876996314607, "action_forwards": 9, "euler_updates": 8, "cache_layers": 2, "token_counts": {"latent": 86, "fast": 71, "state": 1, "time": 1, "chunk": 16, "action": 89, "total": 175}, "kv_bytes_per_snapshot": 179200, "x_shape": [2, 16, 21], "tactile_shape": [2, 5, 360]}
+LADDER_EQUIVALENCE {"tau": 0.6, "action_steps": 4, "tactile_steps": 6, "state_max_abs": 0.0, "output_max_abs": 0.0, "output_rms": 1.0297220945358276, "kv_max_abs": 0.0, "cache_length": 175}
+.LADDER_EQUIVALENCE {"tau": 0.4, "action_steps": 6, "tactile_steps": 4, "state_max_abs": 0.0, "output_max_abs": 0.0, "output_rms": 1.0127404928207397, "kv_max_abs": 0.0, "cache_length": 175}
+.LADDER_EQUIVALENCE {"tau": 0.2, "action_steps": 8, "tactile_steps": 2, "state_max_abs": 0.0, "output_max_abs": 0.0, "output_rms": 1.004498839378357, "kv_max_abs": 0.0, "cache_length": 175}
+.LADDER_FAST_TICKS {"updated_tactile_output_max_abs": {"0.2": 0.015625, "0.6": 0.015625, "0.4": 0.015625}, "all_snapshots_bitwise_preserved": true}
+...............LADDER_FIXED_REGRESSION {"fp32_bitwise_equal": true, "legacy_bf16_bitwise_equal": true, "weights_unchanged": true}
+............[Qwen3VLVLAModel] embedded VQ-VAE loaded (codebook=16, granularity=finger, window=16).
+..[Gloo] Rank 1 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+[Gloo] Rank 0 is connected to 1 peer ranks. Expected number of connected peer ranks is : 1
+...MULTISPLIT_RESULT {"action_steps": 8, "action_loss": 1.3890454769134521, "tactile_loss": 1.6828035116195679, "cache_length": 180, "n_action": 89, "tau": 0.2}
+.MULTISPLIT_RESULT {"action_steps": 6, "action_loss": 1.3888510465621948, "tactile_loss": 1.6180670261383057, "cache_length": 180, "n_action": 89, "tau": 0.4}
+.MULTISPLIT_RESULT {"action_steps": 4, "action_loss": 1.3891290426254272, "tactile_loss": 1.577200174331665, "cache_length": 180, "n_action": 89, "tau": 0.6}
+.BASELINE_RESULT {"legacy_bitwise_equal": true, "old_tau": 0.39453125, "revised_tau": 0.4, "partial_output_difference": {"max_abs": 0.03125, "rms": 0.008160494267940521}, "final_output_difference": {"max_abs": 0.046875, "rms": 0.010113298892974854}}
+..VALIDATION_RESULT {"tau": 0.2, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4886562824249268}
+VALIDATION_RESULT {"tau": 0.4, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.5096096992492676}
+VALIDATION_RESULT {"tau": 0.6, "val/action_loss": 1.4433060884475708, "val/tactile_loss": 2.4808523654937744}
+.......
+57 passed in 19.60s

@@ -1,0 +1,898 @@
+{
+  "branch": "mfincato/risk_gated",
+  "commit": "b068f70dacf383d75eb8421b77682d53d0c4d870",
+  "seed": 20261118,
+  "device": "cpu",
+  "model": "random text H64/depth1, vision H32/depth1",
+  "episodes": [
+    0,
+    298,
+    24
+  ],
+  "batch": {
+    "input_ids": {
+      "shape": [
+        2,
+        162
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 13.0,
+      "max": 151655.0,
+      "mean": 130195.2109375,
+      "rms": 139981.46875
+    },
+    "attention_mask": {
+      "shape": [
+        2,
+        162
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.9845678806304932,
+      "rms": 0.9922539591789246
+    },
+    "pixel_values": {
+      "shape": [
+        1024,
+        1536
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -1.0,
+      "max": 1.0,
+      "mean": 0.0846739113330841,
+      "rms": 0.34946703910827637
+    },
+    "image_grid_thw": {
+      "shape": [
+        4,
+        3
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 1.0,
+      "max": 16.0,
+      "mean": 11.0,
+      "rms": 13.076696395874023
+    },
+    "noisy_actions": {
+      "shape": [
+        2,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -2.09375,
+      "max": 1.609375,
+      "mean": 0.020700909197330475,
+      "rms": 0.600073516368866
+    },
+    "target": {
+      "shape": [
+        2,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -4.09375,
+      "max": 3.96875,
+      "mean": 0.06727654486894608,
+      "rms": 1.2749886512756348
+    },
+    "timesteps": {
+      "shape": [
+        2
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": 0.283203125,
+      "max": 0.498046875,
+      "mean": 0.390625,
+      "rms": 0.40512633323669434
+    },
+    "norm_actions": {
+      "shape": [
+        2,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -1.0,
+      "max": 1.0,
+      "mean": -0.046656835824251175,
+      "rms": 0.7272118330001831
+    },
+    "tactile_f6s": {
+      "shape": [
+        2,
+        5,
+        360
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "tactile_f6s_delayed": {
+      "shape": [
+        2,
+        5,
+        360
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "delay_k": {
+      "shape": [
+        2
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "time_r": {
+      "shape": [
+        2
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": 0.42578125,
+      "max": 0.7421875,
+      "mean": 0.583984375,
+      "rms": 0.6050338745117188
+    },
+    "eps_r": {
+      "shape": [
+        2,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -3.09375,
+      "max": 2.90625,
+      "mean": -0.039996106177568436,
+      "rms": 0.9850539565086365
+    },
+    "state_raw": {
+      "shape": [
+        2,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -1.0,
+      "max": 1.0,
+      "mean": -0.420747309923172,
+      "rms": 0.8692619204521179
+    },
+    "flare_pixel_values": {
+      "shape": [
+        1024,
+        1536
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -1.0,
+      "max": 1.0,
+      "mean": 0.22684593498706818,
+      "rms": 0.3899730443954468
+    },
+    "flare_grid_thw": {
+      "shape": [
+        4,
+        3
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 1.0,
+      "max": 16.0,
+      "mean": 11.0,
+      "rms": 13.076696395874023
+    },
+    "tactile_taxels": {
+      "shape": [
+        2,
+        5,
+        120,
+        3
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "tactile_valid": {
+      "shape": [
+        2,
+        5
+      ],
+      "dtype": "torch.bool",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5,
+      "rms": 0.7071067690849304
+    },
+    "sdk_force": {
+      "shape": [
+        2,
+        5,
+        3
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "sdk_force_valid": {
+      "shape": [
+        2
+      ],
+      "dtype": "torch.bool",
+      "finite": true,
+      "min": 1.0,
+      "max": 1.0,
+      "mean": 1.0,
+      "rms": 1.0
+    }
+  },
+  "native_stream": {
+    "sdk_force": {
+      "shape": [
+        2,
+        8,
+        5,
+        3
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "taxels": {
+      "shape": [
+        2,
+        8,
+        5,
+        120,
+        3
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "read_end_ns": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 1132867954409472.0,
+      "mean": 566433977204736.0,
+      "rms": 801058578235392.0
+    },
+    "available_ns": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 1132867954409472.0,
+      "mean": 566433977204736.0,
+      "rms": 801058578235392.0
+    },
+    "taxel_valid": {
+      "shape": [
+        2,
+        8,
+        5
+      ],
+      "dtype": "torch.bool",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5,
+      "rms": 0.7071067690849304
+    },
+    "clock_is_nominal": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.bool",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.0625,
+      "rms": 0.25
+    },
+    "sequence": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 6774.0,
+      "mean": 3385.25,
+      "rms": 4787.466796875
+    },
+    "reset_sequence": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5,
+      "rms": 0.7071067690849304
+    },
+    "read_errors": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "dropped": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "lengths": {
+      "shape": [
+        2
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 1.0,
+      "max": 8.0,
+      "mean": 4.5,
+      "rms": 5.7008771896362305
+    },
+    "sample_mask": {
+      "shape": [
+        2,
+        8
+      ],
+      "dtype": "torch.bool",
+      "finite": true,
+      "min": 0.0,
+      "max": 1.0,
+      "mean": 0.5625,
+      "rms": 0.75
+    }
+  },
+  "errors": {
+    "reconstructed_chunks": 63,
+    "position_max_abs_m": 1.0344091971870029e-08,
+    "rotation_max_geodesic_rad": 2.838673587112077e-08,
+    "hand_max_abs_rad": 0.0,
+    "normalization_float32_max_abs_mixed_units": 1.1920928955078125e-07,
+    "normalization_bfloat16_max_abs_mixed_units": 0.002741694450378418
+  },
+  "model_forward": {
+    "emb": {
+      "shape": [
+        1,
+        157,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -3.0951271057128906,
+      "max": 3.2523880004882812,
+      "mean": -0.0015212955186143517,
+      "rms": 0.41921547055244446
+    },
+    "slow": {
+      "shape": [
+        1,
+        86,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -3.0951271057128906,
+      "max": 3.2523880004882812,
+      "mean": -0.0021250909194350243,
+      "rms": 0.4957333505153656
+    },
+    "fast": {
+      "shape": [
+        1,
+        71,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -2.7196435928344727,
+      "max": 2.727201461791992,
+      "mean": -0.0007899384945631027,
+      "rms": 0.3015640079975128
+    },
+    "pos": {
+      "shape": [
+        3,
+        1,
+        86
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 29.0,
+      "mean": 9.073643684387207,
+      "rms": 11.324152946472168
+    },
+    "state": {
+      "shape": [
+        1,
+        1,
+        64
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -0.58984375,
+      "max": 0.625,
+      "mean": 0.00920724868774414,
+      "rms": 0.2310698926448822
+    },
+    "x": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -2.46875,
+      "max": 2.375,
+      "mean": -0.048641033470630646,
+      "rms": 0.8845580816268921
+    },
+    "velocity": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -2.0,
+      "max": 2.15625,
+      "mean": 0.06728962808847427,
+      "rms": 0.7215858697891235
+    },
+    "vel": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "xt": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -1.2891602516174316,
+      "max": 1.103051781654358,
+      "mean": -0.3168451189994812,
+      "rms": 0.6951634883880615
+    },
+    "tactile_input": {
+      "shape": [
+        1,
+        5,
+        360
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "tau_split": 0.39453125,
+    "n_action_in_cache": 89,
+    "action_mse": 1.5812513828277588,
+    "tactile_mse": 2.021761417388916,
+    "cache_length_after_tactile": 197,
+    "batch_shapes": {
+      "input_ids": [
+        1,
+        157
+      ],
+      "attention_mask": [
+        1,
+        157
+      ],
+      "pixel_values": [
+        512,
+        1536
+      ],
+      "image_grid_thw": [
+        2,
+        3
+      ],
+      "noisy_actions": [
+        1,
+        16,
+        21
+      ],
+      "target": [
+        1,
+        16,
+        21
+      ],
+      "timesteps": [
+        1
+      ],
+      "norm_actions": [
+        1,
+        16,
+        21
+      ],
+      "tactile_f6s": [
+        1,
+        5,
+        360
+      ],
+      "tactile_f6s_delayed": [
+        1,
+        5,
+        360
+      ],
+      "delay_k": [
+        1
+      ],
+      "time_r": [
+        1
+      ],
+      "eps_r": [
+        1,
+        16,
+        21
+      ],
+      "state_raw": [
+        1,
+        21
+      ],
+      "flare_pixel_values": [
+        512,
+        1536
+      ],
+      "flare_grid_thw": [
+        2,
+        3
+      ],
+      "tactile_taxels": [
+        1,
+        5,
+        120,
+        3
+      ],
+      "tactile_valid": [
+        1,
+        5
+      ],
+      "sdk_force": [
+        1,
+        5,
+        3
+      ],
+      "sdk_force_valid": [
+        1
+      ]
+    }
+  },
+  "official_baseline_comparison": {
+    "qwen_vla/modeling_vla.py": {
+      "identical_bytes": false,
+      "identical_AST_ignoring_docstrings_and_standalone_strings": true
+    },
+    "qwen_vla/modeling_qwen3vl_mot.py": {
+      "identical_bytes": false,
+      "identical_AST_ignoring_docstrings_and_standalone_strings": true
+    },
+    "qwen_vla/lerobot_dataset.py": {
+      "identical_bytes": true,
+      "identical_AST_ignoring_docstrings_and_standalone_strings": true
+    },
+    "utils/lerobot_common.py": {
+      "identical_bytes": true,
+      "identical_AST_ignoring_docstrings_and_standalone_strings": true
+    }
+  },
+  "native_stream_lengths": [
+    8,
+    1
+  ],
+  "fk": {
+    "source_tasks": 9,
+    "frames": 97,
+    "position_max_abs_m": 8.215301167124878e-08,
+    "rotation_max_geodesic_rad": 3.214117719812145e-07
+  },
+  "contact_frame": {
+    "episode": 0,
+    "frame": 65
+  },
+  "contact_model_forward": {
+    "emb": {
+      "shape": [
+        1,
+        157,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -3.222292423248291,
+      "max": 3.631570816040039,
+      "mean": 0.0021234829910099506,
+      "rms": 0.4381854832172394
+    },
+    "slow": {
+      "shape": [
+        1,
+        86,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -3.222292423248291,
+      "max": 3.631570816040039,
+      "mean": 0.0071863532066345215,
+      "rms": 0.5189732313156128
+    },
+    "fast": {
+      "shape": [
+        1,
+        71,
+        64
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -3.222292423248291,
+      "max": 2.55705189704895,
+      "mean": -0.0040090070106089115,
+      "rms": 0.3135972023010254
+    },
+    "pos": {
+      "shape": [
+        3,
+        1,
+        86
+      ],
+      "dtype": "torch.int64",
+      "finite": true,
+      "min": 0.0,
+      "max": 29.0,
+      "mean": 9.073643684387207,
+      "rms": 11.324152946472168
+    },
+    "state": {
+      "shape": [
+        1,
+        1,
+        64
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -0.83203125,
+      "max": 0.51171875,
+      "mean": -0.016765594482421875,
+      "rms": 0.2499540001153946
+    },
+    "x": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -3.125,
+      "max": 2.453125,
+      "mean": 0.08042244613170624,
+      "rms": 0.9362253546714783
+    },
+    "velocity": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": -3.3125,
+      "max": 2.171875,
+      "mean": -0.21438701450824738,
+      "rms": 0.9776686429977417
+    },
+    "vel": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.bfloat16",
+      "finite": true,
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "rms": 0.0
+    },
+    "xt": {
+      "shape": [
+        1,
+        16,
+        21
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -0.9759857654571533,
+      "max": 1.055902123451233,
+      "mean": 0.34477105736732483,
+      "rms": 0.6579880118370056
+    },
+    "tactile_input": {
+      "shape": [
+        1,
+        5,
+        360
+      ],
+      "dtype": "torch.float32",
+      "finite": true,
+      "min": -0.0078125,
+      "max": 0.01568627543747425,
+      "mean": 4.364106644061394e-05,
+      "rms": 0.001209376729093492
+    },
+    "tau_split": 0.39453125,
+    "n_action_in_cache": 89,
+    "action_mse": 1.2697018384933472,
+    "tactile_mse": 2.412945032119751,
+    "cache_length_after_tactile": 197,
+    "batch_shapes": {
+      "input_ids": [
+        1,
+        157
+      ],
+      "attention_mask": [
+        1,
+        157
+      ],
+      "pixel_values": [
+        512,
+        1536
+      ],
+      "image_grid_thw": [
+        2,
+        3
+      ],
+      "noisy_actions": [
+        1,
+        16,
+        21
+      ],
+      "target": [
+        1,
+        16,
+        21
+      ],
+      "timesteps": [
+        1
+      ],
+      "norm_actions": [
+        1,
+        16,
+        21
+      ],
+      "tactile_f6s": [
+        1,
+        5,
+        360
+      ],
+      "tactile_f6s_delayed": [
+        1,
+        5,
+        360
+      ],
+      "delay_k": [
+        1
+      ],
+      "time_r": [
+        1
+      ],
+      "eps_r": [
+        1,
+        16,
+        21
+      ],
+      "state_raw": [
+        1,
+        21
+      ],
+      "flare_pixel_values": [
+        512,
+        1536
+      ],
+      "flare_grid_thw": [
+        2,
+        3
+      ],
+      "tactile_taxels": [
+        1,
+        5,
+        120,
+        3
+      ],
+      "tactile_valid": [
+        1,
+        5
+      ],
+      "sdk_force": [
+        1,
+        5,
+        3
+      ],
+      "sdk_force_valid": [
+        1
+      ]
+    }
+  }
+}

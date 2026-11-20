@@ -1,0 +1,20 @@
+{
+  "mode": "combined",
+  "fixed_split": 0.4,
+  "thresholds": [
+    0.2,
+    0.5
+  ],
+  "levels": [
+    0.2,
+    0.4,
+    0.6
+  ],
+  "rate_windows": [
+    100
+  ],
+  "ema_alpha": 1.0,
+  "hysteresis": 0.03,
+  "min_dwell_ns": 20000000,
+  "fallback_split": 0.4
+}

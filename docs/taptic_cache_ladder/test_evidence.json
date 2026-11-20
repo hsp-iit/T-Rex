@@ -1,0 +1,94 @@
+{
+  "LADDER_BUILD": [
+    {
+      "episode": 0,
+      "frame": 71,
+      "slow_tick_ns": 1132876997034203,
+      "fast_tick_ns": 1132877086641081,
+      "elapsed_to_fast_ms": 89.606878,
+      "initial_read_ns": 1132876996314607,
+      "action_forwards": 9,
+      "euler_updates": 8,
+      "cache_layers": 2,
+      "token_counts": {
+        "latent": 86,
+        "fast": 71,
+        "state": 1,
+        "time": 1,
+        "chunk": 16,
+        "action": 89,
+        "total": 175
+      },
+      "kv_bytes_per_snapshot": 179200,
+      "x_shape": [
+        2,
+        16,
+        21
+      ],
+      "tactile_shape": [
+        2,
+        5,
+        360
+      ]
+    }
+  ],
+  "LADDER_EQUIVALENCE": [
+    {
+      "tau": 0.6,
+      "action_steps": 4,
+      "tactile_steps": 6,
+      "state_max_abs": 0.0,
+      "output_max_abs": 0.0,
+      "output_rms": 1.0297220945358276,
+      "kv_max_abs": 0.0,
+      "cache_length": 175
+    },
+    {
+      "tau": 0.4,
+      "action_steps": 6,
+      "tactile_steps": 4,
+      "state_max_abs": 0.0,
+      "output_max_abs": 0.0,
+      "output_rms": 1.0127404928207397,
+      "kv_max_abs": 0.0,
+      "cache_length": 175
+    },
+    {
+      "tau": 0.2,
+      "action_steps": 8,
+      "tactile_steps": 2,
+      "state_max_abs": 0.0,
+      "output_max_abs": 0.0,
+      "output_rms": 1.004498839378357,
+      "kv_max_abs": 0.0,
+      "cache_length": 175
+    }
+  ],
+  "LADDER_FAST_TICKS": [
+    {
+      "updated_tactile_output_max_abs": {
+        "0.2": 0.015625,
+        "0.6": 0.015625,
+        "0.4": 0.015625
+      },
+      "all_snapshots_bitwise_preserved": true
+    }
+  ],
+  "LADDER_FIXED_REGRESSION": [
+    {
+      "fp32_bitwise_equal": true,
+      "legacy_bf16_bitwise_equal": true,
+      "weights_unchanged": true
+    }
+  ],
+  "test_summary": "57 passed in 19.60s",
+  "environment": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "transformers": "4.57.1",
+    "device": "CPU",
+    "threads": 2
+  },
+  "base_commit": "05c932853ac5984ac7128561de2583c34b568262",
+  "branch": "mfincato/risk_gated"
+}

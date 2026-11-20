@@ -1,0 +1,19 @@
+{
+  "full_suite": {
+    "passed": 117,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 27.41
+  },
+  "new_executor_suite": {
+    "passed": 44,
+    "failed": 0,
+    "skipped": 0,
+    "seconds": 8.69
+  },
+  "selected_real_episode": 59,
+  "preserved_existing_files": 130,
+  "architecture_changes": false,
+  "hardware_commands": false,
+  "pretrained_checkpoint_used": false
+}

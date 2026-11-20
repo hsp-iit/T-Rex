@@ -1,0 +1,869 @@
+episode_index,source_task,source_episode_index,object,object_needs_review,suggested_split,tactile_interpolated,length,caption
+0,wiping_table,0,blue cloth,False,train,False,285,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+1,wiping_table,1,blue cloth,False,train,False,556,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+2,wiping_table,3,blue cloth,False,train,False,280,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+3,wiping_table,4,blue cloth,False,train,False,566,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+4,wiping_table,5,blue cloth,False,train,False,489,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+5,wiping_table,6,blue cloth,False,train,False,345,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+6,wiping_table,7,blue cloth,False,train,False,476,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+7,wiping_table,8,blue cloth,False,train,False,334,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+8,wiping_table,9,blue cloth,False,train,False,421,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+9,wiping_table,10,blue cloth,False,train,False,598,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+10,wiping_table,11,blue cloth,False,train,False,923,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+11,wiping_table,12,blue cloth,False,train,False,803,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+12,wiping_table,13,blue cloth,False,train,False,457,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+13,wiping_table,14,blue cloth,False,train,False,575,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+14,wiping_table,15,blue cloth,False,train,False,377,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+15,wiping_table,16,blue cloth,False,train,False,355,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+16,wiping_table,17,blue cloth,False,train,False,265,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+17,wiping_table,18,blue cloth,False,train,False,398,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+18,wiping_table,19,blue cloth,False,train,False,527,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+19,wiping_table,20,blue cloth,False,train,False,447,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+20,wiping_table,21,blue cloth,False,train,False,322,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+21,wiping_table,22,blue cloth,False,train,False,250,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+22,wiping_table,24,blue cloth,False,train,False,218,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+23,wiping_table,25,blue cloth,False,train,False,239,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+24,wiping_table,26,blue cloth,False,val,False,249,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+25,wiping_table,27,blue cloth,False,train,False,258,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+26,wiping_table,28,blue cloth,False,val,False,208,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+27,wiping_table,29,blue cloth,False,val,False,271,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+28,wiping_table,30,blue cloth,False,train,False,267,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+29,wiping_table,31,blue cloth,False,train,False,224,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+30,wiping_table,32,blue cloth,False,train,False,389,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+31,wiping_table,33,blue cloth,False,train,False,274,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+32,wiping_table,34,blue cloth,False,train,False,223,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+33,wiping_table,35,blue cloth,False,train,False,296,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+34,wiping_table,36,blue cloth,False,train,False,256,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+35,wiping_table,37,blue cloth,False,train,False,287,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+36,wiping_table,38,blue cloth,False,train,False,350,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+37,wiping_table,39,blue cloth,False,train,False,403,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+38,wiping_table,40,blue cloth,False,train,False,522,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+39,wiping_table,41,blue cloth,False,train,False,394,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+40,wiping_table,42,blue cloth,False,val,False,415,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+41,wiping_table,43,blue cloth,False,train,False,531,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+42,wiping_table,44,blue cloth,False,train,False,332,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+43,wiping_table,45,blue cloth,False,val,False,287,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+44,wiping_table,46,blue cloth,False,train,False,485,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+45,wiping_table,47,blue cloth,False,train,False,448,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+46,wiping_table,48,blue cloth,False,train,False,489,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+47,wiping_table,49,blue cloth,False,train,False,390,Grasp the blue cloth with your right hand and wipe the whiteboard with it.
+48,dosing_pipette,50,pipette,False,train,False,311,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+49,dosing_pipette,51,pipette,False,train,False,124,Pick up the pipette with your right hand.
+50,dosing_pipette,52,pipette,False,train,False,273,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+51,dosing_pipette,53,pipette,False,train,False,293,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+52,dosing_pipette,54,pipette,False,train,False,299,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+53,dosing_pipette,55,pipette,False,train,False,303,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+54,dosing_pipette,56,pipette,False,train,False,346,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+55,dosing_pipette,57,pipette,False,train,False,354,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+56,dosing_pipette,58,pipette,False,train,False,110,Pick up the pipette with your right hand.
+57,dosing_pipette,59,pipette,False,train,False,413,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+58,dosing_pipette,60,pipette,False,train,False,346,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+59,dosing_pipette,61,pipette,False,train,False,473,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+60,dosing_pipette,62,pipette,False,train,False,442,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+61,dosing_pipette,63,pipette,False,val,False,453,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+62,dosing_pipette,64,pipette,False,train,False,113,Pick up the pipette with your right hand.
+63,dosing_pipette,65,pipette,False,train,False,124,Pick up the pipette with your right hand.
+64,dosing_pipette,66,pipette,False,train,False,512,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+65,dosing_pipette,67,pipette,False,val,False,319,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+66,dosing_pipette,68,pipette,False,train,False,381,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+67,dosing_pipette,69,pipette,False,train,False,336,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+68,dosing_pipette,70,pipette,False,train,False,262,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+69,dosing_pipette,71,pipette,False,train,False,362,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+70,dosing_pipette,72,pipette,False,train,False,291,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+71,dosing_pipette,73,pipette,False,train,False,380,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+72,dosing_pipette,74,pipette,False,train,False,424,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+73,dosing_pipette,75,pipette,False,train,False,424,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+74,dosing_pipette,76,pipette,False,train,False,292,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+75,dosing_pipette,77,pipette,False,train,False,398,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+76,dosing_pipette,78,pipette,False,train,False,386,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+77,dosing_pipette,79,pipette,False,train,False,446,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+78,dosing_pipette,80,pipette,False,val,False,337,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+79,dosing_pipette,81,pipette,False,train,False,387,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+80,dosing_pipette,82,pipette,False,train,False,562,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+81,dosing_pipette,83,pipette,False,train,False,449,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+82,dosing_pipette,84,pipette,False,train,False,107,Pick up the pipette with your right hand.
+83,dosing_pipette,85,pipette,False,train,False,457,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+84,dosing_pipette,86,pipette,False,train,False,491,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+85,dosing_pipette,87,pipette,False,train,False,691,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+86,dosing_pipette,88,pipette,False,train,False,387,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+87,dosing_pipette,89,pipette,False,val,False,366,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+88,dosing_pipette,90,pipette,False,train,False,489,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+89,dosing_pipette,91,pipette,False,train,False,448,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+90,dosing_pipette,92,pipette,False,train,False,366,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+91,dosing_pipette,93,pipette,False,train,False,373,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+92,dosing_pipette,94,pipette,False,train,False,365,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+93,dosing_pipette,95,pipette,False,val,False,358,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+94,dosing_pipette,96,pipette,False,train,False,475,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+95,dosing_pipette,97,pipette,False,train,False,326,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+96,dosing_pipette,98,pipette,False,train,False,347,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+97,dosing_pipette,99,pipette,False,train,False,326,"Pick up the pipette with your right hand, squeeze it to release the liquid into the glass, and put it back into the bottle."
+98,grasp_plastic_glass,100,plastic glass,False,val,False,203,Gently pick up the plastic glass with your right hand and place it on the other box.
+99,grasp_plastic_glass,101,plastic glass,False,train,False,40,Move your right hand toward the plastic glass.
+100,grasp_plastic_glass,103,plastic glass,False,train,False,135,Gently pick up the plastic glass with your right hand and place it on the other box.
+101,grasp_plastic_glass,104,plastic glass,False,train,False,130,Gently pick up the plastic glass with your right hand and place it on the other box.
+102,grasp_plastic_glass,105,plastic glass,False,train,False,165,Gently pick up the plastic glass with your right hand and place it on the other box.
+103,grasp_plastic_glass,106,plastic glass,False,train,False,53,Move your right hand toward the plastic glass.
+104,grasp_plastic_glass,107,plastic glass,False,train,False,59,Move your right hand toward the plastic glass.
+105,grasp_plastic_glass,108,plastic glass,False,train,False,197,Gently pick up the plastic glass with your right hand and place it on the other box.
+106,grasp_plastic_glass,109,plastic glass,False,train,False,137,Gently pick up the plastic glass with your right hand and place it on the other box.
+107,grasp_plastic_glass,110,plastic glass,False,train,False,140,Gently pick up the plastic glass with your right hand and place it on the other box.
+108,grasp_plastic_glass,111,plastic glass,False,val,False,116,Pick up the plastic glass with your right hand.
+109,grasp_plastic_glass,112,plastic glass,False,train,False,171,Gently pick up the plastic glass with your right hand and place it on the other box.
+110,grasp_plastic_glass,113,plastic glass,False,train,False,45,Move your right hand toward the plastic glass.
+111,grasp_plastic_glass,114,plastic glass,False,train,False,219,Gently pick up the plastic glass with your right hand and place it on the other box.
+112,grasp_plastic_glass,115,plastic glass,False,train,False,155,Gently pick up the plastic glass with your right hand and place it on the other box.
+113,grasp_plastic_glass,116,plastic glass,False,train,False,177,Gently pick up the plastic glass with your right hand and place it on the other box.
+114,grasp_plastic_glass,117,plastic glass,False,train,False,123,Pick up the plastic glass with your right hand.
+115,grasp_plastic_glass,118,plastic glass,False,train,False,181,Gently pick up the plastic glass with your right hand and place it on the other box.
+116,grasp_plastic_glass,119,plastic glass,False,val,False,179,Gently pick up the plastic glass with your right hand and place it on the other box.
+117,grasp_plastic_glass,120,plastic glass,False,train,False,158,Gently pick up the plastic glass with your right hand and place it on the other box.
+118,grasp_plastic_glass,121,plastic glass,False,train,False,150,Gently pick up the plastic glass with your right hand and place it on the other box.
+119,grasp_plastic_glass,122,plastic glass,False,train,False,155,Gently pick up the plastic glass with your right hand and place it on the other box.
+120,grasp_plastic_glass,123,plastic glass,False,train,False,188,Gently pick up the plastic glass with your right hand and place it on the other box.
+121,grasp_plastic_glass,124,plastic glass,False,train,False,213,Gently pick up the plastic glass with your right hand and place it on the other box.
+122,grasp_plastic_glass,125,plastic glass,False,train,False,49,Move your right hand toward the plastic glass.
+123,grasp_plastic_glass,126,plastic glass,False,train,False,250,Gently pick up the plastic glass with your right hand and place it on the other box.
+124,grasp_plastic_glass,127,plastic glass,False,train,False,161,Gently pick up the plastic glass with your right hand and place it on the other box.
+125,grasp_plastic_glass,128,plastic glass,False,train,False,131,Gently pick up the plastic glass with your right hand and place it on the other box.
+126,grasp_plastic_glass,129,plastic glass,False,train,False,182,Gently pick up the plastic glass with your right hand and place it on the other box.
+127,grasp_plastic_glass,130,plastic glass,False,train,False,200,Gently pick up the plastic glass with your right hand and place it on the other box.
+128,grasp_plastic_glass,131,plastic glass,False,train,False,133,Gently pick up the plastic glass with your right hand and place it on the other box.
+129,grasp_plastic_glass,132,plastic glass,False,train,False,116,Pick up the plastic glass with your right hand.
+130,grasp_plastic_glass,133,plastic glass,False,train,False,156,Gently pick up the plastic glass with your right hand and place it on the other box.
+131,grasp_plastic_glass,134,plastic glass,False,train,False,159,Gently pick up the plastic glass with your right hand and place it on the other box.
+132,grasp_plastic_glass,135,plastic glass,False,train,False,207,Gently pick up the plastic glass with your right hand and place it on the other box.
+133,grasp_plastic_glass,136,plastic glass,False,train,False,155,Gently pick up the plastic glass with your right hand and place it on the other box.
+134,grasp_plastic_glass,137,plastic glass,False,train,False,64,Move your right hand toward the plastic glass.
+135,grasp_plastic_glass,138,plastic glass,False,train,False,197,Gently pick up the plastic glass with your right hand and place it on the other box.
+136,grasp_plastic_glass,139,plastic glass,False,train,False,173,Gently pick up the plastic glass with your right hand and place it on the other box.
+137,grasp_plastic_glass,140,plastic glass,False,train,False,80,Pick up the plastic glass with your right hand.
+138,grasp_plastic_glass,141,plastic glass,False,val,False,188,Gently pick up the plastic glass with your right hand and place it on the other box.
+139,grasp_plastic_glass,142,plastic glass,False,train,False,44,Move your right hand toward the plastic glass.
+140,grasp_plastic_glass,143,plastic glass,False,val,False,40,Move your right hand toward the plastic glass.
+141,grasp_plastic_glass,144,plastic glass,False,train,False,100,Pick up the plastic glass with your right hand.
+142,grasp_plastic_glass,145,plastic glass,False,train,False,157,Gently pick up the plastic glass with your right hand and place it on the other box.
+143,grasp_plastic_glass,146,plastic glass,False,train,False,155,Gently pick up the plastic glass with your right hand and place it on the other box.
+144,grasp_plastic_glass,147,plastic glass,False,train,False,124,Gently pick up the plastic glass with your right hand and place it on the other box.
+145,grasp_plastic_glass,148,plastic glass,False,train,False,167,Gently pick up the plastic glass with your right hand and place it on the other box.
+146,grasp_plastic_glass,149,plastic glass,False,train,False,96,Pick up the plastic glass with your right hand.
+147,grasp_plastic_glass,150,plastic glass,False,train,False,210,Gently pick up the plastic glass with your right hand and place it on the other box.
+148,grasp_plastic_glass,151,plastic glass,False,train,False,184,Gently pick up the plastic glass with your right hand and place it on the other box.
+149,grasp_plastic_glass,152,plastic glass,False,train,False,181,Gently pick up the plastic glass with your right hand and place it on the other box.
+150,grasp_plastic_glass,153,plastic glass,False,train,False,219,Gently pick up the plastic glass with your right hand and place it on the other box.
+151,grasp_plastic_glass,154,plastic glass,False,train,False,138,Gently pick up the plastic glass with your right hand and place it on the other box.
+152,grasp_plastic_glass,155,plastic glass,False,train,False,241,Gently pick up the plastic glass with your right hand and place it on the other box.
+153,grasp_plastic_glass,156,plastic glass,False,train,False,151,Gently pick up the plastic glass with your right hand and place it on the other box.
+154,grasp_plastic_glass,157,plastic glass,False,train,False,183,Gently pick up the plastic glass with your right hand and place it on the other box.
+155,grasp_plastic_glass,158,plastic glass,False,train,False,163,Pick up the plastic glass with your right hand.
+156,grasp_plastic_glass,159,plastic glass,False,train,False,213,Gently pick up the plastic glass with your right hand and place it on the other box.
+157,grasp_plastic_glass,160,plastic glass,False,train,False,193,Gently pick up the plastic glass with your right hand and place it on the other box.
+158,grasp_plastic_glass,161,plastic glass,False,train,False,264,Gently pick up the plastic glass with your right hand and place it on the other box.
+159,grasp_plastic_glass,162,plastic glass,False,train,False,319,Gently pick up the plastic glass with your right hand and place it on the other box.
+160,grasp_plastic_glass,163,plastic glass,False,val,False,246,Gently pick up the plastic glass with your right hand and place it on the other box.
+161,grasp_plastic_glass,164,plastic glass,False,train,False,284,Gently pick up the plastic glass with your right hand and place it on the other box.
+162,grasp_plastic_glass,165,plastic glass,False,val,False,104,Pick up the plastic glass with your right hand.
+163,grasp_plastic_glass,167,plastic glass,False,train,False,243,Gently pick up the plastic glass with your right hand and place it on the other box.
+164,grasp_plastic_glass,168,plastic glass,False,train,False,231,Gently pick up the plastic glass with your right hand and place it on the other box.
+165,grasp_plastic_glass,169,plastic glass,False,train,False,260,Gently pick up the plastic glass with your right hand and place it on the other box.
+166,grasp_plastic_glass,170,plastic glass,False,train,False,199,Gently pick up the plastic glass with your right hand and place it on the other box.
+167,grasp_plastic_glass,171,plastic glass,False,train,False,225,Gently pick up the plastic glass with your right hand and place it on the other box.
+168,grasp_plastic_glass,172,plastic glass,False,train,False,238,Gently pick up the plastic glass with your right hand and place it on the other box.
+169,grasp_plastic_glass,173,plastic glass,False,train,False,130,Gently pick up the plastic glass with your right hand and place it on the other box.
+170,grasp_plastic_glass,174,plastic glass,False,train,False,72,Pick up the plastic glass with your right hand.
+171,grasp_plastic_glass,175,plastic glass,False,train,False,54,Move your right hand toward the plastic glass.
+172,grasp_plastic_glass,176,plastic glass,False,train,False,92,Pick up the plastic glass with your right hand.
+173,grasp_plastic_glass,177,plastic glass,False,train,False,159,Gently pick up the plastic glass with your right hand and place it on the other box.
+174,grasp_plastic_glass,178,plastic glass,False,train,False,248,Gently pick up the plastic glass with your right hand and place it on the other box.
+175,grasp_plastic_glass,179,plastic glass,False,train,False,185,Gently pick up the plastic glass with your right hand and place it on the other box.
+176,grasp_plastic_glass,180,plastic glass,False,train,False,245,Gently pick up the plastic glass with your right hand and place it on the other box.
+177,grasp_plastic_glass,181,plastic glass,False,train,False,125,Pick up the plastic glass with your right hand.
+178,grasp_plastic_glass,182,plastic glass,False,train,False,81,Pick up the plastic glass with your right hand.
+179,grasp_plastic_glass,183,plastic glass,False,train,False,149,Gently pick up the plastic glass with your right hand and place it on the other box.
+180,grasp_plastic_glass,184,plastic glass,False,train,False,164,Pick up the plastic glass with your right hand.
+181,grasp_plastic_glass,185,plastic glass,False,train,False,103,Pick up the plastic glass with your right hand.
+182,grasp_plastic_glass,186,plastic glass,False,val,False,207,Gently pick up the plastic glass with your right hand and place it on the other box.
+183,grasp_plastic_glass,187,plastic glass,False,train,False,264,Gently pick up the plastic glass with your right hand and place it on the other box.
+184,grasp_plastic_glass,189,plastic glass,False,train,False,291,Gently pick up the plastic glass with your right hand and place it on the other box.
+185,grasp_plastic_glass,190,plastic glass,False,train,False,213,Gently pick up the plastic glass with your right hand and place it on the other box.
+186,grasp_plastic_glass,191,plastic glass,False,train,False,48,Move your right hand toward the plastic glass.
+187,grasp_plastic_glass,192,plastic glass,False,train,False,189,Gently pick up the plastic glass with your right hand and place it on the other box.
+188,grasp_plastic_glass,193,plastic glass,False,train,False,115,Pick up the plastic glass with your right hand.
+189,grasp_plastic_glass,194,plastic glass,False,train,False,189,Gently pick up the plastic glass with your right hand and place it on the other box.
+190,grasp_plastic_glass,195,plastic glass,False,train,False,224,Gently pick up the plastic glass with your right hand and place it on the other box.
+191,grasp_plastic_glass,196,plastic glass,False,train,False,244,Gently pick up the plastic glass with your right hand and place it on the other box.
+192,grasp_plastic_glass,197,plastic glass,False,train,False,240,Gently pick up the plastic glass with your right hand and place it on the other box.
+193,grasp_plastic_glass,198,plastic glass,False,val,False,234,Gently pick up the plastic glass with your right hand and place it on the other box.
+194,grasp_plastic_glass,199,plastic glass,False,train,False,259,Gently pick up the plastic glass with your right hand and place it on the other box.
+195,grasp_plastic_glass,200,plastic glass,False,val,False,246,Gently pick up the plastic glass with your right hand and place it on the other box.
+196,grasp_plastic_glass,201,plastic glass,False,train,False,196,Gently pick up the plastic glass with your right hand and place it on the other box.
+197,split_cups,202,white plastic cup,False,val,False,214,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+198,split_cups,203,white plastic cup,False,train,False,65,Move your right hand toward the top cup of the stack.
+199,split_cups,204,white plastic cup,False,train,False,292,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+200,split_cups,205,white plastic cup,False,train,False,304,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+201,split_cups,206,white plastic cup,False,train,False,250,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+202,split_cups,207,white plastic cup,False,train,False,226,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+203,split_cups,208,white plastic cup,False,train,False,255,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+204,split_cups,209,white plastic cup,False,train,False,196,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+205,split_cups,210,white plastic cup,False,train,False,270,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+206,split_cups,211,white plastic cup,False,train,False,201,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+207,split_cups,212,white plastic cup,False,val,False,560,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+208,split_cups,213,white plastic cup,False,train,False,665,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+209,split_cups,214,white plastic cup,False,train,False,297,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+210,split_cups,215,white plastic cup,False,train,False,105,Move your right hand toward the top cup of the stack.
+211,split_cups,216,white plastic cup,False,train,False,344,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+212,split_cups,217,white plastic cup,False,train,False,297,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+213,split_cups,218,white plastic cup,False,train,False,446,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+214,split_cups,219,white plastic cup,False,train,False,258,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+215,split_cups,220,white plastic cup,False,train,False,302,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+216,split_cups,221,white plastic cup,False,train,False,230,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+217,split_cups,222,white plastic cup,False,train,False,303,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+218,split_cups,223,white plastic cup,False,train,False,346,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+219,split_cups,224,white plastic cup,False,val,False,260,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+220,split_cups,225,white plastic cup,False,train,False,627,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+221,split_cups,226,white plastic cup,False,train,False,763,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+222,split_cups,227,white plastic cup,False,train,False,343,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+223,split_cups,228,white plastic cup,False,train,False,347,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+224,split_cups,229,white plastic cup,False,train,False,401,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+225,split_cups,230,white plastic cup,False,train,False,401,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+226,split_cups,231,white plastic cup,False,train,False,85,Move your right hand toward the top cup of the stack.
+227,split_cups,232,white plastic cup,False,train,False,352,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+228,split_cups,233,white plastic cup,False,train,False,249,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+229,split_cups,234,white plastic cup,False,train,False,359,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+230,split_cups,235,white plastic cup,False,train,False,255,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+231,split_cups,236,white plastic cup,False,train,False,799,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+232,split_cups,237,white plastic cup,False,train,False,357,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+233,split_cups,238,white plastic cup,False,train,False,248,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+234,split_cups,239,white plastic cup,False,train,False,369,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+235,split_cups,240,white plastic cup,False,train,False,243,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+236,split_cups,241,white plastic cup,False,val,False,174,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+237,split_cups,242,white plastic cup,False,train,False,179,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+238,split_cups,243,white plastic cup,False,train,False,87,Move your right hand toward the top cup of the stack.
+239,split_cups,244,white plastic cup,False,train,False,243,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+240,split_cups,245,white plastic cup,False,train,False,306,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+241,split_cups,246,white plastic cup,False,val,False,241,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+242,split_cups,247,white plastic cup,False,val,False,60,Move your right hand toward the top cup of the stack.
+243,split_cups,248,white plastic cup,False,train,False,279,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+244,split_cups,249,white plastic cup,False,train,False,205,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+245,split_cups,250,white plastic cup,False,train,False,218,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+246,split_cups,251,white plastic cup,False,train,False,221,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+247,split_cups,252,white plastic cup,False,train,False,190,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+248,split_cups,253,white plastic cup,False,train,False,215,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+249,split_cups,254,white plastic cup,False,train,False,393,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+250,split_cups,255,white plastic cup,False,val,False,175,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+251,split_cups,256,white plastic cup,False,train,False,170,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+252,split_cups,257,white plastic cup,False,train,False,252,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+253,split_cups,258,white plastic cup,False,train,False,257,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+254,split_cups,259,white plastic cup,False,train,False,168,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+255,split_cups,260,white plastic cup,False,train,False,75,Move your right hand toward the top cup of the stack.
+256,split_cups,261,white plastic cup,False,train,False,229,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+257,split_cups,262,white plastic cup,False,train,False,238,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+258,split_cups,263,white plastic cup,False,train,False,67,Move your right hand toward the top cup of the stack.
+259,split_cups,264,white plastic cup,False,train,False,175,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+260,split_cups,265,white plastic cup,False,train,False,80,Move your right hand toward the top cup of the stack.
+261,split_cups,266,white plastic cup,False,train,False,156,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+262,split_cups,267,white plastic cup,False,train,False,238,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+263,split_cups,268,white plastic cup,False,train,False,284,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+264,split_cups,269,white plastic cup,False,train,False,90,Move your right hand toward the top cup of the stack.
+265,split_cups,270,white plastic cup,False,train,False,130,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+266,split_cups,271,white plastic cup,False,train,False,90,Move your right hand toward the top cup of the stack.
+267,split_cups,272,white plastic cup,False,val,False,178,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+268,split_cups,273,white plastic cup,False,train,False,196,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+269,split_cups,274,white plastic cup,False,train,False,161,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+270,split_cups,275,white plastic cup,False,train,False,357,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+271,split_cups,276,white plastic cup,False,train,False,145,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+272,split_cups,277,white plastic cup,False,train,False,414,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+273,split_cups,278,white plastic cup,False,train,False,170,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+274,split_cups,279,white plastic cup,False,train,False,199,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+275,split_cups,280,white plastic cup,False,train,False,250,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+276,split_cups,281,white plastic cup,False,train,False,268,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+277,split_cups,282,white plastic cup,False,val,False,172,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+278,split_cups,283,white plastic cup,False,train,False,196,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+279,split_cups,284,white plastic cup,False,train,False,170,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+280,split_cups,285,white plastic cup,False,val,False,148,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+281,split_cups,286,white plastic cup,False,train,False,168,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+282,split_cups,287,white plastic cup,False,train,False,248,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+283,split_cups,288,white plastic cup,False,train,False,169,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+284,split_cups,289,white plastic cup,False,train,False,176,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+285,split_cups,290,white plastic cup,False,train,False,201,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+286,split_cups,291,white plastic cup,False,train,False,251,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+287,split_cups,292,white plastic cup,False,train,False,156,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+288,split_cups,293,white plastic cup,False,train,False,207,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+289,split_cups,294,white plastic cup,False,train,False,168,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+290,split_cups,295,white plastic cup,False,train,False,224,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+291,split_cups,296,white plastic cup,False,train,False,187,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+292,split_cups,297,white plastic cup,False,train,False,213,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+293,split_cups,298,white plastic cup,False,train,False,188,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+294,split_cups,299,white plastic cup,False,train,False,181,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+295,split_cups,300,white plastic cup,False,train,False,286,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+296,split_cups,301,white plastic cup,False,train,False,158,"A stack of white plastic cups sits on the desktop; use the right hand to slide out the topmost one, exerting effort to separate it from the rest of the stack."
+297,insert_game_object_cylinder,302,elliptical cylinder,False,val,True,310,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+298,insert_game_object_cylinder,303,elliptical cylinder,False,train,True,361,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+299,insert_game_object_cylinder,304,elliptical cylinder,False,train,True,307,Pick up the elliptical cylinder with your right hand.
+300,insert_game_object_cylinder,305,elliptical cylinder,False,train,True,125,Pick up the elliptical cylinder with your right hand.
+301,insert_game_object_cylinder,306,elliptical cylinder,False,train,True,378,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+302,insert_game_object_cylinder,307,elliptical cylinder,False,train,True,206,Pick up the elliptical cylinder with your right hand.
+303,insert_game_object_cylinder,308,elliptical cylinder,False,train,True,604,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+304,insert_game_object_cylinder,310,elliptical cylinder,False,train,True,529,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+305,insert_game_object_cylinder,311,elliptical cylinder,False,train,True,608,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+306,insert_game_object_cylinder,312,elliptical cylinder,False,train,True,420,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+307,insert_game_object_cylinder,313,elliptical cylinder,False,val,True,556,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+308,insert_game_object_cylinder,314,elliptical cylinder,False,train,True,182,Move your right hand toward the elliptical cylinder.
+309,insert_game_object_cylinder,315,elliptical cylinder,False,train,True,289,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+310,insert_game_object_cylinder,317,elliptical cylinder,False,train,True,535,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+311,insert_game_object_cylinder,318,elliptical cylinder,False,train,True,128,Move your right hand toward the elliptical cylinder.
+312,insert_game_object_cylinder,319,elliptical cylinder,False,train,True,371,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+313,insert_game_object_cylinder,320,elliptical cylinder,False,train,True,538,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+314,insert_game_object_cylinder,321,elliptical cylinder,False,train,True,121,Move your right hand toward the elliptical cylinder.
+315,insert_game_object_cylinder,322,elliptical cylinder,False,val,True,596,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+316,insert_game_object_cylinder,323,elliptical cylinder,False,train,True,208,Pick up the elliptical cylinder with your right hand.
+317,insert_game_object_cylinder,324,elliptical cylinder,False,train,True,322,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+318,insert_game_object_cylinder,325,elliptical cylinder,False,train,True,372,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+319,insert_game_object_cylinder,326,elliptical cylinder,False,train,True,124,Pick up the elliptical cylinder with your right hand.
+320,insert_game_object_cylinder,327,elliptical cylinder,False,train,True,283,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+321,insert_game_object_cylinder,328,elliptical cylinder,False,train,True,110,Pick up the elliptical cylinder with your right hand.
+322,insert_game_object_cylinder,329,elliptical cylinder,False,train,True,225,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+323,insert_game_object_cylinder,330,elliptical cylinder,False,train,True,313,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+324,insert_game_object_cylinder,331,elliptical cylinder,False,train,True,311,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+325,insert_game_object_cylinder,332,elliptical cylinder,False,train,True,418,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+326,insert_game_object_cylinder,333,elliptical cylinder,False,train,True,95,Pick up the elliptical cylinder with your right hand.
+327,insert_game_object_cylinder,334,elliptical cylinder,False,train,True,219,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+328,insert_game_object_cylinder,335,elliptical cylinder,False,train,True,344,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+329,insert_game_object_cylinder,336,elliptical cylinder,False,train,True,83,Move your right hand toward the elliptical cylinder.
+330,insert_game_object_cylinder,337,elliptical cylinder,False,train,True,357,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+331,insert_game_object_cylinder,338,elliptical cylinder,False,train,True,209,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+332,insert_game_object_cylinder,339,elliptical cylinder,False,train,True,340,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+333,insert_game_object_cylinder,340,elliptical cylinder,False,train,True,187,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+334,insert_game_object_cylinder,341,elliptical cylinder,False,train,True,130,Pick up the elliptical cylinder with your right hand.
+335,insert_game_object_cylinder,342,elliptical cylinder,False,train,True,341,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+336,insert_game_object_cylinder,343,elliptical cylinder,False,train,True,198,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+337,insert_game_object_cylinder,344,elliptical cylinder,False,val,True,278,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+338,insert_game_object_cylinder,345,elliptical cylinder,False,train,True,292,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+339,insert_game_object_cylinder,346,elliptical cylinder,False,val,True,462,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+340,insert_game_object_cylinder,347,elliptical cylinder,False,train,True,246,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+341,insert_game_object_cylinder,348,elliptical cylinder,False,train,True,70,Move your right hand toward the elliptical cylinder.
+342,insert_game_object_cylinder,349,elliptical cylinder,False,train,True,380,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+343,insert_game_object_cylinder,350,elliptical cylinder,False,train,True,316,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+344,insert_game_object_cylinder,351,elliptical cylinder,False,train,True,315,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+345,insert_game_object_cylinder,352,elliptical cylinder,False,train,True,311,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+346,insert_game_object_cylinder,353,elliptical cylinder,False,train,True,277,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+347,insert_game_object_cylinder,354,elliptical cylinder,False,train,True,90,Pick up the elliptical cylinder with your right hand.
+348,insert_game_object_cylinder,355,elliptical cylinder,False,train,True,195,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+349,insert_game_object_cylinder,356,elliptical cylinder,False,train,True,205,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+350,insert_game_object_cylinder,357,elliptical cylinder,False,train,True,258,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+351,insert_game_object_cylinder,358,elliptical cylinder,False,train,True,364,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+352,insert_game_object_cylinder,359,elliptical cylinder,False,train,True,256,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+353,insert_game_object_cylinder,360,elliptical cylinder,False,train,True,266,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+354,insert_game_object_cylinder,361,elliptical cylinder,False,train,True,75,Move your right hand toward the elliptical cylinder.
+355,insert_game_object_cylinder,362,elliptical cylinder,False,train,True,272,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+356,insert_game_object_cylinder,363,elliptical cylinder,False,train,True,65,Move your right hand toward the elliptical cylinder.
+357,insert_game_object_cylinder,364,elliptical cylinder,False,train,True,302,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+358,insert_game_object_cylinder,365,elliptical cylinder,False,train,True,201,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+359,insert_game_object_cylinder,366,elliptical cylinder,False,val,True,70,Move your right hand toward the elliptical cylinder.
+360,insert_game_object_cylinder,367,elliptical cylinder,False,train,True,199,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+361,insert_game_object_cylinder,368,elliptical cylinder,False,val,True,234,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+362,insert_game_object_cylinder,369,elliptical cylinder,False,train,True,213,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+363,insert_game_object_cylinder,370,elliptical cylinder,False,train,True,184,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+364,insert_game_object_cylinder,371,elliptical cylinder,False,train,True,186,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+365,insert_game_object_cylinder,372,elliptical cylinder,False,train,True,404,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+366,insert_game_object_cylinder,373,elliptical cylinder,False,train,True,238,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+367,insert_game_object_cylinder,374,elliptical cylinder,False,train,True,366,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+368,insert_game_object_cylinder,375,elliptical cylinder,False,train,True,164,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+369,insert_game_object_cylinder,376,elliptical cylinder,False,train,True,167,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+370,insert_game_object_cylinder,377,elliptical cylinder,False,train,True,234,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+371,insert_game_object_cylinder,378,elliptical cylinder,False,train,True,120,Move your right hand toward the elliptical cylinder.
+372,insert_game_object_cylinder,379,elliptical cylinder,False,train,True,248,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+373,insert_game_object_cylinder,380,elliptical cylinder,False,train,True,162,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+374,insert_game_object_cylinder,381,elliptical cylinder,False,train,True,214,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+375,insert_game_object_cylinder,382,elliptical cylinder,False,train,True,95,Pick up the elliptical cylinder with your right hand.
+376,insert_game_object_cylinder,383,elliptical cylinder,False,train,True,115,Pick up the elliptical cylinder with your right hand.
+377,insert_game_object_cylinder,384,elliptical cylinder,False,train,True,279,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+378,insert_game_object_cylinder,385,elliptical cylinder,False,val,True,222,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+379,insert_game_object_cylinder,386,elliptical cylinder,False,train,True,268,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+380,insert_game_object_cylinder,387,elliptical cylinder,False,val,True,90,Pick up the elliptical cylinder with your right hand.
+381,insert_game_object_cylinder,388,elliptical cylinder,False,train,True,212,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+382,insert_game_object_cylinder,389,elliptical cylinder,False,train,True,201,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+383,insert_game_object_cylinder,390,elliptical cylinder,False,train,True,105,Pick up the elliptical cylinder with your right hand.
+384,insert_game_object_cylinder,391,elliptical cylinder,False,train,True,186,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+385,insert_game_object_cylinder,392,elliptical cylinder,False,train,True,202,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+386,insert_game_object_cylinder,393,elliptical cylinder,False,train,True,172,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+387,insert_game_object_cylinder,394,elliptical cylinder,False,train,True,105,Pick up the elliptical cylinder with your right hand.
+388,insert_game_object_cylinder,395,elliptical cylinder,False,train,True,95,Pick up the elliptical cylinder with your right hand.
+389,insert_game_object_cylinder,396,elliptical cylinder,False,train,True,170,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+390,insert_game_object_cylinder,397,elliptical cylinder,False,train,True,230,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+391,insert_game_object_cylinder,398,elliptical cylinder,False,val,True,172,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+392,insert_game_object_cylinder,399,elliptical cylinder,False,train,True,70,Move your right hand toward the elliptical cylinder.
+393,insert_game_object_cylinder,400,elliptical cylinder,False,train,True,187,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+394,insert_game_object_cylinder,401,elliptical cylinder,False,train,True,175,Pick up the elliptical cylinder with your right hand and insert it into the matching hole of the wooden box.
+395,fruit_in_the_basket,402,apple,False,val,True,160,Place the apple into the plastic box with your right hand.
+396,fruit_in_the_basket,402,apple,False,val,True,160,Place the apple into the plastic box with your right hand.
+397,fruit_in_the_basket,402,pear,False,val,True,140,Place the pear into the plastic box with your right hand.
+398,fruit_in_the_basket,402,orange,False,val,True,170,Place the orange into the plastic box with your right hand.
+399,fruit_in_the_basket,402,orange,False,val,True,267,Place the orange into the plastic box with your right hand.
+400,fruit_in_the_basket,403,orange,False,train,True,190,Place the orange into the plastic box with your right hand.
+401,fruit_in_the_basket,403,apple,False,train,True,160,Place the apple into the plastic box with your right hand.
+402,fruit_in_the_basket,403,orange,False,train,True,120,Place the orange into the plastic box with your right hand.
+403,fruit_in_the_basket,404,pear,False,train,True,180,Place the pear into the plastic box with your right hand.
+404,fruit_in_the_basket,404,apple,False,train,True,90,Place the apple into the plastic box with your right hand.
+405,fruit_in_the_basket,404,apple,False,train,True,70,Pick up the apple with your right hand.
+406,fruit_in_the_basket,404,orange,False,train,True,73,Pick up the orange with your right hand.
+407,fruit_in_the_basket,405,pear,False,train,True,105,Move your right hand toward the pear.
+408,fruit_in_the_basket,405,pear,False,train,True,120,Place the pear into the plastic box with your right hand.
+409,fruit_in_the_basket,405,orange,False,train,True,110,Place the orange into the plastic box with your right hand.
+410,fruit_in_the_basket,405,orange,False,train,True,35,Move your right hand toward the orange.
+411,fruit_in_the_basket,406,apple,False,train,True,160,Place the apple into the plastic box with your right hand.
+412,fruit_in_the_basket,406,orange,False,train,True,90,Place the orange into the plastic box with your right hand.
+413,fruit_in_the_basket,407,apple,False,train,True,189,Pick up the apple with your right hand.
+414,fruit_in_the_basket,407,apple,False,train,True,90,Place the apple into the plastic box with your right hand.
+415,fruit_in_the_basket,407,orange,False,train,True,108,Place the orange into the plastic box with your right hand.
+416,fruit_in_the_basket,408,orange,False,train,True,150,Place the orange into the plastic box with your right hand.
+417,fruit_in_the_basket,408,apple,False,train,True,368,Place the apple into the plastic box with your right hand.
+418,fruit_in_the_basket,409,pear,False,train,True,220,Place the pear into the plastic box with your right hand.
+419,fruit_in_the_basket,409,orange,False,train,True,112,Place the orange into the plastic box with your right hand.
+420,fruit_in_the_basket,410,orange,False,train,True,320,Place the orange into the plastic box with your right hand.
+421,fruit_in_the_basket,410,apple,False,train,True,320,Place the apple into the plastic box with your right hand.
+422,fruit_in_the_basket,410,orange,False,train,True,142,Pick up the orange with your right hand.
+423,fruit_in_the_basket,411,orange,False,train,True,137,Place the orange into the plastic box with your right hand.
+424,fruit_in_the_basket,412,orange,False,val,True,227,Place the orange into the plastic box with your right hand.
+425,fruit_in_the_basket,413,apple,False,train,True,160,Place the apple into the plastic box with your right hand.
+426,fruit_in_the_basket,414,orange,False,train,True,190,Place the orange into the plastic box with your right hand.
+427,fruit_in_the_basket,414,apple,False,train,True,99,Place the apple into the plastic box with your right hand.
+428,fruit_in_the_basket,415,apple,False,train,True,150,Place the apple into the plastic box with your right hand.
+429,fruit_in_the_basket,415,orange,False,train,True,100,Place the orange into the plastic box with your right hand.
+430,fruit_in_the_basket,415,apple,False,train,True,99,Place the apple into the plastic box with your right hand.
+431,fruit_in_the_basket,416,apple,False,train,True,130,Place the apple into the plastic box with your right hand.
+432,fruit_in_the_basket,416,apple,False,train,True,25,Move your right hand toward the apple.
+433,fruit_in_the_basket,416,orange,False,train,True,20,Move your right hand toward the orange.
+434,fruit_in_the_basket,417,orange,False,train,True,190,Place the orange into the plastic box with your right hand.
+435,fruit_in_the_basket,417,apple,False,train,True,118,Place the apple into the plastic box with your right hand.
+436,fruit_in_the_basket,418,apple,False,train,True,65,Move your right hand toward the apple.
+437,fruit_in_the_basket,419,orange,False,train,True,130,Place the orange into the plastic box with your right hand.
+438,fruit_in_the_basket,419,apple,False,train,True,93,Place the apple into the plastic box with your right hand.
+439,fruit_in_the_basket,420,apple,False,val,True,140,Place the apple into the plastic box with your right hand.
+440,fruit_in_the_basket,420,orange,False,val,True,110,Place the orange into the plastic box with your right hand.
+441,fruit_in_the_basket,420,orange,False,val,True,106,Place the orange into the plastic box with your right hand.
+442,fruit_in_the_basket,421,orange,False,train,True,185,Place the orange into the plastic box with your right hand.
+443,fruit_in_the_basket,422,apple,False,train,True,230,Place the apple into the plastic box with your right hand.
+444,fruit_in_the_basket,422,orange,False,train,True,260,Place the orange into the plastic box with your right hand.
+445,fruit_in_the_basket,423,apple,False,train,True,189,Place the apple into the plastic box with your right hand.
+446,fruit_in_the_basket,424,apple,False,train,True,160,Place the apple into the plastic box with your right hand.
+447,fruit_in_the_basket,424,apple,False,train,True,250,Place the apple into the plastic box with your right hand.
+448,fruit_in_the_basket,425,apple,False,train,True,183,Place the apple into the plastic box with your right hand.
+449,fruit_in_the_basket,426,apple,False,train,True,170,Place the apple into the plastic box with your right hand.
+450,fruit_in_the_basket,426,orange,False,train,True,160,Place the orange into the plastic box with your right hand.
+451,fruit_in_the_basket,427,apple,False,train,True,195,Pick up the apple with your right hand.
+452,fruit_in_the_basket,428,pear,False,train,True,140,Pick up the pear with your right hand.
+453,fruit_in_the_basket,429,apple,False,train,True,330,Place the apple into the plastic box with your right hand.
+454,fruit_in_the_basket,429,apple,False,train,True,171,Place the apple into the plastic box with your right hand.
+455,fruit_in_the_basket,430,pear,False,train,True,210,Place the pear into the plastic box with your right hand.
+456,fruit_in_the_basket,430,apple,False,train,True,257,Place the apple into the plastic box with your right hand.
+457,fruit_in_the_basket,431,orange,False,train,True,182,Place the orange into the plastic box with your right hand.
+458,fruit_in_the_basket,432,apple,False,train,True,85,Move your right hand toward the apple.
+459,fruit_in_the_basket,433,orange,False,train,True,215,Place the orange into the plastic box with your right hand.
+460,fruit_in_the_basket,433,apple,False,train,True,200,Place the apple into the plastic box with your right hand.
+461,fruit_in_the_basket,434,pear,False,train,True,80,Move your right hand toward the pear.
+462,fruit_in_the_basket,435,apple,False,train,True,155,Pick up the apple with your right hand.
+463,fruit_in_the_basket,435,apple,False,train,True,232,Place the apple into the plastic box with your right hand.
+464,fruit_in_the_basket,436,apple,False,train,True,170,Place the apple into the plastic box with your right hand.
+465,fruit_in_the_basket,437,orange,False,train,True,261,Place the orange into the plastic box with your right hand.
+466,fruit_in_the_basket,438,apple,False,train,True,210,Place the apple into the plastic box with your right hand.
+467,fruit_in_the_basket,438,peach,False,train,True,273,Place the peach into the plastic box with your right hand.
+468,fruit_in_the_basket,439,pear,False,train,True,192,Place the pear into the plastic box with your right hand.
+469,fruit_in_the_basket,440,orange,False,train,True,190,Place the orange into the plastic box with your right hand.
+470,fruit_in_the_basket,440,apple,False,train,True,130,Place the apple into the plastic box with your right hand.
+471,fruit_in_the_basket,440,apple,False,train,True,115,Pick up the apple with your right hand.
+472,fruit_in_the_basket,441,apple,False,train,True,160,Pick up the apple with your right hand.
+473,fruit_in_the_basket,441,orange,False,train,True,190,Place the orange into the plastic box with your right hand.
+474,fruit_in_the_basket,441,apple,False,train,True,292,Place the apple into the plastic box with your right hand.
+475,fruit_in_the_basket,442,apple,False,val,True,300,Place the apple into the plastic box with your right hand.
+476,fruit_in_the_basket,442,orange,False,val,True,300,Place the orange into the plastic box with your right hand.
+477,fruit_in_the_basket,442,pear,False,val,True,131,Place the pear into the plastic box with your right hand.
+478,fruit_in_the_basket,443,orange,False,train,True,237,Place the orange into the plastic box with your right hand.
+479,fruit_in_the_basket,444,apple,False,val,True,196,Place the apple into the plastic box with your right hand.
+480,fruit_in_the_basket,445,pear,False,train,True,234,Place the pear into the plastic box with your right hand.
+481,fruit_in_the_basket,446,orange,False,train,True,180,Place the orange into the plastic box with your right hand.
+482,fruit_in_the_basket,446,apple,False,train,True,174,Place the apple into the plastic box with your right hand.
+483,fruit_in_the_basket,447,orange,False,train,True,170,Place the orange into the plastic box with your right hand.
+484,fruit_in_the_basket,447,pear,False,train,True,196,Place the pear into the plastic box with your right hand.
+485,fruit_in_the_basket,448,apple,False,train,True,390,Place the apple into the plastic box with your right hand.
+486,fruit_in_the_basket,448,pear,False,train,True,125,Pick up the pear with your right hand.
+487,fruit_in_the_basket,449,orange,False,train,True,165,Place the orange into the plastic box with your right hand.
+488,fruit_in_the_basket,449,apple,False,train,True,485,Place the apple into the plastic box with your right hand.
+489,fruit_in_the_basket,449,pear,False,train,True,144,Place the pear into the plastic box with your right hand.
+490,fruit_in_the_basket,450,pear,False,train,True,270,Place the pear into the plastic box with your right hand.
+491,fruit_in_the_basket,450,orange,False,train,True,25,Move your right hand toward the orange.
+492,fruit_in_the_basket,451,orange,False,train,True,155,Place the orange into the plastic box with your right hand.
+493,fruit_in_the_basket,451,apple,False,train,True,204,Place the apple into the plastic box with your right hand.
+494,fruit_in_the_basket,452,apple,False,train,True,190,Place the apple into the plastic box with your right hand.
+495,fruit_in_the_basket,452,pear,False,train,True,90,Pick up the pear with your right hand.
+496,fruit_in_the_basket,453,pear,False,train,True,215,Place the pear into the plastic box with your right hand.
+497,fruit_in_the_basket,454,apple,False,train,True,304,Place the apple into the plastic box with your right hand.
+498,fruit_in_the_basket,455,orange,False,train,True,186,Place the orange into the plastic box with your right hand.
+499,fruit_in_the_basket,456,orange,False,train,True,165,Place the orange into the plastic box with your right hand.
+500,fruit_in_the_basket,456,apple,False,train,True,110,Pick up the apple with your right hand.
+501,fruit_in_the_basket,457,orange,False,train,True,75,Move your right hand toward the orange.
+502,fruit_in_the_basket,457,apple,False,train,True,145,Place the apple into the plastic box with your right hand.
+503,fruit_in_the_basket,458,pear,False,train,True,270,Place the pear into the plastic box with your right hand.
+504,fruit_in_the_basket,458,orange,False,train,True,135,Pick up the orange with your right hand.
+505,fruit_in_the_basket,459,orange,False,train,True,80,Move your right hand toward the orange.
+506,fruit_in_the_basket,459,apple,False,train,True,80,Pick up the apple with your right hand.
+507,fruit_in_the_basket,459,pear,False,train,True,171,Place the pear into the plastic box with your right hand.
+508,fruit_in_the_basket,460,apple,False,train,True,75,Move your right hand toward the apple.
+509,fruit_in_the_basket,460,peach,False,train,True,161,Place the peach into the plastic box with your right hand.
+510,fruit_in_the_basket,461,apple,False,train,True,65,Move your right hand toward the apple.
+511,fruit_in_the_basket,462,orange,False,train,True,290,Place the orange into the plastic box with your right hand.
+512,fruit_in_the_basket,463,apple,False,train,True,160,Pick up the apple with your right hand.
+513,fruit_in_the_basket,464,pear,False,val,True,436,Place the pear into the plastic box with your right hand.
+514,fruit_in_the_basket,465,orange,False,train,True,95,Move your right hand toward the orange.
+515,fruit_in_the_basket,466,apple,False,val,True,200,Place the apple into the plastic box with your right hand.
+516,fruit_in_the_basket,467,orange,False,train,True,130,Pick up the orange with your right hand.
+517,fruit_in_the_basket,468,apple,False,train,True,461,Place the apple into the plastic box with your right hand.
+518,fruit_in_the_basket,469,pear,False,train,True,200,Pick up the pear with your right hand.
+519,fruit_in_the_basket,470,peach,False,train,True,164,Place the peach into the plastic box with your right hand.
+520,fruit_in_the_basket,472,apple,False,train,True,215,Place the apple into the plastic box with your right hand.
+521,fruit_in_the_basket,474,orange,False,train,True,212,Place the orange into the plastic box with your right hand.
+522,fruit_in_the_basket,475,apple,False,train,True,152,Place the apple into the plastic box with your right hand.
+523,fruit_in_the_basket,476,pear,False,train,True,190,Place the pear into the plastic box with your right hand.
+524,fruit_in_the_basket,477,peach,False,train,True,242,Place the peach into the plastic box with your right hand.
+525,fruit_in_the_basket,478,apple,False,train,True,297,Place the apple into the plastic box with your right hand.
+526,fruit_in_the_basket,479,orange,False,train,True,209,Place the orange into the plastic box with your right hand.
+527,fruit_in_the_basket,480,pear,False,train,True,196,Place the pear into the plastic box with your right hand.
+528,fruit_in_the_basket,481,orange,False,train,True,130,Pick up the orange with your right hand.
+529,fruit_in_the_basket,482,apple,False,train,True,180,Place the apple into the plastic box with your right hand.
+530,fruit_in_the_basket,482,orange,False,train,True,120,Place the orange into the plastic box with your right hand.
+531,fruit_in_the_basket,483,apple,False,train,True,172,Place the apple into the plastic box with your right hand.
+532,fruit_in_the_basket,484,orange,False,train,True,183,Place the orange into the plastic box with your right hand.
+533,fruit_in_the_basket,485,pear,False,val,True,228,Place the pear into the plastic box with your right hand.
+534,fruit_in_the_basket,486,peach,False,train,True,188,Place the peach into the plastic box with your right hand.
+535,fruit_in_the_basket,487,apple,False,val,True,312,Place the apple into the plastic box with your right hand.
+536,fruit_in_the_basket,488,peach,False,train,True,259,Place the peach into the plastic box with your right hand.
+537,fruit_in_the_basket,489,orange,False,train,True,75,Move your right hand toward the orange.
+538,fruit_in_the_basket,490,apple,False,train,True,165,Pick up the apple with your right hand.
+539,fruit_in_the_basket,491,pear,False,train,True,243,Place the pear into the plastic box with your right hand.
+540,fruit_in_the_basket,492,apple,False,train,True,100,Pick up the apple with your right hand.
+541,fruit_in_the_basket,492,apple,False,train,True,139,Place the apple into the plastic box with your right hand.
+542,fruit_in_the_basket,493,peach,False,train,True,199,Place the peach into the plastic box with your right hand.
+543,fruit_in_the_basket,494,peach,False,train,True,80,Move your right hand toward the peach.
+544,fruit_in_the_basket,494,pear,False,train,True,111,Place the pear into the plastic box with your right hand.
+545,fruit_in_the_basket,495,apple,False,train,True,175,Place the apple into the plastic box with your right hand.
+546,fruit_in_the_basket,496,pear,False,train,True,248,Place the pear into the plastic box with your right hand.
+547,fruit_in_the_basket,497,apple,False,val,True,138,Place the apple into the plastic box with your right hand.
+548,fruit_in_the_basket,498,apple,False,train,True,220,Place the apple into the plastic box with your right hand.
+549,fruit_in_the_basket,498,peach,False,train,True,110,Place the peach into the plastic box with your right hand.
+550,fruit_in_the_basket,498,orange,False,train,True,137,Place the orange into the plastic box with your right hand.
+551,fruit_in_the_basket,499,peach,False,train,True,148,Place the peach into the plastic box with your right hand.
+552,fruit_in_the_basket,501,apple,False,train,True,239,Place the apple into the plastic box with your right hand.
+553,clearing_table,502,mustard bottle,False,train,False,145,Place the mustard bottle into the plastic box with your right hand.
+554,clearing_table,502,orange cup,False,train,False,125,Place the orange cup into the plastic box with your right hand.
+555,clearing_table,502,screwdriver,False,train,False,200,Place the screwdriver into the plastic box with your right hand.
+556,clearing_table,502,glass jar,False,train,False,170,Place the glass jar into the plastic box with your right hand.
+557,clearing_table,502,cleanser bottle,False,train,False,180,Place the cleanser bottle into the plastic box with your right hand.
+558,clearing_table,502,tea box,False,train,False,180,Place the tea box into the plastic box with your right hand.
+559,clearing_table,502,aloe vera bottle,False,train,False,184,Place the aloe vera bottle into the plastic box with your right hand.
+560,clearing_table,503,chips can,False,train,False,100,Pick up the chips can with your right hand.
+561,clearing_table,503,aloe vera bottle,False,train,False,170,Place the aloe vera bottle into the plastic box with your right hand.
+562,clearing_table,503,tea box,False,train,False,160,Place the tea box into the plastic box with your right hand.
+563,clearing_table,503,tea box,False,train,False,102,Pick up the tea box with your right hand.
+564,clearing_table,503,tea box,False,train,False,130,Place the tea box into the plastic box with your right hand.
+565,clearing_table,503,cracker box,False,train,False,234,Place the cracker box into the plastic box with your right hand.
+566,clearing_table,504,chips can,False,train,False,150,Place the chips can into the plastic box with your right hand.
+567,clearing_table,504,screwdriver,False,train,False,160,Place the screwdriver into the plastic box with your right hand.
+568,clearing_table,504,softball,False,train,False,230,Place the softball into the plastic box with your right hand.
+569,clearing_table,504,glass jar,False,train,False,130,Place the glass jar into the plastic box with your right hand.
+570,clearing_table,504,cracker box,False,train,False,150,Place the cracker box into the plastic box with your right hand.
+571,clearing_table,505,chips can,False,train,False,150,Place the chips can into the plastic box with your right hand.
+572,clearing_table,505,toy drill,False,train,False,150,Place the toy drill into the plastic box with your right hand.
+573,clearing_table,505,aloe vera bottle,False,train,False,170,Place the aloe vera bottle into the plastic box with your right hand.
+574,clearing_table,505,softball,False,train,False,167,Place the softball into the plastic box with your right hand.
+575,clearing_table,506,softball,False,train,False,160,Place the softball into the plastic box with your right hand.
+576,clearing_table,506,cleanser bottle,False,train,False,44,Move your right hand toward the cleanser bottle.
+577,clearing_table,506,cleanser bottle,False,train,False,60,Pick up the cleanser bottle with your right hand.
+578,clearing_table,507,mustard bottle,False,train,False,100,Pick up the mustard bottle with your right hand.
+579,clearing_table,507,mustard bottle,False,train,False,15,Move your right hand toward the mustard bottle.
+580,clearing_table,507,toy drill,False,train,False,114,Place the toy drill into the plastic box with your right hand.
+581,clearing_table,508,cracker box,False,train,False,60,Move your right hand toward the cracker box.
+582,clearing_table,508,mustard bottle,False,train,False,180,Place the mustard bottle into the plastic box with your right hand.
+583,clearing_table,508,plush toy,False,train,False,160,Place the plush toy into the plastic box with your right hand.
+584,clearing_table,508,softball,False,train,False,100,Pick up the softball with your right hand.
+585,clearing_table,509,chips can,False,train,False,150,Place the chips can into the plastic box with your right hand.
+586,clearing_table,509,softball,False,train,False,150,Place the softball into the plastic box with your right hand.
+587,clearing_table,509,cracker box,False,train,False,183,Place the cracker box into the plastic box with your right hand.
+588,clearing_table,510,softball,False,train,False,170,Place the softball into the plastic box with your right hand.
+589,clearing_table,510,aloe vera bottle,False,train,False,176,Place the aloe vera bottle into the plastic box with your right hand.
+590,clearing_table,511,screwdriver,False,train,False,190,Place the screwdriver into the plastic box with your right hand.
+591,clearing_table,511,glass jar,False,train,False,120,Place the glass jar into the plastic box with your right hand.
+592,clearing_table,511,toy drill,False,train,False,130,Place the toy drill into the plastic box with your right hand.
+593,clearing_table,511,plush toy,False,train,False,179,Place the plush toy into the plastic box with your right hand.
+594,clearing_table,512,mustard bottle,False,train,False,50,Move your right hand toward the mustard bottle.
+595,clearing_table,512,tea box,False,train,False,158,Place the tea box into the plastic box with your right hand.
+596,clearing_table,513,tea box,False,train,False,147,Place the tea box into the plastic box with your right hand.
+597,clearing_table,514,toy drill,False,train,False,150,Place the toy drill into the plastic box with your right hand.
+598,clearing_table,514,orange cup,False,train,False,152,Place the orange cup into the plastic box with your right hand.
+599,clearing_table,516,cracker box,False,val,False,150,Place the cracker box into the plastic box with your right hand.
+600,clearing_table,516,chips can,False,val,False,169,Place the chips can into the plastic box with your right hand.
+601,clearing_table,517,screwdriver,False,train,False,300,Place the screwdriver into the plastic box with your right hand.
+602,clearing_table,517,white cup,False,train,False,180,Place the white cup into the plastic box with your right hand.
+603,clearing_table,517,softball,False,train,False,116,Place the softball into the plastic box with your right hand.
+604,clearing_table,518,toy drill,False,train,False,130,Place the toy drill into the plastic box with your right hand.
+605,clearing_table,518,mustard bottle,False,train,False,80,Place the mustard bottle into the plastic box with your right hand.
+606,clearing_table,518,mustard bottle,False,train,False,80,Pick up the mustard bottle with your right hand.
+607,clearing_table,519,aloe vera bottle,False,train,False,140,Place the aloe vera bottle into the plastic box with your right hand.
+608,clearing_table,520,toy drill,False,val,False,150,Place the toy drill into the plastic box with your right hand.
+609,clearing_table,520,white cup,False,val,False,104,Place the white cup into the plastic box with your right hand.
+610,clearing_table,521,cleanser bottle,False,train,False,150,Place the cleanser bottle into the plastic box with your right hand.
+611,clearing_table,521,tea box,False,train,False,120,Pick up the tea box with your right hand.
+612,clearing_table,522,cleanser bottle,False,train,False,160,Place the cleanser bottle into the plastic box with your right hand.
+613,clearing_table,523,cleanser bottle,False,train,False,150,Place the cleanser bottle into the plastic box with your right hand.
+614,clearing_table,523,softball,False,train,False,110,Place the softball into the plastic box with your right hand.
+615,clearing_table,523,white cup,False,train,False,180,Place the white cup into the plastic box with your right hand.
+616,clearing_table,523,plush toy,False,train,False,110,Place the plush toy into the plastic box with your right hand.
+617,clearing_table,523,mustard bottle,False,train,False,59,Move your right hand toward the mustard bottle.
+618,clearing_table,523,aloe vera bottle,False,train,False,160,Place the aloe vera bottle into the plastic box with your right hand.
+619,clearing_table,523,tea box,False,train,False,166,Place the tea box into the plastic box with your right hand.
+620,clearing_table,524,plush toy,False,train,False,170,Place the plush toy into the plastic box with your right hand.
+621,clearing_table,524,plush toy,False,train,False,190,Place the plush toy into the plastic box with your right hand.
+622,clearing_table,524,toy drill,False,train,False,70,Pick up the toy drill with your right hand.
+623,clearing_table,524,sponge,False,train,False,250,Place the sponge into the plastic box with your right hand.
+624,clearing_table,524,cracker box,False,train,False,48,Move your right hand toward the cracker box.
+625,clearing_table,524,chips can,False,train,False,253,Place the chips can into the plastic box with your right hand.
+626,clearing_table,525,chips can,False,train,False,160,Place the chips can into the plastic box with your right hand.
+627,clearing_table,525,mustard bottle,False,train,False,47,Move your right hand toward the mustard bottle.
+628,clearing_table,525,orange cup,False,train,False,210,Place the orange cup into the plastic box with your right hand.
+629,clearing_table,525,softball,False,train,False,100,Pick up the softball with your right hand.
+630,clearing_table,525,whiteboard eraser,False,train,False,100,Place the whiteboard eraser into the plastic box with your right hand.
+631,clearing_table,525,sponge,False,train,False,100,Place the sponge into the plastic box with your right hand.
+632,clearing_table,525,sponge,False,train,False,90,Place the sponge into the plastic box with your right hand.
+633,clearing_table,525,plush toy,False,train,False,29,Move your right hand toward the plush toy.
+634,clearing_table,525,cracker box,False,train,False,33,Move your right hand toward the cracker box.
+635,clearing_table,526,chips can,False,train,False,80,Pick up the chips can with your right hand.
+636,clearing_table,526,plush toy,False,train,False,140,Place the plush toy into the plastic box with your right hand.
+637,clearing_table,526,white cup,False,train,False,110,Place the white cup into the plastic box with your right hand.
+638,clearing_table,526,cracker box,False,train,False,150,Place the cracker box into the plastic box with your right hand.
+639,clearing_table,526,mustard bottle,False,train,False,120,Place the mustard bottle into the plastic box with your right hand.
+640,clearing_table,526,plush toy,False,train,False,260,Place the plush toy into the plastic box with your right hand.
+641,clearing_table,526,tea box,False,train,False,180,Place the tea box into the plastic box with your right hand.
+642,clearing_table,526,tea box,False,train,False,98,Place the tea box into the plastic box with your right hand.
+643,clearing_table,527,cracker box,False,train,False,210,Place the cracker box into the plastic box with your right hand.
+644,clearing_table,527,mustard bottle,False,train,False,170,Place the mustard bottle into the plastic box with your right hand.
+645,clearing_table,527,plush toy,False,train,False,56,Pick up the plush toy with your right hand.
+646,clearing_table,527,plush toy,False,train,False,100,Place the plush toy into the plastic box with your right hand.
+647,clearing_table,527,tea box,False,train,False,280,Place the tea box into the plastic box with your right hand.
+648,clearing_table,527,plush toy,False,train,False,156,Pick up the plush toy with your right hand.
+649,clearing_table,527,orange cup,False,train,False,306,Place the orange cup into the plastic box with your right hand.
+650,clearing_table,528,chips can,False,train,False,210,Place the chips can into the plastic box with your right hand.
+651,clearing_table,528,cracker box,False,train,False,180,Place the cracker box into the plastic box with your right hand.
+652,clearing_table,528,mustard bottle,False,train,False,150,Place the mustard bottle into the plastic box with your right hand.
+653,clearing_table,528,softball,False,train,False,70,Place the softball into the plastic box with your right hand.
+654,clearing_table,528,tea box,False,train,False,191,Place the tea box into the plastic box with your right hand.
+655,clearing_table,529,cracker box,False,train,False,140,Place the cracker box into the plastic box with your right hand.
+656,clearing_table,529,chips can,False,train,False,120,Place the chips can into the plastic box with your right hand.
+657,clearing_table,529,softball,False,train,False,180,Place the softball into the plastic box with your right hand.
+658,clearing_table,529,mustard bottle,False,train,False,190,Place the mustard bottle into the plastic box with your right hand.
+659,clearing_table,529,aloe vera bottle,False,train,False,145,Place the aloe vera bottle into the plastic box with your right hand.
+660,clearing_table,530,chips can,False,train,False,90,Pick up the chips can with your right hand.
+661,clearing_table,530,aloe vera bottle,False,train,False,110,Pick up the aloe vera bottle with your right hand.
+662,clearing_table,530,softball,False,train,False,53,Move your right hand toward the softball.
+663,clearing_table,531,toy drill,False,train,False,130,Place the toy drill into the plastic box with your right hand.
+664,clearing_table,531,tea box,False,train,False,100,Place the tea box into the plastic box with your right hand.
+665,clearing_table,531,chips can,False,train,False,123,Place the chips can into the plastic box with your right hand.
+666,clearing_table,532,mustard bottle,False,train,False,57,Move your right hand toward the mustard bottle.
+667,clearing_table,532,mustard bottle,False,train,False,120,Place the mustard bottle into the plastic box with your right hand.
+668,clearing_table,532,sponge,False,train,False,54,Move your right hand toward the sponge.
+669,clearing_table,533,softball,False,train,False,110,Pick up the softball with your right hand.
+670,clearing_table,533,screwdriver,False,train,False,140,Place the screwdriver into the plastic box with your right hand.
+671,clearing_table,533,tea box,False,train,False,160,Place the tea box into the plastic box with your right hand.
+672,clearing_table,533,glass jar,False,train,False,170,Place the glass jar into the plastic box with your right hand.
+673,clearing_table,533,sponge,False,train,False,155,Place the sponge into the plastic box with your right hand.
+674,clearing_table,534,aloe vera bottle,False,train,False,130,Place the aloe vera bottle into the plastic box with your right hand.
+675,clearing_table,534,cereal box,False,train,False,104,Place the cereal box into the plastic box with your right hand.
+676,clearing_table,535,mustard bottle,False,train,False,100,Pick up the mustard bottle with your right hand.
+677,clearing_table,535,mustard bottle,False,train,False,110,Place the mustard bottle into the plastic box with your right hand.
+678,clearing_table,535,toy drill,False,train,False,60,Pick up the toy drill with your right hand.
+679,clearing_table,536,chips can,False,train,False,140,Place the chips can into the plastic box with your right hand.
+680,clearing_table,536,cleanser bottle,False,train,False,60,Pick up the cleanser bottle with your right hand.
+681,clearing_table,537,cracker box,False,train,False,130,Place the cracker box into the plastic box with your right hand.
+682,clearing_table,537,chips can,False,train,False,229,Place the chips can into the plastic box with your right hand.
+683,clearing_table,538,cracker box,False,train,False,170,Place the cracker box into the plastic box with your right hand.
+684,clearing_table,538,cleanser bottle,False,train,False,140,Place the cleanser bottle into the plastic box with your right hand.
+685,clearing_table,539,screwdriver,False,train,False,140,Place the screwdriver into the plastic box with your right hand.
+686,clearing_table,539,glass jar,False,train,False,100,Place the glass jar into the plastic box with your right hand.
+687,clearing_table,539,baseball,False,train,False,110,Place the baseball into the plastic box with your right hand.
+688,clearing_table,539,sponge,False,train,False,103,Place the sponge into the plastic box with your right hand.
+689,clearing_table,540,toy drill,False,train,False,130,Place the toy drill into the plastic box with your right hand.
+690,clearing_table,540,white cup,False,train,False,130,Place the white cup into the plastic box with your right hand.
+691,clearing_table,540,plush toy,False,train,False,123,Place the plush toy into the plastic box with your right hand.
+692,clearing_table,541,plush toy,False,train,False,140,Place the plush toy into the plastic box with your right hand.
+693,clearing_table,541,softball,False,train,False,139,Place the softball into the plastic box with your right hand.
+694,clearing_table,542,softball,False,train,False,130,Place the softball into the plastic box with your right hand.
+695,clearing_table,542,plush toy,False,train,False,75,Pick up the plush toy with your right hand.
+696,clearing_table,543,cracker box,False,train,False,160,Place the cracker box into the plastic box with your right hand.
+697,clearing_table,543,mustard bottle,False,train,False,190,Place the mustard bottle into the plastic box with your right hand.
+698,clearing_table,543,mustard bottle,False,train,False,26,Move your right hand toward the mustard bottle.
+699,clearing_table,544,screwdriver,False,train,False,150,Place the screwdriver into the plastic box with your right hand.
+700,clearing_table,544,glass jar,False,train,False,200,Place the glass jar into the plastic box with your right hand.
+701,clearing_table,544,softball,False,train,False,115,Place the softball into the plastic box with your right hand.
+702,clearing_table,545,cracker box,False,train,False,160,Place the cracker box into the plastic box with your right hand.
+703,clearing_table,545,cleanser bottle,False,train,False,120,Place the cleanser bottle into the plastic box with your right hand.
+704,clearing_table,545,chips can,False,train,False,199,Place the chips can into the plastic box with your right hand.
+705,clearing_table,546,cracker box,False,train,False,120,Pick up the cracker box with your right hand.
+706,clearing_table,546,toy drill,False,train,False,150,Place the toy drill into the plastic box with your right hand.
+707,clearing_table,546,aloe vera bottle,False,train,False,83,Move your right hand toward the aloe vera bottle.
+708,clearing_table,546,toy drill,False,train,False,155,Place the toy drill into the plastic box with your right hand.
+709,clearing_table,547,cleanser bottle,False,val,False,170,Place the cleanser bottle into the plastic box with your right hand.
+710,clearing_table,547,tea box,False,val,False,160,Place the tea box into the plastic box with your right hand.
+711,clearing_table,547,softball,False,val,False,141,Place the softball into the plastic box with your right hand.
+712,clearing_table,548,mustard bottle,False,val,False,130,Place the mustard bottle into the plastic box with your right hand.
+713,clearing_table,548,mustard bottle,False,val,False,100,Place the mustard bottle into the plastic box with your right hand.
+714,clearing_table,548,sponge,False,val,False,110,Place the sponge into the plastic box with your right hand.
+715,clearing_table,548,sponge,False,val,False,226,Place the sponge into the plastic box with your right hand.
+716,clearing_table,549,toy drill,False,train,False,170,Place the toy drill into the plastic box with your right hand.
+717,clearing_table,549,aloe vera bottle,False,train,False,120,Place the aloe vera bottle into the plastic box with your right hand.
+718,clearing_table,549,light bulb,False,train,False,114,Place the light bulb into the plastic box with your right hand.
+719,clearing_table,550,sponge,False,val,False,52,Move your right hand toward the sponge.
+720,clearing_table,550,light bulb,False,val,False,150,Place the light bulb into the plastic box with your right hand.
+721,clearing_table,551,mustard bottle,False,train,False,100,Place the mustard bottle into the plastic box with your right hand.
+722,clearing_table,551,mustard bottle,False,train,False,80,Place the mustard bottle into the plastic box with your right hand.
+723,clearing_table,551,sponge,False,train,False,83,Place the sponge into the plastic box with your right hand.
+724,unscrew_the_bottle,552,bottle cap,False,train,True,671,Unscrew the bottle cap with your right hand and lift it off.
+725,unscrew_the_bottle,553,bottle cap,False,train,True,628,Unscrew the bottle cap with your right hand and lift it off.
+726,unscrew_the_bottle,554,bottle cap,False,train,True,272,Unscrew the bottle cap with your right hand and lift it off.
+727,unscrew_the_bottle,555,bottle cap,False,train,True,502,Unscrew the bottle cap with your right hand and lift it off.
+728,unscrew_the_bottle,556,bottle cap,False,train,True,1860,Unscrew the bottle cap with your right hand and lift it off.
+729,unscrew_the_bottle,557,bottle cap,False,train,True,940,Unscrew the bottle cap with your right hand and lift it off.
+730,unscrew_the_bottle,558,bottle cap,False,train,True,908,Unscrew the bottle cap with your right hand and lift it off.
+731,unscrew_the_bottle,559,bottle cap,False,train,True,532,Unscrew the bottle cap with your right hand and lift it off.
+732,unscrew_the_bottle,560,bottle cap,False,train,True,644,Unscrew the bottle cap with your right hand and lift it off.
+733,unscrew_the_bottle,561,bottle cap,False,train,True,515,Unscrew the bottle cap with your right hand and lift it off.
+734,unscrew_the_bottle,562,bottle cap,False,train,True,1616,Unscrew the bottle cap with your right hand and lift it off.
+735,unscrew_the_bottle,563,bottle cap,False,train,True,479,Unscrew the bottle cap with your right hand and lift it off.
+736,unscrew_the_bottle,564,bottle cap,False,train,True,1064,Unscrew the bottle cap with your right hand and lift it off.
+737,unscrew_the_bottle,565,bottle cap,False,train,True,334,Unscrew the bottle cap with your right hand and lift it off.
+738,unscrew_the_bottle,566,bottle cap,False,train,True,435,Unscrew the bottle cap with your right hand and lift it off.
+739,unscrew_the_bottle,567,bottle cap,False,train,True,663,Unscrew the bottle cap with your right hand and lift it off.
+740,unscrew_the_bottle,568,bottle cap,False,train,True,464,Unscrew the bottle cap with your right hand and lift it off.
+741,unscrew_the_bottle,569,bottle cap,False,train,True,573,Unscrew the bottle cap with your right hand and lift it off.
+742,unscrew_the_bottle,570,bottle cap,False,train,True,762,Unscrew the bottle cap with your right hand and lift it off.
+743,unscrew_the_bottle,571,bottle cap,False,train,True,240,Unscrew the bottle cap with your right hand and lift it off.
+744,unscrew_the_bottle,572,bottle cap,False,train,True,986,Unscrew the bottle cap with your right hand and lift it off.
+745,unscrew_the_bottle,573,bottle cap,False,train,True,378,Unscrew the bottle cap with your right hand and lift it off.
+746,unscrew_the_bottle,574,bottle cap,False,train,True,341,Unscrew the bottle cap with your right hand and lift it off.
+747,unscrew_the_bottle,575,bottle cap,False,train,True,905,Unscrew the bottle cap with your right hand and lift it off.
+748,unscrew_the_bottle,576,bottle cap,False,val,True,260,Unscrew the bottle cap with your right hand and lift it off.
+749,unscrew_the_bottle,578,bottle cap,False,train,True,753,Unscrew the bottle cap with your right hand and lift it off.
+750,unscrew_the_bottle,579,bottle cap,False,val,True,93,Unscrew the bottle cap with your right hand and lift it off.
+751,unscrew_the_bottle,580,bottle cap,False,val,True,625,Unscrew the bottle cap with your right hand and lift it off.
+752,unscrew_the_bottle,581,bottle cap,False,train,True,887,Unscrew the bottle cap with your right hand and lift it off.
+753,unscrew_the_bottle,582,bottle cap,False,train,True,189,Unscrew the bottle cap with your right hand and lift it off.
+754,unscrew_the_bottle,584,bottle cap,False,train,True,521,Unscrew the bottle cap with your right hand and lift it off.
+755,unscrew_the_bottle,585,bottle cap,False,train,True,363,Unscrew the bottle cap with your right hand and lift it off.
+756,unscrew_the_bottle,586,bottle cap,False,train,True,432,Unscrew the bottle cap with your right hand and lift it off.
+757,unscrew_the_bottle,587,bottle cap,False,train,True,376,Unscrew the bottle cap with your right hand and lift it off.
+758,unscrew_the_bottle,588,bottle cap,False,train,True,524,Unscrew the bottle cap with your right hand and lift it off.
+759,unscrew_the_bottle,589,bottle cap,False,train,True,643,Unscrew the bottle cap with your right hand and lift it off.
+760,unscrew_the_bottle,590,bottle cap,False,train,True,651,Unscrew the bottle cap with your right hand and lift it off.
+761,unscrew_the_bottle,591,bottle cap,False,train,True,145,Unscrew the bottle cap with your right hand and lift it off.
+762,unscrew_the_bottle,593,bottle cap,False,train,True,925,Unscrew the bottle cap with your right hand and lift it off.
+763,unscrew_the_bottle,594,bottle cap,False,val,True,74,Unscrew the bottle cap with your right hand and lift it off.
+764,unscrew_the_bottle,595,bottle cap,False,train,True,644,Unscrew the bottle cap with your right hand and lift it off.
+765,unscrew_the_bottle,596,bottle cap,False,train,True,227,Unscrew the bottle cap with your right hand and lift it off.
+766,unscrew_the_bottle,597,bottle cap,False,train,True,112,Unscrew the bottle cap with your right hand and lift it off.
+767,unscrew_the_bottle,598,bottle cap,False,val,True,409,Unscrew the bottle cap with your right hand and lift it off.
+768,unscrew_the_bottle,599,bottle cap,False,train,True,156,Unscrew the bottle cap with your right hand and lift it off.
+769,unscrew_the_bottle,600,bottle cap,False,train,True,287,Unscrew the bottle cap with your right hand and lift it off.
+770,unscrew_the_bottle,601,bottle cap,False,train,True,705,Unscrew the bottle cap with your right hand and lift it off.
+771,insert_credit_card,602,credit card,False,val,False,469,Pick up the credit card with your right hand and insert it into the wallet.
+772,insert_credit_card,603,credit card,False,train,False,401,Pick up the credit card with your right hand and insert it into the wallet.
+773,insert_credit_card,604,credit card,False,train,False,180,Pick up the credit card with your right hand.
+774,insert_credit_card,605,credit card,False,train,False,344,Pick up the credit card with your right hand and insert it into the wallet.
+775,insert_credit_card,606,credit card,False,train,False,357,Pick up the credit card with your right hand and insert it into the wallet.
+776,insert_credit_card,607,credit card,False,train,False,475,Pick up the credit card with your right hand and insert it into the wallet.
+777,insert_credit_card,608,credit card,False,train,False,272,Pick up the credit card with your right hand and insert it into the wallet.
+778,insert_credit_card,609,credit card,False,train,False,479,Pick up the credit card with your right hand and insert it into the wallet.
+779,insert_credit_card,610,credit card,False,train,False,586,Pick up the credit card with your right hand and insert it into the wallet.
+780,insert_credit_card,611,credit card,False,train,False,624,Pick up the credit card with your right hand and insert it into the wallet.
+781,insert_credit_card,612,credit card,False,val,False,332,Pick up the credit card with your right hand and insert it into the wallet.
+782,insert_credit_card,613,credit card,False,train,False,130,Pick up the credit card with your right hand.
+783,insert_credit_card,614,credit card,False,train,False,130,Pick up the credit card with your right hand.
+784,insert_credit_card,615,credit card,False,train,False,334,Pick up the credit card with your right hand and insert it into the wallet.
+785,insert_credit_card,616,credit card,False,train,False,646,Pick up the credit card with your right hand and insert it into the wallet.
+786,insert_credit_card,617,credit card,False,train,False,438,Pick up the credit card with your right hand and insert it into the wallet.
+787,insert_credit_card,618,credit card,False,train,False,457,Pick up the credit card with your right hand and insert it into the wallet.
+788,insert_credit_card,619,credit card,False,train,False,429,Pick up the credit card with your right hand and insert it into the wallet.
+789,insert_credit_card,620,credit card,False,val,False,343,Pick up the credit card with your right hand and insert it into the wallet.
+790,insert_credit_card,621,credit card,False,train,False,826,Pick up the credit card with your right hand and insert it into the wallet.
+791,insert_credit_card,622,credit card,False,train,False,363,Pick up the credit card with your right hand and insert it into the wallet.
+792,insert_credit_card,623,credit card,False,train,False,579,Pick up the credit card with your right hand and insert it into the wallet.
+793,insert_credit_card,624,credit card,False,train,False,281,Pick up the credit card with your right hand and insert it into the wallet.
+794,insert_credit_card,625,credit card,False,train,False,172,Pick up the credit card with your right hand and insert it into the wallet.
+795,insert_credit_card,626,credit card,False,train,False,112,Pick up the credit card with your right hand.
+796,insert_credit_card,627,credit card,False,train,False,403,Pick up the credit card with your right hand and insert it into the wallet.
+797,insert_credit_card,628,credit card,False,train,False,287,Pick up the credit card with your right hand and insert it into the wallet.
+798,insert_credit_card,629,credit card,False,train,False,137,Pick up the credit card with your right hand and insert it into the wallet.
+799,insert_credit_card,630,credit card,False,train,False,469,Pick up the credit card with your right hand and insert it into the wallet.
+800,insert_credit_card,631,credit card,False,train,False,918,Pick up the credit card with your right hand and insert it into the wallet.
+801,insert_credit_card,632,credit card,False,train,False,225,Pick up the credit card with your right hand and insert it into the wallet.
+802,insert_credit_card,633,credit card,False,train,False,436,Pick up the credit card with your right hand and insert it into the wallet.
+803,insert_credit_card,634,credit card,False,train,False,359,Pick up the credit card with your right hand and insert it into the wallet.
+804,insert_credit_card,635,credit card,False,train,False,276,Pick up the credit card with your right hand and insert it into the wallet.
+805,insert_credit_card,636,credit card,False,train,False,333,Pick up the credit card with your right hand and insert it into the wallet.
+806,insert_credit_card,637,credit card,False,train,False,309,Pick up the credit card with your right hand and insert it into the wallet.
+807,insert_credit_card,638,credit card,False,train,False,335,Pick up the credit card with your right hand and insert it into the wallet.
+808,insert_credit_card,639,credit card,False,train,False,145,Pick up the credit card with your right hand.
+809,insert_credit_card,640,credit card,False,train,False,127,Pick up the credit card with your right hand.
+810,insert_credit_card,641,credit card,False,train,False,317,Pick up the credit card with your right hand and insert it into the wallet.
+811,insert_credit_card,642,credit card,False,val,False,168,Pick up the credit card with your right hand.
+812,insert_credit_card,643,credit card,False,train,False,328,Pick up the credit card with your right hand and insert it into the wallet.
+813,insert_credit_card,644,credit card,False,val,False,205,Pick up the credit card with your right hand.
+814,insert_credit_card,645,credit card,False,train,False,375,Pick up the credit card with your right hand and insert it into the wallet.
+815,insert_credit_card,647,credit card,False,train,False,408,Pick up the credit card with your right hand and insert it into the wallet.
+816,insert_credit_card,648,credit card,False,train,False,140,Pick up the credit card with your right hand.
+817,insert_credit_card,649,credit card,False,train,False,466,Pick up the credit card with your right hand and insert it into the wallet.
+818,insert_credit_card,650,credit card,False,train,False,384,Pick up the credit card with your right hand and insert it into the wallet.
+819,insert_credit_card,651,credit card,False,train,False,332,Pick up the credit card with your right hand and insert it into the wallet.
+820,insert_credit_card,652,credit card,False,train,False,130,Pick up the credit card with your right hand.
+821,insert_credit_card,653,credit card,False,train,False,460,Pick up the credit card with your right hand and insert it into the wallet.
+822,insert_credit_card,654,credit card,False,train,False,136,Pick up the credit card with your right hand.
+823,insert_credit_card,655,credit card,False,train,False,344,Pick up the credit card with your right hand and insert it into the wallet.
+824,insert_credit_card,656,credit card,False,train,False,409,Pick up the credit card with your right hand and insert it into the wallet.
+825,insert_credit_card,657,credit card,False,train,False,388,Pick up the credit card with your right hand and insert it into the wallet.
+826,insert_credit_card,658,credit card,False,train,False,363,Pick up the credit card with your right hand and insert it into the wallet.
+827,insert_credit_card,659,credit card,False,train,False,125,Pick up the credit card with your right hand.
+828,insert_credit_card,660,credit card,False,train,False,282,Pick up the credit card with your right hand and insert it into the wallet.
+829,insert_credit_card,661,credit card,False,train,False,292,Pick up the credit card with your right hand and insert it into the wallet.
+830,insert_credit_card,662,credit card,False,train,False,294,Pick up the credit card with your right hand and insert it into the wallet.
+831,insert_credit_card,663,credit card,False,train,False,347,Pick up the credit card with your right hand and insert it into the wallet.
+832,insert_credit_card,664,credit card,False,train,False,171,Pick up the credit card with your right hand.
+833,insert_credit_card,665,credit card,False,val,False,542,Pick up the credit card with your right hand and insert it into the wallet.
+834,insert_credit_card,666,credit card,False,train,False,333,Pick up the credit card with your right hand and insert it into the wallet.
+835,insert_credit_card,667,credit card,False,val,False,121,Pick up the credit card with your right hand.
+836,insert_credit_card,668,credit card,False,train,False,400,Pick up the credit card with your right hand and insert it into the wallet.
+837,insert_credit_card,669,credit card,False,train,False,337,Pick up the credit card with your right hand and insert it into the wallet.
+838,insert_credit_card,670,credit card,False,train,False,366,Pick up the credit card with your right hand and insert it into the wallet.
+839,insert_credit_card,671,credit card,False,train,False,276,Pick up the credit card with your right hand and insert it into the wallet.
+840,insert_credit_card,672,credit card,False,train,False,305,Pick up the credit card with your right hand and insert it into the wallet.
+841,insert_credit_card,673,credit card,False,train,False,431,Pick up the credit card with your right hand and insert it into the wallet.
+842,insert_credit_card,674,credit card,False,train,False,377,Pick up the credit card with your right hand and insert it into the wallet.
+843,insert_credit_card,675,credit card,False,train,False,286,Pick up the credit card with your right hand and insert it into the wallet.
+844,insert_credit_card,676,credit card,False,train,False,271,Pick up the credit card with your right hand and insert it into the wallet.
+845,insert_credit_card,678,credit card,False,train,False,485,Pick up the credit card with your right hand and insert it into the wallet.
+846,insert_credit_card,679,credit card,False,train,False,276,Pick up the credit card with your right hand and insert it into the wallet.
+847,insert_credit_card,680,credit card,False,train,False,375,Pick up the credit card with your right hand and insert it into the wallet.
+848,insert_credit_card,681,credit card,False,train,False,333,Pick up the credit card with your right hand and insert it into the wallet.
+849,insert_credit_card,682,credit card,False,train,False,289,Pick up the credit card with your right hand and insert it into the wallet.
+850,insert_credit_card,683,credit card,False,train,False,324,Pick up the credit card with your right hand and insert it into the wallet.
+851,insert_credit_card,685,credit card,False,train,False,473,Pick up the credit card with your right hand and insert it into the wallet.
+852,insert_credit_card,686,credit card,False,val,False,252,Pick up the credit card with your right hand and insert it into the wallet.
+853,insert_credit_card,687,credit card,False,train,False,189,Pick up the credit card with your right hand and insert it into the wallet.
+854,insert_credit_card,688,credit card,False,val,False,144,Pick up the credit card with your right hand and insert it into the wallet.
+855,insert_credit_card,689,credit card,False,train,False,155,Pick up the credit card with your right hand and insert it into the wallet.
+856,insert_credit_card,690,credit card,False,train,False,205,Pick up the credit card with your right hand and insert it into the wallet.
+857,insert_credit_card,691,credit card,False,train,False,175,Pick up the credit card with your right hand and insert it into the wallet.
+858,insert_credit_card,692,credit card,False,train,False,229,Pick up the credit card with your right hand and insert it into the wallet.
+859,insert_credit_card,693,credit card,False,train,False,196,Pick up the credit card with your right hand and insert it into the wallet.
+860,insert_credit_card,694,credit card,False,train,False,271,Pick up the credit card with your right hand and insert it into the wallet.
+861,insert_credit_card,695,credit card,False,train,False,102,Pick up the credit card with your right hand.
+862,insert_credit_card,696,credit card,False,train,False,286,Pick up the credit card with your right hand and insert it into the wallet.
+863,insert_credit_card,697,credit card,False,train,False,346,Pick up the credit card with your right hand and insert it into the wallet.
+864,insert_credit_card,698,credit card,False,val,False,736,Pick up the credit card with your right hand and insert it into the wallet.
+865,insert_credit_card,699,credit card,False,train,False,332,Pick up the credit card with your right hand and insert it into the wallet.
+866,insert_credit_card,700,credit card,False,train,False,234,Pick up the credit card with your right hand and insert it into the wallet.
+867,insert_credit_card,701,credit card,False,train,False,588,Pick up the credit card with your right hand and insert it into the wallet.

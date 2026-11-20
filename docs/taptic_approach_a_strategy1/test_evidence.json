@@ -1,0 +1,27 @@
+{
+  "ONLINE_OFFLINE_AGREEMENT": {
+    "max_absolute_counts_per_s": 3.979039320256561e-13,
+    "read_cutoffs": 70
+  },
+  "APPROACH_A_REAL_MODEL": {
+    "fixed_bitwise_equal": true,
+    "selected_tactile_steps": [
+      2,
+      4,
+      6
+    ],
+    "cache_builds": 1,
+    "shape": [
+      2,
+      16,
+      21
+    ]
+  },
+  "test_summary": "73 passed in 21.91s",
+  "environment": {
+    "python": "3.12.13",
+    "torch": "2.10.0+cu128",
+    "transformers": "4.57.1",
+    "device": "CPU"
+  }
+}

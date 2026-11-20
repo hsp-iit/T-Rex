@@ -1,0 +1,72 @@
+[
+  {
+    "tick_ns": 1216549405822182,
+    "available_ns": 1216549408854033,
+    "cache": 0,
+    "split": 0.2,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549392398220,
+    "tactile_steps": 2
+  },
+  {
+    "tick_ns": 1216549455822182,
+    "available_ns": 1216549461536919,
+    "cache": 0,
+    "split": 0.4,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549446045972,
+    "tactile_steps": 4
+  },
+  {
+    "tick_ns": 1216549505822182,
+    "available_ns": 1216549514061642,
+    "cache": 0,
+    "split": 0.6,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549497458309,
+    "tactile_steps": 6
+  },
+  {
+    "tick_ns": 1216549605822182,
+    "available_ns": 1216549608670086,
+    "cache": 1,
+    "split": 0.2,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549601501583,
+    "tactile_steps": 2
+  },
+  {
+    "tick_ns": 1216549655822182,
+    "available_ns": 1216549661726705,
+    "cache": 1,
+    "split": 0.4,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549653898511,
+    "tactile_steps": 4
+  },
+  {
+    "tick_ns": 1216549705822182,
+    "available_ns": 1216549714292063,
+    "cache": 1,
+    "split": 0.6,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549693234293,
+    "tactile_steps": 6
+  },
+  {
+    "tick_ns": 1216549755822182,
+    "available_ns": 1216549758933126,
+    "cache": 1,
+    "split": 0.2,
+    "status": "plan_accepted",
+    "command_status": "command_reference",
+    "last_tactile_read_ns": 1216549746969338,
+    "tactile_steps": 2
+  }
+]

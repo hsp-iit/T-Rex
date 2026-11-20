@@ -1,0 +1,132 @@
+[
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000010.npz",
+    "sdk_force_shape": [
+      7030,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000037.npz",
+    "sdk_force_shape": [
+      3055,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000076.npz",
+    "sdk_force_shape": [
+      2922,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000085.npz",
+    "sdk_force_shape": [
+      5252,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000102.npz",
+    "sdk_force_shape": [
+      1250,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000159.npz",
+    "sdk_force_shape": [
+      2424,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000231.npz",
+    "sdk_force_shape": [
+      6082,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000257.npz",
+    "sdk_force_shape": [
+      1809,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000601.npz",
+    "sdk_force_shape": [
+      2279,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000647.npz",
+    "sdk_force_shape": [
+      2130,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000649.npz",
+    "sdk_force_shape": [
+      2327,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000799.npz",
+    "sdk_force_shape": [
+      3570,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  },
+  {
+    "file": "docs/taptic_risk_analysis/representative_features/episode_000800.npz",
+    "sdk_force_shape": [
+      6977,
+      5,
+      3
+    ],
+    "fields": 36,
+    "all_arrays_finite": true
+  }
+]

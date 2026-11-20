@@ -1,0 +1,96 @@
+{
+  "episode": 59,
+  "task": "dosing_pipette",
+  "object": "pipette",
+  "source_episode": 61,
+  "frames": 473,
+  "native_tactile": true,
+  "frame_interval_ms_min_median_max": [
+    93.686751,
+    100.13447,
+    107.454753
+  ],
+  "roundtrip_position_max_m": 4.134045883397164e-10,
+  "roundtrip_angle_max_rad": 2.795249136243284e-09,
+  "roundtrip_action21_max_abs": 2.957795852687184e-08,
+  "random_predictions": 7,
+  "random_prediction_shape": [
+    7,
+    16,
+    21
+  ],
+  "selected_splits": [
+    0.2,
+    0.4,
+    0.6
+  ],
+  "cache_builds": 2,
+  "cache_immutable": true,
+  "future_tactile_accesses": 0,
+  "command_references": 37,
+  "random_plan_rejections": 0,
+  "missed_deadlines": 0,
+  "weights_unchanged": true,
+  "random_chunks_outside_recorded_episode_envelope": 7,
+  "source_unchanged": true,
+  "model_id": "tiny-random-seed321:9775caed048bc2b5f03a33bad9fbad0d70630d522b0232f209e69809e5aae739",
+  "normalization_id": "2cb4413590d48340a5f1b7af6b0d1bdb362e5176d6acf9bbafd36168cd75f5c1",
+  "config_id": "fcdbc5329eba072aaa7821432772d769d6d72c600d63a44438d6c923ea1b6aec",
+  "limits_status": "PERMISSIVE DIAGNOSTIC LIMITS; NOT HARDWARE SAFETY LIMITS",
+  "limits": {
+    "position_min": [
+      -100.0,
+      -100.0,
+      -100.0
+    ],
+    "position_max": [
+      100.0,
+      100.0,
+      100.0
+    ],
+    "joint_min": [
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0,
+      -100.0
+    ],
+    "joint_max": [
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0,
+      100.0
+    ],
+    "cartesian_velocity": 10000.0,
+    "angular_velocity": 10000.0,
+    "joint_velocity": 10000.0,
+    "cartesian_acceleration": 100000000000000.0,
+    "angular_acceleration": 100000000000000.0,
+    "joint_acceleration": 100000000000000.0,
+    "position_jump": 100.0,
+    "angular_jump": 4.0,
+    "joint_jump": 100.0
+  },
+  "transition_ms": 60,
+  "latency_convention": "measured CPU wall duration mapped into historical monotonic clock; NOT historical/real-time latency",
+  "timing_convention": "recorded_row labels; no measured Panda actuator application deadline",
+  "command_position_step_max_m": 0.34810043499430093,
+  "command_cartesian_speed_max_m_s": 19.683017835240364,
+  "command_joint_speed_max_rad_s": 52.39893121197676,
+  "command_angular_speed_max_rad_s": 36.083928504184364
+}

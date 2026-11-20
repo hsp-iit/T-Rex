@@ -1,0 +1,24 @@
+Loaded 565 native episodes / 1018033 retained reads
+{
+  "native_episodes": 565,
+  "legacy_episodes": 303,
+  "synthetic_rows_excluded": 560763,
+  "retained_reads": 1018033,
+  "valid_duration_s": 13351.382979275,
+  "representative_episodes": [
+    649,
+    601,
+    647,
+    85,
+    76,
+    159,
+    102,
+    800,
+    799,
+    231,
+    257,
+    10,
+    37
+  ],
+  "all_source_files_unchanged": true
+}

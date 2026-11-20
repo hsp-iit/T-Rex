@@ -1,0 +1,10 @@
+============================= test session starts ==============================
+platform linux -- Python 3.12.13, pytest-9.0.3, pluggy-1.6.0
+rootdir: /home/mfincato-iit.local/T-Rex
+configfile: pyproject.toml
+plugins: anyio-4.12.1, colcon-core-0.19.0, cov-7.1.0, rerunfailures-16.1, repeat-0.9.4
+collected 10 items
+
+tests/taptic/test_adapter.py ..........                                  [100%]
+
+============================== 10 passed in 5.41s ==============================
