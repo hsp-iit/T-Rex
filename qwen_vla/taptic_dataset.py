@@ -26,6 +26,13 @@ With tactile_delay_ms=[0] (default) F = S and the batch is the baseline's.
 
 Contact risk (--risk_stats): r_S at S and r_F at F from taptic.risk, with
 explicit validity; legacy 10 Hz episodes are always risk-invalid.
+
+Future-risk TARGETS (--risk_future_head_weight > 0 or --risk_future_probe 1):
+`risk_future[k]` = the causal risk r(t_k) at the recorded slot time t_k = times[t+k]
+(the value an online extractor would report at t_k), with `risk_future_valid`, and the
+masks `risk_future_after_S` (t_k > S) / `risk_future_after_F` (t_k > F, inside the
+aligned window). They are supervision for auxiliary heads only and never enter the
+model as inputs.
 """
 from __future__ import annotations
 import copy
@@ -49,6 +56,11 @@ from .flow_matching import validate_split_config
 TACTILE_INPUTS = ('taxels', 'sdk_force')
 TAPTIC_FORCE_SIGNAL = 'taptic_sdk_force'
 MAX_TACTILE_DELAY_MS = 500
+
+
+def risk_future_enabled(cfg):
+    return bool(float(getattr(cfg, 'risk_future_head_weight', 0.) or 0.) > 0
+                or int(getattr(cfg, 'risk_future_probe', 0) or 0))
 
 
 def tactile_delays_ms(cfg):
@@ -117,6 +129,8 @@ def validate_config(cfg):
         raise ValueError('use_risk_tokens=1 requires --risk_stats (train-only risk statistics)')
     if getattr(cfg, 'risk_stats', '') and mode != 'sdk_force':
         raise ValueError('contact-risk features require sdk_force input')
+    if risk_future_enabled(cfg) and not getattr(cfg, 'risk_stats', ''):
+        raise ValueError('future-risk targets (risk_future_head_weight / risk_future_probe) require --risk_stats')
     validate_split_config(cfg)
 
 
@@ -167,6 +181,7 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         self.delays_ns = tuple(int(d) * 1_000_000 for d in tactile_delays_ms(config))
         self.emit_slot_mask = self.delays_ns != (0,)
         self.risk_stats = self.risk_cfg = None
+        self.risk_future = risk_future_enabled(config)
         if getattr(config, 'risk_stats', ''):
             self.risk_cfg = RiskConfig.from_args(config)
             self.risk_stats = RiskStats.load(config.risk_stats)
@@ -299,12 +314,20 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         else:
             policy_tactile = scaled.reshape(5, 360)
         risk_S = risk_F = None
+        future = None
         if self.risk_stats is not None:
-            feats = risk_features(self._cache_force if native else None, np.array([slow_ns, fast_ns]),
+            ticks = [slow_ns, fast_ns] + ([int(x) for x in slot_ns] if self.risk_future else [])
+            feats = risk_features(self._cache_force if native else None, np.array(ticks, dtype=np.int64),
                                   self.risk_stats, self.risk_cfg, self._cache_joint)
             risk_S, risk_F = features_at(feats, 0), features_at(feats, 1)
             if not aligned:
                 risk_F['risk_valid'] = False
+            if self.risk_future:
+                # Targets only: causal r(t_k) at each recorded slot time, strictly after S / F.
+                future = {'risk': feats['risk'][2:].astype(np.float32),
+                          'valid': feats['risk_valid'][2:].astype(bool),
+                          'after_S': np.asarray(slot_ns > slow_ns, bool),
+                          'after_F': np.asarray(slot_ns > fast_ns, bool) & aligned}
         return {'head': self._img(ep, CAMERAS[0], t), 'fast': [self._img(ep, CAMERAS[1], t)],
                 'language': self.source.episodes.loc[ep, 'caption'], 'action_chunk': chunk_21d(s, a, t),
                 'tactile_f6': policy_tactile, 'tactile_taxels': taxels,
@@ -319,7 +342,37 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                          'action_timestamps_ns': times[t:t+16].copy(),
                          'slow_ns': slow_ns, 'fast_ns': fast_ns, 'tactile_delay_ns': delay_ns,
                          'fast_tick_aligned': aligned}, 'delay_k': 0,
-                'risk_S': risk_S, 'risk_F': risk_F, 'tactile_slot_mask': slot_mask}
+                'risk_S': risk_S, 'risk_F': risk_F, 'tactile_slot_mask': slot_mask,
+                'risk_future': future}
+
+    def anchor_risk(self, log=None):
+        """r_S (risk at the slow tick S = times[t]) and its validity for every row of this split,
+        computed exactly as __getitem__ does (same force track; legacy episodes are invalid).
+        Used to build the high-risk oversampling sampler; no images or frames are decoded."""
+        if self.risk_stats is None:
+            raise ValueError('anchor_risk needs --risk_stats')
+        rows = np.asarray(self._rows, dtype=np.int64).reshape(-1, 2)
+        risk = np.zeros(len(rows), np.float32)
+        valid = np.zeros(len(rows), bool)
+        eps = rows[:, 0]
+        for n, ep in enumerate(dict.fromkeys(eps.tolist())):
+            if bool(self.source.episodes.loc[ep, 'tactile_interpolated']):
+                continue
+            idx = np.flatnonzero(eps == ep)
+            times = self.source.clocks(ep)
+            sm, available = self.source.tactile(ep)
+            gap_ms = getattr(self.config, 'tactile_gap_ms', 50.)
+            track = build_force_track(sm, available, times, int(gap_ms * 1e6))
+            joint = None
+            if self.risk_cfg.joint_source == 'state10hz':
+                s = finite(np.stack(self.source.frames(ep)['observation.state']).astype(np.float32), 'state')
+                joint = joint_track_from_frames(times, s)
+            f = risk_features(track, np.asarray(times)[rows[idx, 1]].astype(np.int64),
+                              self.risk_stats, self.risk_cfg, joint)
+            risk[idx], valid[idx] = f['risk'], f['risk_valid']
+            if log and (n + 1) % 200 == 0:
+                log(f'[risk] anchor risk: {n + 1} episodes')
+        return risk, valid
 
     def normalize_actions(self, x):
         return normalize(x, self.action_stats)
@@ -400,6 +453,14 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         else:
             risk = {f'risk_{tag}{suf}': None for tag in 'SF' for suf in ('', '_valid')}
             risk.update(risk_features_S=None, risk_features_F=None)
+        fut = [x.get('risk_future') for x in batch]
+        if fut[0] is not None:
+            risk['risk_future'] = torch.from_numpy(np.stack([f['risk'] for f in fut]))
+            for k in ('valid', 'after_S', 'after_F'):
+                risk[f'risk_future_{k}'] = torch.from_numpy(np.stack([f[k] for f in fut]))
+        else:
+            risk.update(risk_future=None, risk_future_valid=None, risk_future_after_S=None,
+                        risk_future_after_F=None)
         slot_mask = (torch.from_numpy(np.stack([x['tactile_slot_mask'] for x in batch]))
                      if self.emit_slot_mask else None)
         streams = [x['tactile_stream'] for x in batch]

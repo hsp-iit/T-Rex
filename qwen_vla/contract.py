@@ -87,11 +87,36 @@ def load_with_contract(model, state_dict: dict, ckpt_arch: Optional[dict] = None
 
 # ── training variants (guard against mislabelled launches) ──────────────────
 
+def risk_options(args):
+    return {'head': float(getattr(args, 'risk_future_head_weight', 0.) or 0.),
+            'probe': int(getattr(args, 'risk_future_probe', 0) or 0),
+            'dropout': float(getattr(args, 'risk_dropout', 0.) or 0.),
+            'oversample': float(getattr(args, 'risk_oversample', 1.) or 1.)}
+
+
+def validate_risk_options(args):
+    """Future-risk head/probe, risk dropout and oversampling need their inputs."""
+    o = risk_options(args)
+    errors = []
+    if (o['head'] > 0 or o['probe'] or o['oversample'] > 1) and not getattr(args, 'risk_stats', ''):
+        errors.append('future-risk head/probe and risk oversampling need --risk_stats')
+    if o['head'] < 0 or not 0 <= o['dropout'] < 1:
+        errors.append('risk_future_head_weight must be >= 0 and risk_dropout in [0, 1)')
+    if o['dropout'] > 0 and not getattr(args, 'use_risk_tokens', 0):
+        errors.append('risk_dropout only applies to risk tokens (--use_risk_tokens 1)')
+    if o['oversample'] < 1 or o['oversample'] != int(o['oversample']):
+        errors.append('risk_oversample must be an integer >= 1')
+    if errors:
+        raise ValueError('risk options: ' + '; '.join(errors))
+
+
 def validate_variant(args):
     """If --variant is set, the flags must define exactly that variant."""
+    validate_risk_options(args)
     v = getattr(args, 'variant', '') or ''
     if not v:
         return
+    o = risk_options(args)
     mode = getattr(args, 'cascaded_split_mode', 'fixed')
     splits = set(float(x) for x in getattr(args, 'cascaded_splits', (.2, .4, .6)))
     risk_tokens = bool(getattr(args, 'use_risk_tokens', 0))
@@ -104,11 +129,15 @@ def validate_variant(args):
             errors.append('vanilla has no risk tokens')
         if delays != (0,):
             errors.append('vanilla uses tactile_delay_ms [0] (the launched baseline)')
+        if o['head'] > 0 or o['probe'] or o['dropout'] > 0 or o['oversample'] > 1:
+            errors.append('vanilla has no future-risk head/probe, risk dropout or oversampling')
     elif v in ('multisplit', 'ours'):
         if mode != 'multi' or splits != {.2, .4, .6}:
             errors.append(f'{v} = uniform multi-split over {{0.2, 0.4, 0.6}}')
         if v == 'multisplit' and risk_tokens:
             errors.append('multisplit has no risk tokens (an external gate is inference-only)')
+        if v == 'multisplit' and (o['head'] > 0 or o['dropout'] > 0 or o['oversample'] > 1):
+            errors.append('multisplit uses no risk in training (only the detached future-risk probe is allowed)')
         if v == 'ours' and not (risk_tokens and getattr(args, 'risk_stats', '')):
             errors.append('ours needs --use_risk_tokens 1 and --risk_stats')
     else:

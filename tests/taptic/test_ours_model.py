@@ -524,7 +524,12 @@ def test_launchers_parse_and_vanilla_matches_the_launched_baseline(tmp_path):
     assert got['ours']['tactile_delay_ms'] == [0, 50, 100, 150] == got['multisplit']['tactile_delay_ms']
     assert got['multisplit']['use_risk_tokens'] == 0 and got['multisplit']['risk_stats'] == got['ours']['risk_stats']
     same = {k for k in base if k not in ('variant', 'cascaded_split_mode', 'tactile_delay_ms', 'risk_stats',
-                                          'use_risk_tokens')}
+                                          'use_risk_tokens', 'risk_future_head_weight', 'risk_future_probe',
+                                          'risk_dropout', 'risk_oversample')}
+    assert (got['ours']['risk_future_head_weight'], got['ours']['risk_future_probe'], got['ours']['risk_dropout'],
+            got['ours']['risk_oversample']) == (0.1, 1, 0.1, 2.0)
+    assert got['multisplit']['risk_future_probe'] == 1 and got['multisplit']['risk_future_head_weight'] == 0
+    assert got['vanilla']['risk_future_probe'] == 0 and got['vanilla']['risk_oversample'] == 1.0
     for k in same:   # identical budget, data, init, optimization across variants
         assert got['ours'][k] == got['multisplit'][k] == got['vanilla'][k], k
 

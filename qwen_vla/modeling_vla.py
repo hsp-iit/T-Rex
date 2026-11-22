@@ -91,6 +91,8 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_config:            dict = None,
         use_risk_tokens:         bool = False,
         risk_n_frequencies:      int  = 8,
+        risk_future_head:        bool = False,
+        risk_future_probe:       bool = False,
     ):
         super().__init__()
         self.config             = config
@@ -115,6 +117,8 @@ class Qwen3VLVLAModel(nn.Module):
         self.vqvae_config             = vqvae_config
         self.use_risk_tokens          = bool(use_risk_tokens)
         self.risk_n_frequencies       = int(risk_n_frequencies)
+        self.risk_future_head         = bool(risk_future_head)
+        self.risk_future_probe        = bool(risk_future_probe)
 
         self.visual = None
 
@@ -178,6 +182,16 @@ class Qwen3VLVLAModel(nn.Module):
             self.risk_embedder_action  = RiskEmbedder(H, self.risk_n_frequencies)
             self.risk_embedder_tactile = RiskEmbedder(H, self.risk_n_frequencies)
 
+        # Future-risk heads (auxiliary, never used to produce actions). Per chunk slot k they predict
+        # the causal risk r(t_k) at the slot's time, strictly after the observation tick:
+        #  - future_risk_head: on the Tactile expert's chunk tokens, trained jointly (aux loss);
+        #  - future_risk_probe: linear probe on the Action expert's chunk tokens, fed DETACHED
+        #    hidden states (it never changes the model), i.e. how much future risk the slow stream sees.
+        if self.risk_future_head:
+            self.future_risk_head = nn.Linear(H, 1)
+        if self.risk_future_probe:
+            self.future_risk_probe = nn.Linear(H, 1)
+
         # Flare visual prediction tokens for the latent expert
         if self.n_flare_tokens > 0:
             # flare_queries è un parametro addestrabile [1,K,H] K = 32
@@ -213,6 +227,8 @@ class Qwen3VLVLAModel(nn.Module):
         vqvae_config:             dict = None,
         use_risk_tokens:          bool = False,
         risk_n_frequencies:       int  = 8,
+        risk_future_head:         bool = False,
+        risk_future_probe:        bool = False,
     ) -> "Qwen3VLVLAModel":
         """
         Build a Qwen3VLVLAModel by:
@@ -263,6 +279,8 @@ class Qwen3VLVLAModel(nn.Module):
             vqvae_config = vqvae_config,
             use_risk_tokens = use_risk_tokens,
             risk_n_frequencies = risk_n_frequencies,
+            risk_future_head = risk_future_head,
+            risk_future_probe = risk_future_probe,
         )
         # Capture only the get_rope_index function — do NOT store the full
         # base model as an attribute, because nn.Module.__setattr__ would
@@ -453,6 +471,10 @@ class Qwen3VLVLAModel(nn.Module):
             nn.init.normal_(self.tactile_code_embedder.weight, mean=0.0, std=0.02)
         if self.use_risk_tokens:
             self.initialize_risk_weights()
+        for name in ('future_risk_head', 'future_risk_probe'):
+            if hasattr(self, name):
+                nn.init.zeros_(getattr(self, name).weight)
+                nn.init.zeros_(getattr(self, name).bias)
         nn.init.zeros_(self.final_layer.mlp.fc2.weight)
         if self.final_layer.mlp.fc2.bias is not None:
             nn.init.zeros_(self.final_layer.mlp.fc2.bias)
@@ -514,6 +536,7 @@ class Qwen3VLVLAModel(nn.Module):
                 'risk_tokens': self.use_risk_tokens,
                 'risk_token_version': RISK_TOKEN_VERSION if self.use_risk_tokens else None,
                 'risk_n_frequencies': self.risk_n_frequencies if self.use_risk_tokens else None,
+                'risk_future_head': self.risk_future_head, 'risk_future_probe': self.risk_future_probe,
                 'action_stream': 'fast|state|' + ('risk_S|' if self.use_risk_tokens else '') + 't|x',
                 'tactile_stream': 'tac_obs|' + ('risk_F|' if self.use_risk_tokens else '') + 'tau|x'}
 
@@ -1157,8 +1180,12 @@ class Qwen3VLVLAModel(nn.Module):
         flow_time_precision: str = 'fp32',
         risk: Optional[torch.Tensor] = None,
         risk_valid: Optional[torch.Tensor] = None,
+        return_hidden: bool = False,
     ) -> torch.Tensor:
         """Single tactile-only forward at (x_τ, τ) for cascaded training.
+
+        return_hidden=True also returns the Tactile expert's last hidden states of the
+        chunk tokens [B, n_chunk, H] (input of the future-risk head).
 
         Returns predicted velocity v_pred [B, n_chunk, action_dim] suitable for
         L_flow_tactile = MSE(v_pred, ε − A_demo).  Same target as the action
@@ -1225,6 +1252,8 @@ class Qwen3VLVLAModel(nn.Module):
         hidden = outputs.last_hidden_state
         # Questa istruzione estrae gli ultimi 16 token, corrispondenti alle azioni rumorose, e li passa alla prediction head tattile.
         v_pred = self.final_layer_tactile(hidden[:, -n_chunk:, :])
+        if return_hidden:
+            return v_pred, hidden[:, -n_chunk:, :]
         return v_pred
 
     def named_parameters(self, *args, **kwargs):

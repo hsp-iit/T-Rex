@@ -103,6 +103,40 @@ def tactile_flow_loss(pred, target, mask=None, slot_mask=None):
     return (err * m).sum() / m.sum().clamp_min(1.0)
 
 
+def _masked_mse(pred, target, mask):
+    """Mean squared error over mask entries; an empty mask gives a connected zero."""
+    m = mask.to(device=pred.device, dtype=torch.float32)
+    err = (pred.float() - target.to(device=pred.device, dtype=torch.float32)) ** 2
+    return (err * m).sum() / m.sum().clamp_min(1.0)
+
+
+def _risk_dropout(valid, p, training):
+    """Risk dropout (OURS): mark a valid risk measurement missing with probability p per sample,
+    training only, so the learned 'missing' embedding is not a proxy for the legacy tasks.
+    No RNG draw at all when disabled (p == 0 or validation)."""
+    if valid is None or not training or not p:
+        return valid
+    keep = torch.rand(valid.shape[0], device=valid.device) >= p
+    return valid.to(torch.bool) & keep
+
+
+def _future_risk_terms(pred, batch, after_key, base_risk, base_valid):
+    """Loss of a per-slot future-risk prediction [B, 16] and (validation) sums for the skill
+    against persistence (predict the current risk for every future slot)."""
+    tgt, ok = batch['risk_future'], batch['risk_future_valid'].to(torch.bool)
+    mask = ok & batch[after_key].to(device=ok.device, dtype=torch.bool)
+    loss = _masked_mse(pred, tgt, mask)
+    stats = None
+    if base_risk is not None:
+        with torch.no_grad():
+            m = (mask & base_valid.to(device=mask.device, dtype=torch.bool)[:, None]).to(pred.device)
+            t = tgt.to(device=pred.device, dtype=torch.float32)
+            persist = base_risk.to(device=pred.device, dtype=torch.float32)[:, None].expand_as(t)
+            stats = torch.stack([((pred.float() - t) ** 2 * m).sum(), ((persist - t) ** 2 * m).sum(),
+                                 m.float().sum()])
+    return loss, stats
+
+
 def _risk_inputs(raw_model, batch, tag):
     """(risk, valid) for the model's risk token, or (None, None) for a risk-free
     model (risk features may still be in the batch for logging / external gate)."""
@@ -175,6 +209,7 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
     n_state = state_embeds.shape[1]
     # r_S: slow-tick risk token, Action-routed, before the timestep token.
     risk_S, risk_S_valid = _risk_inputs(raw_model, batch, 'S')
+    risk_S_valid = _risk_dropout(risk_S_valid, getattr(args, 'risk_dropout', 0.), training)
     risk_S_tok = raw_model.risk_token(risk_S, risk_S_valid, 'action', B, slow_embeds.device, slow_embeds.dtype)
     n_risk = risk_S_tok.shape[1]
     # Prima dell'embedder batch["noisy_actions"].shape = [B, 16, D]
@@ -223,7 +258,14 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
     loss_act = nn.MSELoss()(v_act, target)
 
     res = {'loss_act': loss_act, 'loss_tac': 0.0, 'outputs': outputs, 'hidden': hidden, 'L_slow': L_slow,
-           'B': B, 'r_target_norm': None, 'tactile_dropped': False, 'n_risk': n_risk}
+           'B': B, 'r_target_norm': None, 'tactile_dropped': False, 'n_risk': n_risk,
+           'loss_risk_head': None, 'loss_risk_probe': None, 'risk_head_stats': None, 'risk_probe_stats': None}
+    if getattr(raw_model, 'risk_future_probe', False):
+        # Linear probe on DETACHED Action-expert hidden states: trains only the probe.
+        h_probe = hidden[:, act_pred_start: act_pred_start + chunk, :].detach()
+        pred_probe = raw_model.future_risk_probe(h_probe).squeeze(-1)
+        res['loss_risk_probe'], res['risk_probe_stats'] = _future_risk_terms(
+            pred_probe, batch, 'risk_future_after_S', batch.get('risk_S'), batch.get('risk_S_valid'))
     if has_any_tac and not is_stage1:
         fe = fast_embeds if n_fast > 0 else None
         se = state_embeds if n_state > 0 else None
@@ -270,16 +312,24 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
             tac_hist_in = torch.zeros_like(tac_hist_in) if tac_hist_in is not None else None
             # No tactile signal -> no fast-tick risk either: explicit "missing", not r=0.
             risk_F_valid = torch.zeros_like(risk_F_valid) if risk_F_valid is not None else None
+        risk_F_valid = _risk_dropout(risk_F_valid, getattr(args, 'risk_dropout', 0.), training)
         res['tactile_dropped'] = bool(drop)
         # Calcolo della loss e chiamata a tactile_flow_train_step
         # Quindi tactile_flow_train_step non restituisce direttamente un chunk pulito.
         # Restituisce la velocità predetta dal Tactile Expert nel punto di flow campionato.
         # L'aggiornamento con Eulero si farà durante l'inferenza, nella funzione tactile_flow_continue
-        v_pred_r = raw_model.tactile_flow_train_step(
+        head = getattr(raw_model, 'risk_future_head', False)
+        out_t = raw_model.tactile_flow_train_step(
             cached_kv=cached_kv, latent_position_ids=pos_ids, n_action_in_cache=n_action_in_cache,
             x_tau=x_tau, tau=tau_t, flow_time_precision=args.flow_time_precision,
             tactile_f6=tac_f6_in, tactile_deform=tac_def_in, tactile_codes=tac_codes_in,
-            tactile_f6_history=tac_hist_in, risk=risk_F, risk_valid=risk_F_valid)
+            tactile_f6_history=tac_hist_in, risk=risk_F, risk_valid=risk_F_valid, return_hidden=head)
+        v_pred_r = out_t[0] if head else out_t
+        if head:
+            # Future risk from the Tactile expert's chunk tokens (aux loss, trains the tactile path).
+            pred_head = raw_model.future_risk_head(out_t[1]).squeeze(-1)
+            res['loss_risk_head'], res['risk_head_stats'] = _future_risk_terms(
+                pred_head, batch, 'risk_future_after_F', batch.get('risk_F'), batch.get('risk_F_valid'))
         res['loss_tac'] = tactile_flow_loss(v_pred_r, v_target_r, batch.get("tactile_loss_mask"),
                                             batch.get("tactile_slot_mask"))
     return res
@@ -449,6 +499,51 @@ class EpisodeGroupedSampler(_DistributedSampler):
                 indices = np.concatenate([indices] + wrap_parts)
 
         return iter(indices[:chunk].tolist())
+
+
+class RiskOversampledEpisodeSampler(EpisodeGroupedSampler):
+    """EpisodeGroupedSampler with compute-neutral high-risk oversampling (OURS).
+
+    Each epoch every high-risk row (r_S valid and >= threshold) appears `factor` times and the
+    same number of extra slots is freed by dropping randomly chosen other rows (a fresh draw per
+    epoch), so the epoch length, the number of optimizer steps and the LR schedule are those of
+    the plain sampler. Episode order and the rank split follow EpisodeGroupedSampler (frames stay
+    grouped by episode, duplicates adjacent, so the per-worker episode cache stays warm).
+    """
+
+    def __init__(self, dataset, high_mask, factor, **kw):
+        super().__init__(dataset, **kw)
+        self.high = np.asarray(high_mask, bool)
+        self.factor = int(factor)
+        if len(self.high) != int(self._cum_frames[-1]):
+            raise ValueError('high-risk mask does not match the dataset rows')
+        n_high = int(self.high.sum())
+        self.n_drop = (self.factor - 1) * n_high
+        if self.factor < 2 or self.n_drop > int((~self.high).sum()):
+            raise ValueError(f'cannot oversample {n_high} high-risk rows x{self.factor} at constant epoch length')
+        self.high_share = self.factor * n_high / len(self.high)
+
+    def __iter__(self):
+        g = torch.Generator()
+        g.manual_seed(self.seed + self.epoch)
+        ep_perm = (torch.randperm(self._num_episodes, generator=g).numpy() if self.shuffle
+                   else np.arange(self._num_episodes))
+        mult = np.where(self.high, self.factor, 1).astype(np.int64)
+        low = np.flatnonzero(~self.high)
+        drop = low[torch.randperm(len(low), generator=g)[:self.n_drop].numpy()]
+        mult[drop] = 0
+        parts = []
+        for ep_idx in ep_perm:
+            a = int(self._orig_starts[ep_idx])
+            b = a + int(self._frame_counts[ep_idx])
+            parts.append(np.repeat(np.arange(a, b, dtype=np.int64), mult[a:b]))
+        order = np.concatenate(parts)
+        chunk = self.num_samples
+        lo = self.rank * chunk
+        idx = order[lo:lo + chunk]
+        if len(idx) < chunk:                              # wrap like the parent sampler
+            idx = np.concatenate([idx, order[:chunk - len(idx)]])
+        return iter(idx.tolist())
 
 
 class MidtrainTacFlareDataset(Dataset):
@@ -1347,6 +1442,11 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
                 "architecture": accelerator.unwrap_model(model).architecture_contract(),
                 "use_risk_tokens": int(getattr(args, "use_risk_tokens", 0)),
                 "risk_n_frequencies": getattr(args, "risk_n_frequencies", 8),
+                "risk_future_head_weight": float(getattr(args, "risk_future_head_weight", 0.)),
+                "risk_future_probe": int(getattr(args, "risk_future_probe", 0)),
+                "risk_dropout": float(getattr(args, "risk_dropout", 0.)),
+                "risk_oversample": float(getattr(args, "risk_oversample", 1.)),
+                "risk_oversample_report": getattr(args, "risk_oversample_report", None),
                 "resume_checkpoint": getattr(args, "resume_checkpoint", ""),
                 "resume_load_report": getattr(args, "resume_load_report", None),
                 "model_path": args.model_path,
@@ -1427,6 +1527,8 @@ def run_validation(model, val_dataloader, accelerator, args,
     val_act = torch.tensor(0.0, device=device)
     val_tac = torch.tensor(0.0, device=device)
     val_flare = torch.tensor(0.0, device=device)
+    risk_sums = {k: torch.zeros(3, device=device) for k in ('head', 'probe')}
+    risk_loss = {k: torch.tensor(0.0, device=device) for k in ('head', 'probe')}
     n_val = 0
     max_batches = getattr(args, "max_val_batches", 50)
 
@@ -1442,19 +1544,35 @@ def run_validation(model, val_dataloader, accelerator, args,
 
         val_act += loss_act.item()
         val_tac += (loss_tac.item() if torch.is_tensor(loss_tac) else loss_tac)
+        for k in ('head', 'probe'):
+            if res.get(f'risk_{k}_stats') is not None:
+                risk_sums[k] += res[f'risk_{k}_stats'].to(device)
+            if res.get(f'loss_risk_{k}') is not None:
+                risk_loss[k] += res[f'loss_risk_{k}'].detach().float()
         n_val += 1
 
-    for t in [val_act, val_tac, val_flare]:
+    for t in [val_act, val_tac, val_flare] + list(risk_sums.values()) + list(risk_loss.values()):
         if dist.is_initialized():
             dist.all_reduce(t, op=dist.ReduceOp.SUM)
     ws = dist.get_world_size() if dist.is_initialized() else 1
     denom = ws * max(n_val, 1)
 
     model.train()
-    return {
+    out = {
         "val/action_loss": val_act.item() / denom,
         "val/tactile_loss": val_tac.item() / denom,
     }
+    raw = accelerator.unwrap_model(model)
+    for k, flag in (('head', 'risk_future_head'), ('probe', 'risk_future_probe')):
+        if getattr(raw, flag, False):
+            sse_m, sse_p, n = (float(x) for x in risk_sums[k])
+            out[f"val/risk_{k}_loss"] = risk_loss[k].item() / denom
+            if n > 0:
+                # skill > 0: better than repeating the current risk for every future slot
+                out[f"val/risk_{k}_mse"] = sse_m / n
+                out[f"val/risk_{k}_persist_mse"] = sse_p / n
+                out[f"val/risk_{k}_skill"] = 1. - sse_m / max(sse_p, 1e-12)
+    return out
 
 
 def train(args):
@@ -1560,6 +1678,8 @@ def train(args):
         vqvae_config=vqvae_config,
         use_risk_tokens=bool(getattr(args, "use_risk_tokens", 0)),
         risk_n_frequencies=getattr(args, "risk_n_frequencies", 8),
+        risk_future_head=float(getattr(args, "risk_future_head_weight", 0.)) > 0,
+        risk_future_probe=bool(getattr(args, "risk_future_probe", 0)),
     )
     if args.use_tactile_deform:
         model.load_deform_encoder_weights(args.deform_encoder_ckpt)
@@ -1688,8 +1808,29 @@ def train(args):
             prefetch_factor=4 if n_workers_val > 0 else None,
         )
 
-    train_sampler = EpisodeGroupedSampler(
-        dataset, shuffle=True, seed=args.seed, drop_last=True)
+    if float(getattr(args, "risk_oversample", 1.0)) > 1:
+        # High risk = r_S in the gate's tau = 0.6 regime unless a threshold is given.
+        from taptic.risk import RiskStats
+        thr = args.risk_oversample_threshold
+        if thr is None:
+            gates = RiskStats.load(args.risk_stats).gate_thresholds
+            if gates is None:
+                raise ValueError('risk statistics carry no gate thresholds: pass --risk_oversample_threshold')
+            thr = float(gates[1])
+        r_rows, v_rows = dataset.anchor_risk(log=accelerator.print)
+        high = v_rows & (r_rows >= thr)
+        train_sampler = RiskOversampledEpisodeSampler(
+            dataset, high, int(args.risk_oversample), shuffle=True, seed=args.seed, drop_last=True)
+        accelerator.print(
+            f"[risk] high-risk oversampling x{int(args.risk_oversample)}: r_S >= {thr:.4f} on "
+            f"{int(high.sum())}/{len(high)} rows ({high.mean():.1%}; risk-valid {v_rows.mean():.1%}) "
+            f"-> {train_sampler.high_share:.1%} of each epoch; epoch length unchanged")
+        args.risk_oversample_report = {'threshold': thr, 'factor': int(args.risk_oversample),
+                                       'high_rows': int(high.sum()), 'rows': int(len(high)),
+                                       'epoch_high_share': float(train_sampler.high_share)}
+    else:
+        train_sampler = EpisodeGroupedSampler(
+            dataset, shuffle=True, seed=args.seed, drop_last=True)
     # 3. Richiedere i campioni e combinarli in batch tramite collate_fn
     dataloader = DataLoader(
         dataset, # 1. Leggere e costruire i singoli campioni
@@ -1851,11 +1992,16 @@ def train(args):
                 loss = loss + args.cascaded_loss_weight * loss_tac
             if torch.is_tensor(loss_flare):
                 loss = loss + args.flare_loss_weight * loss_flare
+            if res.get('loss_risk_head') is not None:
+                loss = loss + args.risk_future_head_weight * res['loss_risk_head']
 
 
             # BACKWARD: calcola e accumula gradienti.
             metric.update(loss, loss_act, loss_tac, loss_flare)
-            accelerator.backward(loss)
+            # The future-risk probe sees detached features: its loss only trains the probe, and it is
+            # kept out of the logged total so totals stay comparable across variants.
+            accelerator.backward(loss + res['loss_risk_probe'] if res.get('loss_risk_probe') is not None
+                                 else loss)
 
             # La condizione verifica se abbiamo accumulato il numero richiesto di microbatch.
             # Se gradient_accumulation_steps=4, il codice entra nel blocco agli step 4, 8, 12 e così via.
@@ -1896,6 +2042,9 @@ def train(args):
                         log_dict["refine/r_target_norm"] = float(r_target_norm)
                     log_dict.update(batch_diagnostics(batch))
                     log_dict["tactile/dropout_fired"] = float(res['tactile_dropped'])
+                    for k in ('head', 'probe'):
+                        if res.get(f'loss_risk_{k}') is not None:
+                            log_dict[f"risk_future/{k}_loss"] = float(res[f'loss_risk_{k}'].detach())
                     wandb.log(log_dict, step=global_step)
 
             # ── Validation ──
@@ -1909,7 +2058,9 @@ def train(args):
                     accelerator.print(
                         f"  [Val step={global_step}] "
                         f"act={val_m['val/action_loss']:.6f} "
-                        f"tac={val_m['val/tactile_loss']:.6f}")
+                        f"tac={val_m['val/tactile_loss']:.6f}"
+                        + "".join(f" risk_{k}_skill={val_m[f'val/risk_{k}_skill']:.4f}"
+                                  for k in ('head', 'probe') if f'val/risk_{k}_skill' in val_m))
                     wandb.log(val_m, step=global_step)
 
             global_step += 1
@@ -2009,6 +2160,21 @@ if __name__ == "__main__":
     parser.add_argument("--risk_rate_mode", default="vector", choices=["vector", "positive"],
                         help="R100: vector force variation (increases, decreases, direction changes; "
                              "default) or positive |F| increases only (previous definition, ablation).")
+    parser.add_argument("--risk_future_head_weight", type=float, default=0.0,
+                        help=">0: linear head on the Tactile expert's chunk tokens predicting the causal risk "
+                             "r(t_k) at each future slot time (aux MSE with this weight).")
+    parser.add_argument("--risk_future_probe", type=int, default=0,
+                        help="1: linear probe on DETACHED Action-expert chunk tokens, same target "
+                             "(measures future risk visible to the slow stream; never changes the model).")
+    parser.add_argument("--risk_dropout", type=float, default=0.0,
+                        help="Training only: mark a valid r_S / r_F missing with this probability (each "
+                             "independently), so 'missing risk' is not a proxy for the legacy tasks.")
+    parser.add_argument("--risk_oversample", type=float, default=1.0,
+                        help=">1 (integer): each epoch, high-risk rows appear this many times and as many "
+                             "other rows are dropped (epoch length unchanged).")
+    parser.add_argument("--risk_oversample_threshold", type=float, default=None,
+                        help="High risk = r_S >= this (default: the risk statistics' upper gate "
+                             "threshold, i.e. the tau = 0.6 regime).")
 
     # Cascaded flow matching (see train_qwen3vl_flare.py for details).
     parser.add_argument("--cascaded_split_mode", choices=["fixed", "multi"], default="fixed")

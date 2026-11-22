@@ -5,6 +5,8 @@
 #   VARIANT=multisplit  uniform tau in {0.2,0.4,0.6}, no risk tokens, delayed tactile F = S + {0,50,100,150} ms
 #                       (also the checkpoint for "external risk gate" inference: config 3)
 #   VARIANT=ours        multisplit + learned risk tokens r_S (Action) / r_F (Tactile) + same delays
+#                       + future-risk head (Tactile), risk dropout, high-risk oversampling
+#                       (multisplit and ours also train a DETACHED future-risk probe on the Action expert)
 #
 # Everything else — data revision/split, VQ-VAE, initialization, optimizer, epochs,
 # effective batch, seed, FLARE — is identical across variants. risk_stats are
@@ -37,6 +39,13 @@ LR=${LR:-1e-4}
 EPOCHS=${EPOCHS:-10}
 SEED=${SEED:-42}
 TACTILE_DELAY_MS=${TACTILE_DELAY_MS:-"0 50 100 150"}
+# OURS training components (docs/taptic_ours/REPORT.md addendum): future-risk head on the Tactile expert,
+# detached future-risk probe on the Action expert (also in multisplit: it never changes the model),
+# risk dropout and compute-neutral high-risk oversampling.
+RISK_FUTURE_HEAD_WEIGHT=${RISK_FUTURE_HEAD_WEIGHT:-0.1}
+RISK_FUTURE_PROBE=${RISK_FUTURE_PROBE:-1}
+RISK_DROPOUT=${RISK_DROPOUT:-0.1}
+RISK_OVERSAMPLE=${RISK_OVERSAMPLE:-2}
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-trex_midtrain_taptic_${VARIANT}}
 RUN_NAME=${RUN_NAME:-${EXPERIMENT_NAME}_$(date +%m%d_%H%M)}
 
@@ -45,12 +54,14 @@ case "$VARIANT" in
     VARIANT_ARGS=(--cascaded_split_mode fixed --cascaded_split_step 6 --tactile_delay_ms 0) ;;
   multisplit)
     VARIANT_ARGS=(--cascaded_split_mode multi --cascaded_splits 0.2 0.4 0.6 --tactile_delay_ms ${TACTILE_DELAY_MS}
-                  --risk_stats "${RISK_STATS}") ;;
+                  --risk_stats "${RISK_STATS}" --risk_future_probe ${RISK_FUTURE_PROBE}) ;;
   ours)
     VARIANT_ARGS=(--cascaded_split_mode multi --cascaded_splits 0.2 0.4 0.6 --tactile_delay_ms ${TACTILE_DELAY_MS}
                   --risk_stats "${RISK_STATS}" --use_risk_tokens 1
                   --risk_coefficients 0.25 0.50 0.25 --risk_rate_window_ms 100 --risk_velocity_window_ms 100
-                  --risk_joint_source sidecar --risk_rate_mode vector) ;;
+                  --risk_joint_source sidecar --risk_rate_mode vector
+                  --risk_future_head_weight ${RISK_FUTURE_HEAD_WEIGHT} --risk_future_probe ${RISK_FUTURE_PROBE}
+                  --risk_dropout ${RISK_DROPOUT} --risk_oversample ${RISK_OVERSAMPLE}) ;;
   *) echo "unknown VARIANT=$VARIANT" >&2; exit 2 ;;
 esac
 
@@ -118,8 +129,8 @@ accelerate launch \
     --image_size 384 288 \
     --num_workers "${NUM_WORKERS}" \
     --val_ratio "${VAL_RATIO}" \
-    --val_freq 500 \
-    --max_val_batches 50 \
+    --val_freq "${VAL_FREQ:-500}" \
+    --max_val_batches "${MAX_VAL_BATCHES:-50}" \
     "${VARIANT_ARGS[@]}" \
     "${RESUME_ARGS[@]}"
 

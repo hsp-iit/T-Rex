@@ -485,3 +485,31 @@ for the fixed-split configurations.
    fast tick costs 6 tactile forwards (vs 4). Real GPU latency is unmeasured.
 9. **Missing tactile at inference** uses zero inputs (the trained dropout condition) with r_F missing
    and τ = 0.4. This is a policy choice, not a validated fail-safe.
+
+---
+
+## Addendum (2026-11-22): future-risk head, probe, risk dropout, oversampling
+
+Four training components added to the OURS definition. Each is a flag; with all of them off the
+trainer is **bitwise equal to this branch's tip** (`b1a6510`) on real batches, with and without risk
+tokens (`test_disabled_components_are_bitwise_identical_to_ours_tip`).
+
+| Component | Flag (OURS launcher default) | What it does |
+|---|---|---|
+| Future-risk head | `--risk_future_head_weight 0.1` | Linear layer on the Tactile expert's 16 chunk tokens. Slot k predicts the causal risk r(t_k) at that slot's recorded time t_k = times[t+k], i.e. the value an online extractor would report then. Loss: MSE over valid slots with t_k > F, weight 0.1. It trains the head and the tactile path; the Action expert is untouched (no-grad cache). |
+| Future-risk probe | `--risk_future_probe 1` (also in `multisplit`) | Same target, linear layer on the **detached** Action-expert chunk tokens, slots with t_k > S. It never changes the model. In `multisplit` it measures how much future risk the slow stream sees without risk tokens; in `ours` the slow stream also sees r_S. |
+| Risk dropout | `--risk_dropout 0.1` | Training only: each valid r_S and r_F is marked missing with probability 0.1, independently. Otherwise "missing risk" means "legacy task" (all legacy episodes lack risk), see Limitation 5. Targets are never dropped. No RNG draw when disabled. |
+| High-risk oversampling | `--risk_oversample 2` | Each epoch, every training row with r_S ≥ the upper gate threshold (the τ = 0.6 regime; `--risk_oversample_threshold` overrides it) appears twice. The same number of other rows is dropped, with a fresh draw per epoch. Epoch length, optimizer steps and LR schedule are unchanged and frames stay grouped by episode (`RiskOversampledEpisodeSampler`). |
+
+**Why a *future* target.** The current r_F is a deterministic function of the force inputs the Tactile
+expert already receives, so recovering it proves nothing. Risk over the coming chunk must be anticipated
+from the plan, vision and contact history. Targets are supervision only: the batch inputs are identical
+with or without them (tested).
+
+**Validation metrics.** `val/risk_{head,probe}_mse`, `..._persist_mse` (baseline: repeat the current r_F or
+r_S for every future slot, on the same entries) and `..._skill = 1 − mse / persist_mse` (> 0 means better
+than persistence). `training_args.json` records the four flags and the oversampling report
+(threshold, high-risk rows, epoch share).
+
+**Not added (deliberately):** a learned gate, and risk-triggered replanning. The second is an inference-engine
+change that only a robot evaluation can measure.
