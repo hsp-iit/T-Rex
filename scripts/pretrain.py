@@ -23,8 +23,13 @@ import json
 import math
 import re
 import shutil
+import time
 import logging
 import argparse
+import collections
+import contextlib
+import functools
+import threading
 import warnings
 
 import cv2
@@ -131,102 +136,189 @@ def get_cosine_schedule_with_warmup(optimizer, num_warmup_steps, num_training_st
 
 class EpisodeGroupedSampler(_DistributedSampler):
     """
-    Distributed sampler that groups frame indices by episode for I/O locality.
+    Distributed sampler over one frame order per epoch that does not depend on
+    the number of ranks or the batch size, so a run can resume with other ones
+    exactly where it stopped.
 
-    Shuffles *episode* order for randomness, but emits each episode's frame
-    indices contiguously so that per-worker episode caching is effective.
-    Subclasses DistributedSampler so accelerate/DeepSpeed doesn't replace it.
+    Per epoch (seed + epoch) episodes are shuffled and their frames, laid end to
+    end, form the epoch's sequence. With shuffle_frames the sequence is also
+    shuffled inside consecutive windows of `window` frames (0 = one window, the
+    whole epoch), so a batch mixes frames of many episodes (use it when there is
+    no per-worker episode cache to exploit, e.g. LeRobot data); without it a
+    batch holds consecutive frames of an episode, for per-worker episode caching.
 
-    Memory-efficient: computes only this rank's indices via numpy cumsum +
-    searchsorted, avoiding a full-dataset Python list (which would OOM at
-    billions of transitions).
+    Global step k takes the N*B frames at positions [s + k*N*B, s + (k+1)*N*B)
+    of the epoch's order (N ranks, B = batch_size, s = start_sample); rank r gets
+    the r-th B of them. Whatever N and B were, the frames seen after any number
+    of steps are a prefix of the order: resuming with start_sample = frames of
+    the epoch already consumed continues exactly. The tail that does not fill a
+    global batch is dropped. Subclasses DistributedSampler so accelerate/DeepSpeed
+    doesn't replace it.
+
+    The window may change when a run resumes in the middle of an epoch
+    (resume_order): the frames already taken keep their order, and the rest of
+    the epoch is the frames not taken yet, shuffled with the new window, so each
+    frame is still taken once per epoch. Checkpoints record the epoch's order
+    (order_state), so later resumes rebuild the same one.
+
+    Memory-efficient: builds only this rank's indices (numpy, ~1/N of the epoch)
+    and one shuffle window at a time (with window 0 the whole epoch: ~0.6 GB per
+    rank while an epoch's order is built), never a full-dataset Python list.
     """
+    SHUFFLE_WINDOW = 1 << 22      # also the window of checkpoints that have no order record (older code)
 
-    def __init__(self, dataset, num_replicas=None, rank=None,
-                 shuffle=True, seed=0, drop_last=True, shuffle_frames=False):
+    def __init__(self, dataset, batch_size, num_replicas=None, rank=None,
+                 shuffle=True, seed=0, shuffle_frames=False, window=SHUFFLE_WINDOW):
         super().__init__(dataset, num_replicas=num_replicas, rank=rank,
-                         shuffle=shuffle, seed=seed, drop_last=drop_last)
-        # shuffle_frames: also shuffle frames inside this rank's share, so a batch
-        # mixes many episodes instead of holding consecutive frames of one. Use it
-        # when there is no per-worker episode cache to exploit (LeRobot data).
+                         shuffle=shuffle, seed=seed, drop_last=True)
+        self.batch_size = int(batch_size)
         self.shuffle_frames = shuffle_frames
-        self._cum_frames = dataset._cum_frames.copy()
-        self._num_episodes = dataset._num_episodes
-        # Per-episode frame counts (unshuffled)
-        self._frame_counts = np.diff(self._cum_frames, prepend=0)
-        # Per-episode original start index (unshuffled)
-        self._orig_starts = np.zeros(self._num_episodes, dtype=np.int64)
-        if self._num_episodes > 1:
-            self._orig_starts[1:] = self._cum_frames[:-1]
-        # Number of leading indices to drop from this rank's chunk on the
-        # next __iter__ call (used for resume). Zero-cost: dropped indices
+        # Frames shuffled in windows of this many (0 = whole epoch; None = not shuffled).
+        self.window = int(window) if (shuffle and shuffle_frames) else None
+        # Order of a resumed epoch that differs from self.window (see resume_order).
+        self.order = None
+        cum = np.asarray(dataset._cum_frames, dtype=np.int64)
+        self._frame_counts = np.diff(cum, prepend=0)       # per episode (unshuffled)
+        self._orig_starts = cum - self._frame_counts        # per episode start index
+        self.total_frames = int(cum[-1]) if len(cum) else 0
+        # Frames of the current epoch already consumed (all ranks together),
+        # skipped on the next __iter__ (resume). Zero-cost: skipped indices
         # never reach the workers, so no data is loaded for them.
-        self.start_index = 0
+        self.start_sample = 0
+
+    @property
+    def global_batch(self):
+        return self.num_replicas * self.batch_size
+
+    def steps(self, start_sample=None):
+        """Global steps left in the epoch from start_sample (default: self.start_sample)."""
+        s = self.start_sample if start_sample is None else int(start_sample)
+        return max(0, (self.total_frames - s) // self.global_batch)
+
+    def __len__(self):
+        return self.steps() * self.batch_size
+
+    @staticmethod
+    def window_name(W):
+        return "(not shuffled)" if W is None else ("the whole epoch" if W == 0 else f"{W} frames")
+
+    def epoch_order(self, epoch=None):
+        """(window, switch_at, then) of an epoch: its frames are shuffled in windows of
+        `window`; from position switch_at on (None = never), the frames not taken before
+        it are shuffled in windows of `then` (0 = the whole rest of the epoch)."""
+        epoch = self.epoch if epoch is None else epoch
+        o = self.order
+        if o is not None and o["epoch"] == epoch:
+            return o["window"], o.get("switch_at"), o.get("then")
+        return self.window, None, None
+
+    def order_state(self, epoch=None):
+        """The order of an epoch, for training_state.json ("data_order")."""
+        epoch = self.epoch if epoch is None else epoch
+        W, S, W1 = self.epoch_order(epoch)
+        rec = {"epoch": int(epoch), "window": W}
+        if S is not None:
+            rec.update(switch_at=int(S), then=W1)
+        return rec
+
+    def resume_order(self, saved, epoch, start):
+        """Set the order of `epoch` for a run that resumes at its frame `start`.
+        `saved`: the checkpoint's "data_order" (None: a checkpoint of older code, which
+        shuffled in windows of SHUFFLE_WINDOW). The first `start` frames keep the saved
+        order; if this run's window differs, the rest of the epoch is the frames not taken
+        yet, in this run's window. Returns a line for the log, or None."""
+        self.order = None
+        if start <= 0:
+            return None                   # the epoch starts afresh, in this run's window
+        if not saved or int(saved.get("epoch", -1)) != int(epoch):
+            saved = {"epoch": int(epoch), "window": self.SHUFFLE_WINDOW}
+        W0, S0, W1 = saved.get("window"), saved.get("switch_at"), saved.get("then")
+        self.order = {"epoch": int(epoch), "window": W0}
+        if S0 is not None:                # this epoch already changed its window once: keep that
+            self.order.update(switch_at=int(S0), then=W1)
+            if W1 == self.window:
+                return None
+            return (f"WARNING: epoch {epoch} already changed its frame window at frame {S0} (to "
+                    f"{self.window_name(W1)}); a window of {self.window_name(self.window)} starts with "
+                    f"epoch {epoch + 1}.")
+        if W0 == self.window:
+            return None
+        self.order.update(switch_at=int(start), then=self.window)
+        taken = ("in episode order (frames not shuffled)" if W0 is None else
+                 f"in shuffle windows of {self.window_name(W0)}")
+        return (f"Frame order of epoch {epoch}: its first {start} frames were taken {taken}; "
+                f"the other {self.total_frames - start} (not taken yet) follow, shuffled "
+                + ("over the whole rest of the epoch" if self.window == 0 else
+                   f"in windows of {self.window_name(self.window)}")
+                + ": each frame is still taken once in the epoch.")
+
+    @staticmethod
+    def _perm(key, w, size):
+        return np.random.default_rng(key + [w]).permutation(size)
+
+    def _shuffle(self, idx, W, n, key):
+        """Index -> index under per-window permutations of [0, n) (windows of W, 0 = one
+        window, None = no shuffle) drawn from key + [window]. `idx` is increasing, so each
+        window's indices form one contiguous run."""
+        if W is None or len(idx) == 0:
+            return idx
+        W = W or n
+        out = np.empty_like(idx)
+        win = idx // W
+        cuts = np.flatnonzero(np.diff(win)) + 1
+        for lo, hi in zip(np.r_[0, cuts], np.r_[cuts, len(idx)]):
+            w = int(win[lo])
+            base = w * W
+            out[lo:hi] = base + self._perm(key, w, min(W, n - base))[idx[lo:hi] - base]
+        return out
+
+    def _untaken(self, W, S):
+        """Positions of the epoch's sequence not among the first S of its order with window W, increasing."""
+        n = self.total_frames
+        if W is None:
+            return np.arange(S, n, dtype=np.int64)
+        W = W or n
+        w = S // W
+        base = w * W
+        size = min(W, n - base)
+        head = np.sort(self._perm([self.seed, self.epoch], w, size)[S - base:]) + base
+        return np.concatenate([head, np.arange(base + size, n, dtype=np.int64)])
+
+    def _order(self, pos):
+        """Positions in this epoch's order (increasing) -> positions in its sequence."""
+        W, S, W1 = self.epoch_order()
+        key = [int(self.seed), int(self.epoch)]
+        if S is None:
+            return self._shuffle(pos, W, self.total_frames, key)
+        k = int(np.searchsorted(pos, S))
+        out = [self._shuffle(pos[:k], W, self.total_frames, key)]
+        if k < len(pos):
+            rest = self._untaken(W, S)
+            out.append(rest[self._shuffle(pos[k:] - S, W1, len(rest), key + [7, int(S)])])
+        return np.concatenate(out)
 
     def __iter__(self):
-        g = torch.Generator()
-        g.manual_seed(self.seed + self.epoch)
-
+        n_ep = len(self._frame_counts)
         if self.shuffle:
-            ep_perm = torch.randperm(self._num_episodes, generator=g).numpy()
+            g = torch.Generator()
+            g.manual_seed(self.seed + self.epoch)
+            ep_perm = torch.randperm(n_ep, generator=g).numpy()
         else:
-            ep_perm = np.arange(self._num_episodes)
-
-        # Cumulative frame counts in *shuffled* episode order
-        shuffled_fc = self._frame_counts[ep_perm]
-        shuffled_cum = np.cumsum(shuffled_fc)
-        total_frames = int(shuffled_cum[-1])
-
-        # This rank's contiguous chunk in the flat index space
-        chunk = self.num_samples
-        rank_start = self.rank * chunk
-        rank_end = rank_start + chunk
-        actual_end = min(rank_end, total_frames)
-
-        # Find which shuffled episodes overlap [rank_start, actual_end)
-        ep_first = int(np.searchsorted(shuffled_cum, rank_start, side='right'))
-        ep_last = int(np.searchsorted(shuffled_cum, actual_end, side='right'))
-        ep_last = min(ep_last, self._num_episodes - 1)
-
-        # Build only this rank's indices using numpy (not a 2B Python list)
-        parts = []
-        for i in range(ep_first, ep_last + 1):
-            ep_idx = int(ep_perm[i])
-            shuf_start = int(shuffled_cum[i - 1]) if i > 0 else 0
-            shuf_end = int(shuffled_cum[i])
-
-            # Clip to this rank's range
-            t_start = max(0, rank_start - shuf_start)
-            t_end = min(int(self._frame_counts[ep_idx]), actual_end - shuf_start)
-
-            if t_start < t_end:
-                base = int(self._orig_starts[ep_idx])
-                parts.append(np.arange(base + t_start, base + t_end, dtype=np.int64))
-
-        indices = np.concatenate(parts) if parts else np.array([], dtype=np.int64)
-
-        # Padding: if rank's chunk extends beyond total_frames, wrap around
-        if len(indices) < chunk:
-            needed = chunk - len(indices)
-            wrap_parts = []
-            remaining = needed
-            for i in range(self._num_episodes):
-                if remaining <= 0:
-                    break
-                ep_idx = int(ep_perm[i])
-                base = int(self._orig_starts[ep_idx])
-                n = min(int(self._frame_counts[ep_idx]), remaining)
-                wrap_parts.append(np.arange(base, base + n, dtype=np.int64))
-                remaining -= n
-            if wrap_parts:
-                indices = np.concatenate([indices] + wrap_parts)
-
-        indices = indices[:chunk]
-        if self.shuffle and self.shuffle_frames:
-            indices = indices[torch.randperm(len(indices), generator=g).numpy()]
-        if self.start_index > 0:
-            indices = indices[self.start_index:]
-        return iter(indices.tolist())
+            ep_perm = np.arange(n_ep)
+        fc = self._frame_counts[ep_perm]
+        ends = np.cumsum(fc)                     # end of each shuffled episode in the sequence
+        N, B = self.num_replicas, self.batch_size
+        steps = self.steps()
+        if steps == 0:
+            return iter([])
+        # This rank's positions in the epoch's order, in the order it trains on them.
+        pos = (self.start_sample
+               + np.arange(steps, dtype=np.int64)[:, None] * (N * B)
+               + self.rank * B + np.arange(B, dtype=np.int64)[None, :]).ravel()
+        pos = self._order(pos)
+        e = np.searchsorted(ends, pos, side="right")
+        frames = self._orig_starts[ep_perm[e]] + (pos - (ends[e] - fc[e]))
+        return iter(frames.tolist())
 
 
 class EgoDexPretrainFlareDataset(Dataset):
@@ -591,8 +683,174 @@ class EgoDexPretrainFlareDataset(Dataset):
         }
 
 
+# ───────────────────────────────────────────────────────────────────
+#  EMA of the weights; weights kept apart from the checkpoint rotation
+# ───────────────────────────────────────────────────────────────────
+class ShardedCPUEMA:
+    """Exponential moving average (EMA) of the trainable weights, in fp32 in CPU RAM, split across the ranks.
+
+    The GPUs have no room for it (4 x A100 at batch 40 peak at ~69 of 80 GiB) and an fp32 copy of the
+    3.2 B trainable weights is 12.6 GB, so each rank averages its share of the parameters (whole tensors,
+    balanced by size). Every `every` optimizer steps a rank copies its share of the bf16 weights to pinned
+    memory (a fraction of a second) and folds it into the average in a background thread while training
+    goes on:  ema <- ema + (1 - d) (w - ema),  d = min(decay, (1 + n) / (10 + n)) ** every,  n = optimizer
+    steps since the average started (the usual warmup: the starting weights fade quickly).
+
+    Checkpoints get <dir>/ema_state/ema_rank<r>.pt (to resume, also with another number of ranks) and
+    <dir>/model_ema.pt: model.pt with the trainable weights replaced by their averages (same keys, bf16)."""
+
+    def __init__(self, raw_model, decay, every, rank, world):
+        self.decay, self.every, self.rank = float(decay), max(1, int(every)), int(rank)
+        aliases = {}                                    # state_dict names of a parameter (tied weights: several)
+        for name, p in raw_model.named_parameters(remove_duplicate=False):
+            aliases.setdefault(id(p), []).append(name)
+        loads = [0] * world
+        self.params, self.keys = {}, {}
+        for name, p in sorted(((n, p) for n, p in raw_model.named_parameters() if p.requires_grad),
+                              key=lambda x: (-x[1].numel(), x[0])):
+            r = loads.index(min(loads))
+            loads[r] += p.numel()
+            if r == self.rank:
+                self.params[name] = p
+                self.keys[name] = aliases.get(id(p), [name])
+        self.ema = {n: p.detach().to("cpu").float() for n, p in self.params.items()}
+        self.buf = {n: torch.empty(p.shape, dtype=p.dtype, pin_memory=True) for n, p in self.params.items()}
+        self.numel = sum(p.numel() for p in self.params.values())
+        self.n = 0
+        self.thread = None
+        self.last_fold_s = 0.0
+
+    def step(self):
+        """After every optimizer step."""
+        self.n += 1
+        if self.n % self.every:
+            return
+        self.wait()
+        torch.cuda.synchronize()
+        for name, p in self.params.items():
+            self.buf[name].copy_(p.detach(), non_blocking=True)
+        torch.cuda.synchronize()                        # copied before the next step changes the weights
+        d = min(self.decay, (1 + self.n) / (10 + self.n)) ** self.every
+        self.thread = threading.Thread(target=self._fold, args=(1.0 - d,), daemon=True)
+        self.thread.start()
+
+    def _fold(self, weight):
+        t0 = time.time()
+        for name, e in self.ema.items():
+            e.lerp_(self.buf[name].float(), weight)
+        self.last_fold_s = time.time() - t0
+
+    def wait(self):
+        if self.thread is not None:
+            self.thread.join()
+            self.thread = None
+
+    def save_shard(self, ckpt_dir):
+        self.wait()
+        d = os.path.join(ckpt_dir, "ema_state")
+        os.makedirs(d, exist_ok=True)
+        torch.save({"ema": self.ema, "keys": self.keys, "n": self.n, "decay": self.decay, "every": self.every},
+                   os.path.join(d, f"ema_rank{self.rank}.pt"))
+
+    def load(self, ckpt_dir):
+        """This rank's averages from <ckpt_dir>/ema_state (saved by any number of ranks); False if there is none."""
+        files = sorted(glob.glob(os.path.join(ckpt_dir or "", "ema_state", "ema_rank*.pt")))
+        if not files:
+            return False
+        found = set()
+        for path in files:
+            shard = torch.load(path, map_location="cpu", mmap=True, weights_only=True)
+            self.n = max(self.n, int(shard.get("n", 0)))
+            for name, t in shard["ema"].items():
+                if name in self.ema:
+                    self.ema[name].copy_(t)
+                    found.add(name)
+        if len(found) != len(self.ema):
+            raise RuntimeError(f"{ckpt_dir}/ema_state lacks {len(self.ema) - len(found)} of this rank's "
+                               f"{len(self.ema)} averaged parameters, e.g. {sorted(set(self.ema) - found)[:3]}")
+        return True
+
+
+def _write_ema_weights(sd, ckpt_dir):
+    """<ckpt_dir>/model_ema.pt: the state dict `sd` of model.pt with the trainable weights replaced by the
+    averages of all ranks' shards in <ckpt_dir>/ema_state. Returns the number of keys replaced."""
+    out, n = dict(sd), 0
+    for path in sorted(glob.glob(os.path.join(ckpt_dir, "ema_state", "ema_rank*.pt"))):
+        shard = torch.load(path, map_location="cpu", mmap=True, weights_only=True)
+        for name, t in shard["ema"].items():
+            for key in shard["keys"][name]:
+                if key in out:
+                    out[key] = t.to(out[key].dtype)
+                    n += 1
+    torch.save(out, os.path.join(ckpt_dir, "model_ema.pt"))
+    return n
+
+
+_WEIGHT_FILES = ("model.pt", "model_ema.pt", "config.json", "stats_data.json", "training_args.json",
+                 "training_state.json")
+_background = []                                        # weight copies still running (joined at the end)
+
+
+def _copy_weights(src, dst):
+    """The weights and what loading them needs (no optimizer state) from checkpoint dir `src` to `dst`,
+    written as dst.tmp and renamed when complete."""
+    tmp = dst + ".tmp"
+    shutil.rmtree(tmp, ignore_errors=True)
+    os.makedirs(tmp)
+    for name in _WEIGHT_FILES:
+        if os.path.exists(os.path.join(src, name)):
+            shutil.copy(os.path.join(src, name), tmp)
+    if os.path.isdir(os.path.join(src, "processor")):
+        shutil.copytree(os.path.join(src, "processor"), os.path.join(tmp, "processor"))
+    shutil.rmtree(dst, ignore_errors=True)
+    os.rename(tmp, dst)
+    logger.info(f"Weights kept: {dst}")
+
+
+def _write_weights(save_dir, sd, processor, args, dataset, state):
+    """model.pt and what loading it needs: processor, base config, normalization stats, settings, state."""
+    os.makedirs(save_dir, exist_ok=True)
+    torch.save(sd, os.path.join(save_dir, "model.pt"))
+    processor.save_pretrained(os.path.join(save_dir, "processor"))
+
+    src_config = os.path.join(args.model_path, "config.json")
+    if os.path.exists(src_config):
+        shutil.copy(src_config, os.path.join(save_dir, "config.json"))
+
+    with open(os.path.join(save_dir, "stats_data.json"), "w") as f:
+        json.dump({"egodex": {
+            "action": {
+                "mask": dataset.action_mask.tolist(),
+                "q01": dataset.action_min.tolist(),
+                "q99": dataset.action_max.tolist(),
+            },
+            "state": {
+                "mask": dataset.state_mask.tolist(),
+                "q01": dataset.state_min.tolist(),
+                "q99": dataset.state_max.tolist(),
+            },
+        }}, f, indent=2)
+
+    with open(os.path.join(save_dir, "training_args.json"), "w") as f:
+        json.dump({
+            "model_path": args.model_path,
+            "action_dim": args.action_dim,
+            "action_chunk": args.action_chunk,
+            "use_robot_state": args.use_robot_state,
+            "training_stage": 1,
+            "data_root": args.data_root,
+            "use_flare": args.use_flare,
+            "n_flare_tokens_per_frame": args.n_flare_tokens_per_frame,
+            "n_flare_steps": args.n_flare_steps,
+            "flare_layer_index": args.flare_layer_index,
+        }, f, indent=2)
+
+    with open(os.path.join(save_dir, "training_state.json"), "w") as f:
+        json.dump(state, f, indent=2)
+
+
 def save_checkpoint(model, processor, accelerator, args, epoch, global_step, dataset,
-                    save_full_state=True, lr_scheduler=None):
+                    save_full_state=True, lr_scheduler=None, position=None, ema=None):
     """Save a checkpoint.
 
     Always writes `model.pt` + metadata (compatible with downstream eval).
@@ -600,66 +858,49 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, dat
     `accelerator.save_state` containing optimizer, LR scheduler and RNG state
     (sharded in DeepSpeed format), plus `training_state.json` with the
     global_step / epoch needed to resume.
+    With `ema`, also `ema_state/` (each rank's averages) and `model_ema.pt`.
+    Every --keep_weights_every steps the weights (model.pt, model_ema.pt and
+    what loading them needs) are also copied to <output_dir>/weights/, which
+    the rotation (--max_ckpts) never deletes.
     """
     save_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}-{global_step}")
     state_dir = os.path.join(save_dir, "state")
 
+    sd = None
     if accelerator.is_main_process:
         ckpts = [f for f in os.listdir(args.output_dir) if f.startswith("checkpoint-")]
         if args.max_ckpts > 0 and len(ckpts) >= args.max_ckpts:
             oldest = min(ckpts, key=lambda f: os.path.getctime(os.path.join(args.output_dir, f)))
             shutil.rmtree(os.path.join(args.output_dir, oldest))
 
-        os.makedirs(save_dir, exist_ok=True)
         sd = accelerator.get_state_dict(model)
-        torch.save(sd, os.path.join(save_dir, "model.pt"))
-        processor.save_pretrained(os.path.join(save_dir, "processor"))
-
-        src_config = os.path.join(args.model_path, "config.json")
-        if os.path.exists(src_config):
-            shutil.copy(src_config, os.path.join(save_dir, "config.json"))
-
-        with open(os.path.join(save_dir, "stats_data.json"), "w") as f:
-            json.dump({"egodex": {
-                "action": {
-                    "mask": dataset.action_mask.tolist(),
-                    "q01": dataset.action_min.tolist(),
-                    "q99": dataset.action_max.tolist(),
-                },
-                "state": {
-                    "mask": dataset.state_mask.tolist(),
-                    "q01": dataset.state_min.tolist(),
-                    "q99": dataset.state_max.tolist(),
-                },
-            }}, f, indent=2)
-
-        with open(os.path.join(save_dir, "training_args.json"), "w") as f:
-            json.dump({
-                "model_path": args.model_path,
-                "action_dim": args.action_dim,
-                "action_chunk": args.action_chunk,
-                "use_robot_state": args.use_robot_state,
-                "training_stage": 1,
-                "data_root": args.data_root,
-                "use_flare": args.use_flare,
-                "n_flare_tokens_per_frame": args.n_flare_tokens_per_frame,
-                "n_flare_steps": args.n_flare_steps,
-                "flare_layer_index": args.flare_layer_index,
-            }, f, indent=2)
-
-        with open(os.path.join(save_dir, "training_state.json"), "w") as f:
-            json.dump({
-                "epoch": int(epoch),
-                "global_step": int(global_step),
-                "n_epochs": int(args.n_epochs),
-                "seed": int(args.seed),
-                "train_bsz_per_gpu": int(args.train_bsz_per_gpu),
-                "learning_rate": float(args.learning_rate),
-                "warmup_rates": float(args.warmup_rates),
-                "min_lr_ratio": float(args.min_lr_ratio),
-            }, f, indent=2)
+        _write_weights(save_dir, sd, processor, args, dataset, {
+            "epoch": int(epoch),
+            "global_step": int(global_step),
+            "wandb_run_id": wandb.run.id if wandb.run is not None else None,
+            "n_epochs": int(args.n_epochs),
+            "seed": int(args.seed),
+            "train_bsz_per_gpu": int(args.train_bsz_per_gpu),
+            "learning_rate": float(args.learning_rate),
+            "warmup_rates": float(args.warmup_rates),
+            "min_lr_ratio": float(args.min_lr_ratio),
+            # For resuming with other ranks / batch size (see train()):
+            # ranks, accumulation, and where in the data the run is.
+            "world_size": int(accelerator.num_processes),
+            "gradient_accumulation_steps": int(accelerator.gradient_accumulation_steps),
+            **(position or {}),
+        })
 
     accelerator.wait_for_everyone()
+
+    if ema is not None:
+        ema.save_shard(save_dir)
+        accelerator.wait_for_everyone()
+        if accelerator.is_main_process:
+            n = _write_ema_weights(sd, save_dir)
+            accelerator.print(f"EMA weights: {n} tensors averaged -> {save_dir}/model_ema.pt "
+                              f"(an update takes {ema.last_fold_s:.1f} s in the background on rank 0)")
+    del sd
 
     # Collective: save optimizer / scheduler / RNG for exact resume.
     if save_full_state:
@@ -676,6 +917,65 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, dat
     accelerator.wait_for_everyone()
     logger.info(f"Checkpoint {epoch}-{global_step} saved"
                 f"{' (with resumable state)' if save_full_state else ''}.")
+
+    keep = getattr(args, "keep_weights_every", 0)
+    if accelerator.is_main_process and keep > 0 and global_step > 0 and global_step % keep == 0:
+        t = threading.Thread(target=_copy_weights, daemon=True, args=(
+            save_dir, os.path.join(args.output_dir, "weights", f"checkpoint-{epoch}-{global_step}")))
+        t.start()
+        _background.append(t)
+
+
+def _best_val_dir(args):
+    """Shared by the jobs of an experiment: <output_dir>/<experiment_name>/best_val."""
+    return os.path.join(os.path.dirname(os.path.normpath(args.output_dir)), "best_val")
+
+
+def _val_signature(args, n_val_frames):
+    """What makes two validation losses comparable (else the best is chosen anew)."""
+    return {"val_fixed": int(args.val_fixed), "val_frames": int(n_val_frames), "seed": int(args.seed),
+            "val_ratio": float(args.val_ratio), "lerobot_root": sorted(map(os.path.basename,
+                                                                          getattr(args, "lerobot_root", None) or []))}
+
+
+def _read_best_val(args, n_val_frames):
+    path = os.path.join(_best_val_dir(args), "best_val.json")
+    if os.path.isfile(path):
+        with open(path) as f:
+            best = json.load(f)
+        if best.get("signature") == _val_signature(args, n_val_frames):
+            return best
+        print(f"{path}: another validation setting; the best validation weights are chosen anew", flush=True)
+    return {"val_action_loss": float("inf")}
+
+
+def _save_best_val(model, processor, accelerator, args, dataset, epoch, step, val_m, n_val_frames,
+                   dataset_frames):
+    """Main process: the current weights to best_val/checkpoint-<epoch>-<step> (replacing the previous best)."""
+    root = _best_val_dir(args)
+    dst = os.path.join(root, f"checkpoint-{epoch}-{step}")
+    tmp = os.path.join(root, ".writing")
+    shutil.rmtree(tmp, ignore_errors=True)
+    best = {"val_action_loss": float(val_m["val/action_loss"]), "val_total_loss": float(val_m["val/total_loss"]),
+            "epoch": int(epoch), "global_step": int(step), "run": os.path.basename(args.output_dir),
+            "checkpoint": dst, "signature": _val_signature(args, n_val_frames)}
+    _write_weights(tmp, accelerator.get_state_dict(model), processor, args, dataset, {
+        "epoch": int(epoch), "global_step": int(step), "dataset_frames": int(dataset_frames),
+        "wandb_run_id": wandb.run.id if wandb.run is not None else None, **{f"best_{k}": v for k, v in best.items()
+                                                                          if k.startswith("val_")}})
+    for old in glob.glob(os.path.join(root, "checkpoint-*")):
+        shutil.rmtree(old, ignore_errors=True)
+    os.rename(tmp, dst)
+    with open(os.path.join(root, "best_val.json.tmp"), "w") as f:
+        json.dump(best, f, indent=2)
+    os.replace(os.path.join(root, "best_val.json.tmp"), os.path.join(root, "best_val.json"))
+    return best
+
+
+def _seed_val_worker(base, worker_id):
+    """Same flow-matching noise and times for every validation (each worker serves the same batches)."""
+    torch.manual_seed(base + worker_id)
+    np.random.seed((base + worker_id) % 2 ** 32)
 
 
 def _resolve_resume(resume_checkpoint):
@@ -709,6 +1009,111 @@ def _parse_step_from_ckpt_dir(ckpt_dir):
     return int(m.group(1)), int(m.group(2))
 
 
+def _read_training_state(ckpt_dir):
+    """training_state.json of a checkpoint dir as a dict ({} when there is none)."""
+    path = os.path.join(ckpt_dir, "training_state.json") if ckpt_dir else ""
+    if not os.path.isfile(path):
+        return {}
+    with open(path) as f:
+        return json.load(f)
+
+
+def _zero_optim_files(state_dir):
+    """A DeepSpeed ZeRO-1/2 checkpoint's optimizer files, one per saving rank, in rank order."""
+    if not state_dir:
+        return []
+    files = glob.glob(os.path.join(state_dir, "*", "*zero_pp_rank_*_optim_states.pt"))
+    return sorted(files, key=lambda p: int(re.search(r"zero_pp_rank_(\d+)_", os.path.basename(p)).group(1)))
+
+
+def _zero_partition_count(state_dir):
+    return len(_zero_optim_files(state_dir))
+
+
+def _copy_flat_range(pieces, lo, hi, dst):
+    """dst[:hi-lo] = [lo, hi) of the concatenated 1-D `pieces`, reading only what overlaps."""
+    off = 0
+    for t in pieces:
+        n = t.numel()
+        a, b = max(lo, off), min(hi, off + n)
+        if a < b:
+            dst[a - lo:b - lo].copy_(t.reshape(-1)[a - off:b - off])
+        off += n
+
+
+def _load_zero_repartitioned(engine, state_dir, accelerator):
+    """Restore a DeepSpeed ZeRO-1/2 checkpoint saved with another number of ranks.
+
+    DeepSpeed's own loader needs the same number: each rank reads the optimizer
+    partition its rank saved. Here, for each param group, the saved per-rank
+    partitions of the fp32 master weights and of the Adam state are taken as one
+    flat buffer and this rank keeps its slice of the current partitioning: a
+    group's flat buffer is its params in order with padding only at the end,
+    whatever the number of ranks. The files are memory-mapped, so a rank reads
+    its slice only. The model weights must already hold the checkpoint's
+    (model.pt); the trainable ones are then rebuilt from the fp32 masters. The
+    RNG states are not restored."""
+    zo = engine.optimizer
+    if not hasattr(zo, "single_partition_of_fp32_groups"):
+        raise RuntimeError("resuming with another number of ranks needs DeepSpeed ZeRO stage 1/2")
+    files = _zero_optim_files(state_dir)
+    if not files:
+        raise FileNotFoundError(f"no ZeRO optimizer files (*zero_pp_rank_*_optim_states.pt) in {state_dir}")
+    saved = [torch.load(p, map_location="cpu", weights_only=False, mmap=True)["optimizer_state_dict"]
+             for p in files]
+    for p, sd in zip(files, saved):
+        if not isinstance(sd["base_optimizer_state"], dict):
+            raise RuntimeError(f"{p}: elastic ZeRO checkpoint, not supported")
+    opt = zo.optimizer
+    sums = []
+    for i, part in enumerate(zo.single_partition_of_fp32_groups):
+        if opt.param_groups[i]["params"][0] is not part:
+            raise RuntimeError(f"param group {i}: unexpected DeepSpeed optimizer layout")
+        rank = dist.get_rank(group=zo.real_dp_process_group[i])
+        numel = sum(p.numel() for p in zo.bit16_groups[i])
+        size = part.numel()
+        lo, hi = rank * size, min((rank + 1) * size, numel)
+        fp32 = [sd["single_partition_of_fp32_groups"][i] for sd in saved]
+        if sum(t.numel() for t in fp32) != numel:
+            raise RuntimeError(f"param group {i}: the checkpoint has {sum(t.numel() for t in fp32)} "
+                               f"elements, the model {numel}")
+        part.data.zero_()
+        _copy_flat_range(fp32, lo, hi, part.data)
+        states = []
+        for sd in saved:
+            bos = sd["base_optimizer_state"]
+            states.append(bos["state"].get(bos["param_groups"][i]["params"][0]))
+        if all(st is not None for st in states):
+            new = {}
+            for key, v in states[0].items():
+                if torch.is_tensor(v) and v.dim() > 0:
+                    dst = torch.zeros_like(part)
+                    _copy_flat_range([st[key] for st in states], lo, hi, dst)
+                    new[key] = dst
+                else:
+                    new[key] = v.clone() if torch.is_tensor(v) else v
+            opt.state[part] = new
+        st = opt.state.get(part, {})
+        sums += [part.double().square().sum(),
+                 st["exp_avg_sq"].double().sum() if "exp_avg_sq" in st else torch.zeros((), device=part.device, dtype=torch.float64)]
+    del saved
+    zo.update_lp_params()        # fp32 masters -> bf16 params, all-gathered (collective)
+    sums = torch.stack(sums)
+    dist.all_reduce(sums)
+    accelerator.print(f"Re-split ZeRO state of {len(files)} ranks over {dist.get_world_size()}: "
+                      + "; ".join(f"group {i}: sum(w^2)={sums[2 * i]:.6e}, sum(exp_avg_sq)={sums[2 * i + 1]:.6e}"
+                                  for i in range(len(sums) // 2)))
+
+
+def _set_scheduler_step(lr_scheduler, n):
+    """Put an LR scheduler (maybe wrapped by accelerate) at step n of its schedule."""
+    sched = getattr(lr_scheduler, "scheduler", lr_scheduler)
+    sched.last_epoch = n - 1
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")   # "lr_scheduler.step() before optimizer.step()"
+        sched.step()
+
+
 class TrainingMetrics:
     def __init__(self, device):
         self.n_step = 0
@@ -740,6 +1145,93 @@ class TrainingMetrics:
         return m
 
 
+class MemoryMonitor:
+    """GPU and host memory for wandb, in GiB, read at each logging step.
+
+    VRAM, per GPU, the maximum over ranks:
+      mem/vram_peak      PyTorch allocator peak since the previous log (OOM margin)
+      mem/vram_alloc     allocated now
+      mem/vram_reserved  held by the PyTorch caching allocator now
+      mem/vram_used      used on the device as the driver reports it (adds the CUDA
+                         context, NCCL buffers and other processes)
+    RAM of the whole Slurm job on this node (all ranks and data workers), from its
+    cgroup; left out when that cgroup isn't found (e.g. outside Slurm):
+      mem/ram_job          everything charged to the job, page cache included
+      mem/ram_job_process  anonymous + shared memory: what the processes hold
+      mem/ram_job_cache    reclaimable file cache
+      mem/ram_job_peak     peak of mem/ram_job since the job started
+      mem/ram_job_limit    the job's limit (--mem)
+    and mem/ram_main_rss, the resident memory of rank 0's training process.
+
+    collect() does one small all_reduce, so every rank must call it at the same step."""
+    GiB = float(2 ** 30)
+
+    def __init__(self, device):
+        self.device = device
+        self.cgroup = self._job_cgroup()
+
+    @staticmethod
+    def _job_cgroup():
+        """The cgroup v2 dir of this Slurm job (.../job_<id>, above its steps and tasks)."""
+        try:
+            with open("/proc/self/cgroup") as f:
+                rel = next(line.split(":", 2)[2].strip() for line in f if line.startswith("0::"))
+        except (OSError, StopIteration, IndexError):
+            return None
+        parts = rel.strip("/").split("/")
+        for i, part in enumerate(parts):
+            if part.startswith("job_"):
+                path = os.path.join("/sys/fs/cgroup", *parts[:i + 1])
+                return path if os.path.isfile(os.path.join(path, "memory.current")) else None
+        return None
+
+    def _cgroup_file(self, name):
+        try:
+            with open(os.path.join(self.cgroup, name)) as f:
+                return f.read().strip()
+        except OSError:
+            return None
+
+    def _ram(self):
+        out = {}
+        try:
+            with open("/proc/self/statm") as f:
+                out["mem/ram_main_rss"] = int(f.read().split()[1]) * os.sysconf("SC_PAGE_SIZE") / self.GiB
+        except (OSError, ValueError, IndexError):
+            pass
+        if self.cgroup is None:
+            return out
+        for key, name in (("mem/ram_job", "memory.current"), ("mem/ram_job_peak", "memory.peak"),
+                          ("mem/ram_job_limit", "memory.max")):
+            value = self._cgroup_file(name)
+            if value and value.isdigit():
+                out[key] = int(value) / self.GiB
+        stat = self._cgroup_file("memory.stat")
+        if stat:
+            s = dict((k, int(v)) for k, v in (line.split() for line in stat.splitlines()) if v.isdigit())
+            if "anon" in s:
+                out["mem/ram_job_process"] = (s["anon"] + s.get("shmem", 0)) / self.GiB
+            if "file" in s:   # cgroup v2 counts shmem/tmpfs under file too
+                out["mem/ram_job_cache"] = (s["file"] - s.get("shmem", 0)) / self.GiB
+        return out
+
+    def collect(self, is_main_process=True):
+        free, total = torch.cuda.mem_get_info(self.device)
+        vram = torch.tensor([torch.cuda.max_memory_allocated(self.device),
+                             torch.cuda.memory_allocated(self.device),
+                             torch.cuda.memory_reserved(self.device),
+                             total - free], dtype=torch.float64, device=self.device)
+        torch.cuda.reset_peak_memory_stats(self.device)
+        if dist.is_initialized():
+            dist.all_reduce(vram, op=dist.ReduceOp.MAX)
+        if not is_main_process:
+            return {}
+        out = dict(zip(("mem/vram_peak", "mem/vram_alloc", "mem/vram_reserved", "mem/vram_used"),
+                       (vram / self.GiB).tolist()))
+        out.update(self._ram())
+        return out
+
+
 @torch.no_grad()
 def run_validation(model, val_dataloader, accelerator, raw_model_fn,
                    use_flare, K, T_per_frame, flare_layer_idx, args):
@@ -750,7 +1242,10 @@ def run_validation(model, val_dataloader, accelerator, raw_model_fn,
     val_flare_sum = torch.tensor(0.0, device=torch.cuda.current_device())
     n_val = 0
     max_val_batches = getattr(args, "max_val_batches", 50)
-
+    rng_guard = contextlib.ExitStack()
+    if getattr(args, "val_fixed", 0):     # same noise also when the batches are collated here (0 workers)
+        rng_guard.enter_context(torch.random.fork_rng(devices=[]))
+        torch.manual_seed(args.seed * 1000 + accelerator.process_index * 64 + 7)
     for i, batch in enumerate(val_dataloader):
         if i >= max_val_batches:
             break
@@ -869,6 +1364,7 @@ def run_validation(model, val_dataloader, accelerator, raw_model_fn,
         val_act_sum += loss_act.item()
         val_flare_sum += loss_flare.item()
         n_val += 1
+    rng_guard.close()
 
     # All-reduce across ranks
     for t in [val_loss_sum, val_act_sum, val_flare_sum]:
@@ -898,8 +1394,23 @@ def train(args):
     set_seed(args.seed)
 
     if accelerator.is_main_process:
-        wandb.init(project=args.experiment_name, name=args.run_name,
-                   config=args, dir=args.log_dir)
+        # One wandb run per training lineage: a resumed job continues the run of its checkpoint
+        # (training_state.json "wandb_run_id"), so the whole pretraining is one curve across jobs.
+        # WANDB_RUN_ID overrides. If wandb can't start online (no login, no network), log offline.
+        _, _ckpt_dir, _ = _resolve_resume(args.resume_checkpoint)
+        run_id = os.environ.get("WANDB_RUN_ID") or _read_training_state(_ckpt_dir).get("wandb_run_id")
+        kw = dict(project=args.experiment_name, dir=args.log_dir, resume="allow",
+                  id=run_id or wandb.util.generate_id())
+        if not run_id:
+            kw["name"] = args.run_name
+        try:
+            wandb.init(**kw)
+        except Exception as e:
+            accelerator.print(f"wandb could not start ({type(e).__name__}: {str(e)[:200]}); logging offline")
+            wandb.init(mode="offline", **kw)
+        wandb.config.update(vars(args), allow_val_change=True)
+        accelerator.print(f"wandb run {wandb.run.id} ({'continued' if run_id else 'new'}, "
+                          f"{'offline' if wandb.run.settings._offline else 'online'})")
 
     accelerator.state.deepspeed_plugin.deepspeed_config[
         "train_micro_batch_size_per_gpu"] = args.train_bsz_per_gpu
@@ -949,10 +1460,22 @@ def train(args):
                     param.data.copy_(named_params[base].data)
         accelerator.print("Action expert initialized from latent expert.")
 
+    # A full checkpoint saved with another number of ranks can't go through
+    # DeepSpeed's loader (its ZeRO optimizer state is split per rank): its
+    # weights come from model.pt now, its optimizer state is re-split after
+    # prepare (_load_zero_repartitioned).
+    resume_tstate = _read_training_state(resume_ckpt_dir)
+    saved_world = int(resume_tstate.get("world_size") or _zero_partition_count(resume_state_dir) or 0)
+    repartition = (resume_state_dir is not None and saved_world > 0
+                   and saved_world != accelerator.num_processes)
+    if repartition:
+        accelerator.print(f"Checkpoint saved with {saved_world} ranks, running with "
+                          f"{accelerator.num_processes}: re-splitting its optimizer state.")
+
     # Old-style resume (weights-only): load model weights now, before accelerator.prepare.
     # New-style (state/ present): model weights are restored by accelerator.load_state
     # *after* prepare — skip here so the later load takes effect.
-    if args.resume_checkpoint and resume_state_dir is None:
+    if args.resume_checkpoint and (resume_state_dir is None or repartition):
         resume_sd = torch.load(resume_model_pt, map_location="cpu")
         if "state_dict" in resume_sd:
             resume_sd = resume_sd["state_dict"]
@@ -995,14 +1518,34 @@ def train(args):
     val_dataloader = None
     if args.val_ratio > 0:
         val_dataset = dataset.create_val_split(val_ratio=args.val_ratio, seed=args.seed)
+        val_source, val_worker_init = val_dataset, None
+        if args.val_fixed:
+            # The loader is sharded by accelerate and not shuffled, so without this every validation scores
+            # the first max_val_batches x bsz x ranks frames of the val split: a few episodes of its first
+            # dataset. Instead: the same frames spread over the whole split, and the same noise and flow times.
+            n_fix = min(len(val_dataset), args.max_val_batches * args.train_bsz_per_gpu * accelerator.num_processes)
+            pick = np.sort(np.random.RandomState(args.seed).choice(len(val_dataset), n_fix, replace=False))
+            val_source = torch.utils.data.Subset(val_dataset, pick.tolist())
+            val_worker_init = functools.partial(_seed_val_worker,
+                                                args.seed * 1000 + accelerator.process_index * 64 + 7)
+            if hasattr(val_dataset, "_src_cum") and hasattr(val_dataset, "sources"):
+                src = np.searchsorted(np.asarray(val_dataset._src_cum), pick, side="right")
+                fam = collections.Counter(re.sub(r"_\d+x\d+(-\d+)?$", "", os.path.basename(
+                    str(val_dataset.sources[i].root)).split("__")[-1]) for i in src)
+                accelerator.print(f"Fixed validation: {n_fix} of {len(val_dataset)} val frames, "
+                                  + ", ".join(f"{k} {v}" for k, v in sorted(fam.items())))
         val_dataloader = DataLoader(
-            val_dataset,
+            val_source,
             batch_size=args.train_bsz_per_gpu,
             shuffle=False,
             drop_last=True,
             collate_fn=val_dataset.collate_fn,
-            num_workers=max(1, args.num_workers // 2),
+            # Forked anew for every validation: each worker copies pages of its parent, so with 5 per GPU a
+            # validation added ~90 GiB and pushed a 4-GPU job against its memory limit (hours of thrashing).
+            num_workers=(args.val_num_workers if args.val_num_workers >= 0
+                         else max(1, args.num_workers // 2)),
             pin_memory=True,
+            worker_init_fn=val_worker_init,
         )
 
     # Episode-grouped sampler: clusters frame indices by episode so that
@@ -1010,8 +1553,8 @@ def train(args):
     # per-worker episode caching, this eliminates per-frame HDF5 open/close
     # and video seek — reducing per-sample I/O from ~200ms to ~0.1ms.
     sampler = EpisodeGroupedSampler(
-        dataset, shuffle=True, seed=args.seed, drop_last=True,
-        shuffle_frames=bool(args.shuffle_frames),
+        dataset, batch_size=args.train_bsz_per_gpu, shuffle=True, seed=args.seed,
+        shuffle_frames=bool(args.shuffle_frames), window=args.shuffle_window,
     )
     dataloader = DataLoader(
         dataset,
@@ -1041,7 +1584,7 @@ def train(args):
     world_size = accelerator.num_processes
     train_samples = len(dataset)
     samples_per_rank = train_samples // world_size
-    steps_per_epoch = samples_per_rank // args.train_bsz_per_gpu
+    steps_per_epoch = sampler.steps(0)       # = train_samples // (world_size * bsz)
     num_training_steps = steps_per_epoch * args.n_epochs // accelerator.gradient_accumulation_steps
     accelerator.print(f"Dataset: {train_samples} training samples, "
                       f"world_size={world_size}")
@@ -1049,6 +1592,9 @@ def train(args):
                       f"(samples_per_rank={samples_per_rank}), "
                       f"{num_training_steps} total training steps, "
                       f"warmup={int(args.warmup_rates * num_training_steps)}")
+    accelerator.print("Frames not shuffled (consecutive frames of each episode)" if sampler.window is None else
+                      "Frames shuffled over the whole epoch" if sampler.window == 0 else
+                      f"Frames shuffled in windows of {sampler.window} frames of the epoch's episode order")
 
     lr_scheduler = get_cosine_schedule_with_warmup(
         optimizer,
@@ -1058,106 +1604,138 @@ def train(args):
     )
     lr_scheduler = accelerator.prepare(lr_scheduler)
 
-    # ── Resume: restore step counter / LR scheduler / (optionally) optimizer ──
-    # Priority for resume_global_step:
-    #   1) new-style `state/` present → read from training_state.json
-    #   2) user-supplied --resume_step > 0 (one-time override for legacy checkpoints)
-    #   3) 0 (treat as weights-only init, like the original behavior)
-    # Dir-name parsing is NOT used automatically because `checkpoint-0-125000`
-    # may mean "weights-only init from some other run", not "resume step 125000".
+    # ── Resume: weights + optimizer, data position, step counter, LR ──
+    # The data position (epoch, frames of it consumed) is kept in frames, and
+    # the step counter and LR are re-derived for this run's ranks x batch size,
+    # so a run can resume with other ones: the sampler continues at the same
+    # frame and the LR at the same point of the schedule (same fraction of the
+    # training data). The step counter comes from training_state.json of a full
+    # checkpoint, else from --resume_step (one-time override for legacy
+    # weights-only checkpoints). Dir-name parsing is NOT used automatically
+    # because `checkpoint-0-125000` may mean "weights-only init from some other
+    # run", not "resume step 125000".
+    global_batch = sampler.global_batch
+    ga = accelerator.gradient_accumulation_steps
     resume_global_step = 0
-    used_full_state = False
-    scheduler_restored = False
+    start_epoch, start_sample, samples_seen = 0, 0, 0
     if args.resume_checkpoint:
+        saved_step = 0
+        scheduler_restored = False
         if resume_state_dir is not None:
             accelerator.print(f"Loading full resumable state from {resume_state_dir}")
-            # PyTorch 2.6 flipped torch.load's default to weights_only=True,
-            # but older DeepSpeed serializes classes (LossScaler, etc.) that
-            # aren't on the safe allowlist. Force weights_only=False for the
-            # duration of this call — the checkpoint was written by us and is
-            # trusted.
-            _orig_torch_load = torch.load
-            def _torch_load_trusted(*a, **kw):
-                kw["weights_only"] = False
-                return _orig_torch_load(*a, **kw)
-            torch.load = _torch_load_trusted
-            try:
-                accelerator.load_state(resume_state_dir)
-            finally:
-                torch.load = _orig_torch_load
-            used_full_state = True
-            state_json = os.path.join(resume_ckpt_dir, "training_state.json")
-            if os.path.isfile(state_json):
-                with open(state_json) as f:
-                    tstate = json.load(f)
-                resume_global_step = int(tstate.get("global_step", 0))
-                accelerator.print(
-                    f"Full resume: global_step={resume_global_step} from training_state.json")
+            if repartition:
+                _load_zero_repartitioned(model, resume_state_dir, accelerator)
+            else:
+                # PyTorch 2.6 flipped torch.load's default to weights_only=True,
+                # but older DeepSpeed serializes classes (LossScaler, etc.) that
+                # aren't on the safe allowlist. Force weights_only=False for the
+                # duration of this call — the checkpoint was written by us and is
+                # trusted.
+                _orig_torch_load = torch.load
+                def _torch_load_trusted(*a, **kw):
+                    kw["weights_only"] = False
+                    return _orig_torch_load(*a, **kw)
+                torch.load = _torch_load_trusted
+                try:
+                    accelerator.load_state(resume_state_dir)
+                finally:
+                    torch.load = _orig_torch_load
+                # Restore LR scheduler from our explicit scheduler.bin (Accelerate
+                # + DeepSpeed does not save it when prepared separately).
+                sched_path = os.path.join(resume_state_dir, "scheduler.bin")
+                if os.path.isfile(sched_path):
+                    sched_sd = torch.load(sched_path, map_location="cpu",
+                                          weights_only=False)
+                    lr_scheduler.load_state_dict(sched_sd)
+                    scheduler_restored = True
+            if resume_tstate:
+                saved_step = int(resume_tstate.get("global_step", 0))
+                accelerator.print(f"Full resume: global_step={saved_step} from training_state.json")
             else:
                 _, parsed = _parse_step_from_ckpt_dir(resume_ckpt_dir)
-                resume_global_step = parsed or 0
+                saved_step = parsed or 0
                 accelerator.print(
-                    f"Full resume: no training_state.json; global_step from dir name={resume_global_step}")
-
-            # Restore LR scheduler from our explicit scheduler.bin (Accelerate
-            # + DeepSpeed does not save it when prepared separately).
-            sched_path = os.path.join(resume_state_dir, "scheduler.bin")
-            if os.path.isfile(sched_path):
-                sched_sd = torch.load(sched_path, map_location="cpu",
-                                      weights_only=False)
-                lr_scheduler.load_state_dict(sched_sd)
-                scheduler_restored = True
-                accelerator.print(
-                    f"Restored LR scheduler from scheduler.bin: "
-                    f"lr={lr_scheduler.get_last_lr()[0]:.3e}")
-            else:
-                accelerator.print(
-                    "scheduler.bin not found in state/ (legacy ckpt). "
-                    "Will fast-forward the LR scheduler instead.")
-
+                    f"Full resume: no training_state.json; global_step from dir name={saved_step}")
         if args.resume_step > 0:
-            resume_global_step = args.resume_step
-            accelerator.print(f"--resume_step override: global_step={resume_global_step}")
+            saved_step = args.resume_step
+            accelerator.print(f"--resume_step override: global_step={saved_step}")
 
-        # Fast-forward fallback: covers two cases —
-        #   (a) weights-only resume (no state/), or
-        #   (b) full resume from a legacy ckpt that has state/ but no
-        #       scheduler.bin (e.g. all 0423 checkpoints).
-        if resume_global_step > 0 and not scheduler_restored:
-            note = ("optimizer momentum NOT restored"
-                    if not used_full_state
-                    else "optimizer state IS restored, only the LR curve is approximated")
+        # Where the saved run was in the data, in frames.
+        saved_bsz = int(resume_tstate.get("train_bsz_per_gpu") or args.train_bsz_per_gpu)
+        saved_global = (saved_world or accelerator.num_processes) * saved_bsz
+        if "data_epoch" in resume_tstate and args.resume_step <= 0:
+            start_epoch = int(resume_tstate["data_epoch"])
+            start_sample = int(resume_tstate["data_sample"])
+            samples_seen = int(resume_tstate.get("samples_seen", 0))
+        else:   # older checkpoints: from the saving run's step counter and batch
+            steps_then = max(1, sampler.total_frames // saved_global)
+            start_epoch = saved_step // steps_then
+            start_sample = (saved_step % steps_then) * saved_global
+            samples_seen = saved_step * saved_global
+        frames_then = resume_tstate.get("dataset_frames")
+        if frames_then is not None and int(frames_then) != sampler.total_frames:
             accelerator.print(
-                f"[approximate resume] Fast-forwarding LR scheduler by "
-                f"{resume_global_step} steps ({note}).")
-            with warnings.catch_warnings():
-                warnings.simplefilter("ignore")  # suppress "step before optimizer step" warnings
-                for _ in range(resume_global_step):
-                    lr_scheduler.step()
+                f"WARNING: the checkpoint's run had {frames_then} training frames, this one "
+                f"{sampler.total_frames}: the data changed, the resume position is approximate.")
+        if sampler.steps(start_sample) == 0:          # that epoch was used up
+            start_epoch, start_sample = start_epoch + 1, 0
+        resume_global_step = start_epoch * steps_per_epoch + start_sample // global_batch
+
+        if not (scheduler_restored and resume_global_step == saved_step):
+            # Other ranks x batch size (or no scheduler.bin): put the LR at the
+            # same fraction of the schedule as the saved run.
+            _set_scheduler_step(lr_scheduler, resume_global_step // ga)
+        if resume_global_step != saved_step:
             accelerator.print(
-                f"[approximate resume] LR now = "
-                f"{lr_scheduler.get_last_lr()[0]:.3e}")
+                f"Saved with {saved_global} frames/step (step {saved_step}), now "
+                f"{global_batch} frames/step: global_step={resume_global_step}.")
+        accelerator.print(f"LR at resume: {lr_scheduler.get_last_lr()[0]:.3e}")
+        if not args.resume_skip_data:
+            accelerator.print("--resume_skip_data 0: the data restarts from the beginning "
+                              "of the epoch (some overlap).")
+            start_sample = 0
+        # The first start_sample frames of the epoch keep the order they were taken in; a new
+        # --shuffle_window applies to the frames of the epoch not taken yet.
+        order_msg = sampler.resume_order(resume_tstate.get("data_order"), start_epoch, start_sample)
+        if order_msg:
+            accelerator.print(order_msg)
 
     metric = TrainingMetrics(device=torch.cuda.current_device())
+    mem_monitor = MemoryMonitor(device=torch.cuda.current_device())
     global_step = resume_global_step
+
+    # ── EMA of the weights (after the resumed weights are in place) ──
+    ema = None
+    if args.ema_decay > 0:
+        ema = ShardedCPUEMA(accelerator.unwrap_model(model), args.ema_decay, args.ema_every,
+                            accelerator.process_index, accelerator.num_processes)
+        loaded = ema.load(resume_ckpt_dir) if args.resume_checkpoint else False
+        accelerator.print(
+            f"EMA of the weights: decay {args.ema_decay}/step, folded in every {args.ema_every} steps, "
+            f"{f'continued from {resume_ckpt_dir} ({ema.n} steps)' if loaded else 'starting from the current weights'}; "
+            f"rank {accelerator.process_index} keeps {ema.numel / 1e9:.2f} B weights ({ema.numel * 4 / 2**30:.1f} GiB) in RAM")
+    # ── best validation weights, shared by the jobs of this experiment ──
+    n_val_frames = 0
+    if val_dataloader is not None:
+        n_val_frames = min(len(val_dataset), args.max_val_batches * args.train_bsz_per_gpu * accelerator.num_processes)
+    best_val = None
+    if args.keep_best_val and val_dataloader is not None and accelerator.is_main_process:
+        best_val = _read_best_val(args, n_val_frames)
+        accelerator.print(f"Best validation weights -> {_best_val_dir(args)} (best val/action_loss so far: "
+                          f"{best_val['val_action_loss']:.6f})")
     model.train()
 
     device = accelerator.device
 
-    # Derive starting epoch and within-epoch offset from global_step.
-    start_epoch = global_step // steps_per_epoch if steps_per_epoch > 0 else 0
-    step_in_epoch_offset = global_step - start_epoch * steps_per_epoch
     if start_epoch >= args.n_epochs:
         accelerator.print(
-            f"Resume global_step={global_step} is at/past end of training "
-            f"({args.n_epochs} epochs × {steps_per_epoch} steps). Nothing to do.")
+            f"Resume position (epoch {start_epoch}) is at/past the end of training "
+            f"({args.n_epochs} epochs). Nothing to do.")
         return
-
-    if start_epoch > 0 or step_in_epoch_offset > 0:
+    if args.resume_checkpoint:
         accelerator.print(
-            f"Resuming at epoch={start_epoch}, step_in_epoch={step_in_epoch_offset}, "
-            f"global_step={global_step}. "
-            f"{'Will skip already-seen batches at the sampler (no data load).' if args.resume_skip_data else 'Data iterator restarts from beginning of epoch (some overlap).'}")
+            f"Resuming at epoch={start_epoch}, frame {start_sample}/{sampler.total_frames} of it, "
+            f"global_step={global_step}, {samples_seen} frames trained on so far.")
 
     for epoch in range(start_epoch, args.n_epochs):
         sampler.set_epoch(epoch)
@@ -1166,21 +1744,18 @@ def train(args):
         # epoch at the *sampler* level so workers never load those samples.
         # Previously we iterated and `continue`d, which still ran image
         # loading + collate for every skipped batch — slow enough that GPUs
-        # stayed at 0% and the NCCL watchdog could kill the job. Setting
-        # sampler.start_index just slices the index list before workers ever
-        # see it, so skipping ~100k batches is effectively instantaneous.
-        skip_n = (step_in_epoch_offset
-                  if (args.resume_skip_data and epoch == start_epoch) else 0)
-        sampler.start_index = skip_n * args.train_bsz_per_gpu
-        epoch_total = max(0, steps_per_epoch - skip_n)
-        if skip_n > 0:
+        # stayed at 0% and the NCCL watchdog could kill the job.
+        sampler.start_sample = start_sample if epoch == start_epoch else 0
+        epoch_sample = sampler.start_sample          # frames of this epoch consumed, all ranks
+        epoch_total = sampler.steps()
+        if epoch_sample > 0:
             accelerator.print(
-                f"Skipping first {skip_n} batches via sampler offset "
+                f"Skipping the first {epoch_sample} frames of epoch {epoch} via the sampler "
                 f"(no data loaded). Epoch will run {epoch_total} steps.")
 
         from tqdm import tqdm
-        desc = (f"Epoch {epoch} (resumed +{skip_n})"
-                if skip_n > 0 else f"Epoch {epoch}")
+        desc = (f"Epoch {epoch} (resumed at frame {epoch_sample})"
+                if epoch_sample > 0 else f"Epoch {epoch}")
         it = (tqdm(dataloader, total=epoch_total, desc=desc)
               if accelerator.is_main_process else dataloader)
 
@@ -1332,6 +1907,8 @@ def train(args):
 
             metric.update(loss, loss_act, loss_flare)
             accelerator.backward(loss)
+            epoch_sample += global_batch
+            samples_seen += global_batch
 
             if (global_step + 1) % accelerator.gradient_accumulation_steps == 0:
                 if args.max_grad_norm > 0:
@@ -1339,8 +1916,11 @@ def train(args):
                 optimizer.step()
                 lr_scheduler.step()
                 optimizer.zero_grad()
+                if ema is not None:
+                    ema.step()
 
                 m = metric.get_metric()
+                mem = mem_monitor.collect(accelerator.is_main_process)   # all ranks: all_reduce
                 if accelerator.is_main_process:
                     lr_now = lr_scheduler.get_last_lr()[0]
                     if hasattr(it, "set_postfix"):
@@ -1355,12 +1935,16 @@ def train(args):
                         "flare_loss": m["flare_loss"],
                         "lr": lr_now,
                         "epoch": epoch,
+                        "samples_seen": samples_seen,
+                        **mem,
                     }, step=global_step)
 
             # ── Validation ──
             if (val_dataloader is not None
                     and args.val_freq > 0
                     and (global_step + 1) % args.val_freq == 0):
+                if ema is not None:
+                    ema.wait()                # no EMA update running while validation forks its workers
                 val_m = run_validation(
                     model, val_dataloader, accelerator,
                     lambda: accelerator.unwrap_model(model),
@@ -1372,6 +1956,10 @@ def train(args):
                         f"act={val_m['val/action_loss']:.6f} "
                         f"flare={val_m['val/flare_loss']:.6f}")
                     wandb.log(val_m, step=global_step)
+                    if best_val is not None and val_m["val/action_loss"] < best_val["val_action_loss"]:
+                        best_val = _save_best_val(model, processor, accelerator, args, dataset, epoch,
+                                                  global_step + 1, val_m, n_val_frames, sampler.total_frames)
+                        accelerator.print(f"  best validation so far: weights in {best_val['checkpoint']}")
 
             # ── Step-level checkpoint ──
             if (args.save_steps > 0
@@ -1380,7 +1968,11 @@ def train(args):
                 save_checkpoint(model, processor, accelerator, args,
                                 epoch, global_step + 1, dataset,
                                 save_full_state=bool(args.save_full_state),
-                                lr_scheduler=lr_scheduler)
+                                lr_scheduler=lr_scheduler, ema=ema,
+                                position={"data_epoch": epoch, "data_sample": epoch_sample,
+                                          "data_order": sampler.order_state(),
+                                          "samples_seen": samples_seen,
+                                          "dataset_frames": sampler.total_frames})
 
             global_step += 1
 
@@ -1389,8 +1981,16 @@ def train(args):
             save_checkpoint(model, processor, accelerator, args,
                             epoch, global_step, dataset,
                             save_full_state=bool(args.save_full_state),
-                            lr_scheduler=lr_scheduler)
+                            lr_scheduler=lr_scheduler, ema=ema,
+                            position={"data_epoch": epoch + 1, "data_sample": 0,
+                                      "data_order": sampler.order_state(epoch + 1),
+                                      "samples_seen": samples_seen,
+                                      "dataset_frames": sampler.total_frames})
 
+    if ema is not None:
+        ema.wait()
+    for t in _background:                 # weights still being copied to weights/
+        t.join()
     accelerator.print("Training finished.")
 
 
@@ -1421,6 +2021,11 @@ if __name__ == "__main__":
     parser.add_argument("--shuffle_frames", type=int, default=0,
                         help="1 = shuffle frames across the episodes of each rank's share "
                              "(recommended for LeRobot data); 0 = consecutive frames per episode.")
+    parser.add_argument("--shuffle_window", type=int, default=EpisodeGroupedSampler.SHUFFLE_WINDOW,
+                        help="With --shuffle_frames 1: frames are shuffled within consecutive windows of "
+                             "this many frames of the epoch's episode order (0 = over the whole epoch). "
+                             "Changing it when resuming mid-epoch reshuffles only the frames of the "
+                             "epoch not taken yet (each frame still once per epoch).")
 
     parser.add_argument("--action_dim", type=int, default=62)
     parser.add_argument("--hand_dim", type=int, default=22,
@@ -1458,6 +2063,25 @@ if __name__ == "__main__":
                         help="Run validation every N training steps (0=disable)")
     parser.add_argument("--max_val_batches", type=int, default=50,
                         help="Max batches per validation run")
+    parser.add_argument("--val_num_workers", type=int, default=-1,
+                        help="DataLoader workers per GPU for validation (-1 = num_workers // 2). They are started "
+                             "for every validation and each costs several GiB of RAM while it runs.")
+    parser.add_argument("--val_fixed", type=int, default=0,
+                        help="1 = every validation scores the same max_val_batches x bsz x ranks frames, spread "
+                             "over the whole val split, with the same noise and flow times (comparable losses). "
+                             "0 = the first frames of the val split, new noise each time.")
+    parser.add_argument("--ema_decay", type=float, default=0.0,
+                        help="> 0: keep an EMA of the trainable weights with this decay per optimizer step (e.g. "
+                             "0.9999, ~10k steps), in CPU RAM split across the ranks; checkpoints get model_ema.pt.")
+    parser.add_argument("--ema_every", type=int, default=10,
+                        help="Fold the weights into the EMA every this many optimizer steps (decay**every each time).")
+    parser.add_argument("--keep_weights_every", type=int, default=0,
+                        help="> 0: also copy the weights (model.pt, model_ema.pt, no optimizer state) of every "
+                             "checkpoint at a multiple of this step to <run>/weights/, never rotated away. "
+                             "A multiple of --save_steps.")
+    parser.add_argument("--keep_best_val", type=int, default=0,
+                        help="1: keep the weights with the lowest val/action_loss in <output_dir>/<experiment>/"
+                             "best_val/ (shared by the jobs of the experiment; use with --val_fixed 1).")
 
     # Flare
     parser.add_argument("--use_flare", type=int, default=1)

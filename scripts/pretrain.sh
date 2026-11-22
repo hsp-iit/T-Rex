@@ -16,6 +16,9 @@
 set -e
 # Settings marked ${VAR:-default} below can be overridden from the environment,
 # e.g. a short smoke test:  N_EPOCHS=1 SAVE_STEPS=40 VAL_FREQ=30 sbatch scripts/pretrain.sh
+# Training longer than the time limit: queue follow-up jobs that each resume from the newest
+# complete checkpoint of the experiment (the GPU count and TRAIN_BSZ may differ from the first job):
+#   RESUME_CHECKPOINT=auto sbatch --dependency=afterany:<previous job id> scripts/pretrain.sh
 
 PROJECT_ROOT=${PROJECT_ROOT:-/home/iit.local/lgori/trex-mod}
 cd ${PROJECT_ROOT}/scripts
@@ -26,7 +29,7 @@ PIXI=$(command -v pixi || echo "${HOME}/.pixi/bin/pixi")
 eval "$(${PIXI} shell-hook --manifest-path ${PROJECT_ROOT}/pixi.toml)"
 export HF_HOME=${HF_HOME:-${HOME}/.cache/huggingface}
 export PYTHONPATH=${PROJECT_ROOT}:$PYTHONPATH
-export WANDB_MODE=offline
+export WANDB_MODE=${WANDB_MODE:-online}   # falls back to offline when wandb cannot start (no login / network)
 export PYTORCH_CUDA_ALLOC_CONF=${PYTORCH_CUDA_ALLOC_CONF:-expandable_segments:True}
 # Slurm sets CUDA_VISIBLE_DEVICES to the allocated GPUs.
 NUM_GPUS=${NUM_GPUS:-${SLURM_GPUS_ON_NODE:-$(nvidia-smi -L | wc -l)}}
@@ -38,10 +41,32 @@ ORIGIN_MODEL_PATH=${ORIGIN_MODEL_PATH:-"/home/iit.local/lgori/ckpts/Qwen3-VL-2B-
 # has one camera, used as head; it is also passed as the single fast image.
 LEROBOT_ROOT=${LEROBOT_ROOT:-"/home/iit.local/lgori/egomix_100gb/retarget"}   # one or more dirs, space-separated
 OUTPUT_DIR=${OUTPUT_DIR:-"/home/iit.local/lgori/trex-mod/trex_runs"}
-RESUME_CHECKPOINT=""
 
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-"trex_pretrain_egomix_panda_xhand"}
 RUN_NAME="${EXPERIMENT_NAME}_$(date +%m%d_%H%M)"
+
+# Resume: a checkpoint dir (or its model.pt); "auto" = the newest complete checkpoint of any
+# earlier run of this experiment, ${OUTPUT_DIR}/${EXPERIMENT_NAME}/<run>/checkpoint-<epoch>-<step>
+# (complete = its state/scheduler.bin, written last, exists); empty = start from the base model.
+# The GPU count and TRAIN_BSZ may change between jobs: pretrain.py continues at the same frame of
+# the data and the same point of the LR schedule, and re-splits DeepSpeed's optimizer state.
+RESUME_CHECKPOINT=${RESUME_CHECKPOINT:-""}
+if [ "${RESUME_CHECKPOINT}" = "auto" ]; then
+    RESUME_CHECKPOINT=""
+    best=-1
+    for f in ${OUTPUT_DIR}/${EXPERIMENT_NAME}/*/checkpoint-*-*/state/scheduler.bin; do
+        [ -f "$f" ] || continue
+        d=${f%/state/scheduler.bin}
+        step=${d##*-}
+        if [ "$step" -gt "$best" ] 2>/dev/null; then
+            best=$step
+            RESUME_CHECKPOINT=$d
+        fi
+    done
+    echo ">>> RESUME_CHECKPOINT=auto: ${RESUME_CHECKPOINT:-no complete checkpoint yet, starting from the base model}"
+fi
+# Normalization stats, shared by the runs of this experiment (recomputed when the data changed).
+LEROBOT_STATS_PATH=${LEROBOT_STATS_PATH:-"${OUTPUT_DIR}/${EXPERIMENT_NAME}/lerobot_norm_stats.json"}
 
 MASTER_ADDR=${MASTER_ADDR:-127.0.0.1}
 MASTER_PORT=${MASTER_PORT:-29500}
@@ -57,7 +82,24 @@ N_EPOCHS=${N_EPOCHS:-10}
 SAVE_STEPS=${SAVE_STEPS:-2000}          # mid-epoch resumable checkpoints
 MAX_CKPTS=${MAX_CKPTS:-3}              # full-state checkpoints are large (weights + optimizer)
 # Each sample decodes 9 head frames from HEVC on the CPU: keep workers high.
-NUM_WORKERS=${NUM_WORKERS:-8}            # per GPU (+ half as many persistent val workers)
+NUM_WORKERS=${NUM_WORKERS:-8}            # per GPU
+# EMA of the weights (checkpoints get model_ema.pt; ~12.6 GB of CPU RAM over the ranks): EMA_DECAY=0 turns it off.
+EMA_DECAY=${EMA_DECAY:-0.9999}          # per step: averages over the last ~10k steps
+EMA_EVERY=${EMA_EVERY:-10}
+# Weights (model.pt + model_ema.pt, no optimizer state) of every 10k-step checkpoint also go to <run>/weights/,
+# which the rotation never deletes (~20 GB each); the weights with the lowest validation action loss go to
+# ${OUTPUT_DIR}/${EXPERIMENT_NAME}/best_val/ (shared by the jobs of the experiment). 0 = off.
+KEEP_WEIGHTS_EVERY=${KEEP_WEIGHTS_EVERY:-10000}
+KEEP_BEST_VAL=${KEEP_BEST_VAL:-1}
+# Every validation scores the same frames, spread over all the val episodes, with the same noise (comparable
+# losses; 0 = the first frames of the val split with new noise each time).
+VAL_FIXED=${VAL_FIXED:-1}
+# Frames are shuffled within windows of this many frames of each epoch's episode order; 0 = over the whole epoch
+# (each episode's frames spread over the epoch; 4194304 = the older order, one ~26k-step block of episodes at a time).
+# Changing it when a run resumes mid-epoch reshuffles only the frames not taken yet: each frame still once per epoch.
+SHUFFLE_WINDOW=${SHUFFLE_WINDOW:-0}
+# Validation workers are forked for every validation and each costs several GiB of RAM while it runs:
+# 5 per GPU on 4 GPUs drove the job into its memory limit (hours of swapping-like stalls). 2 x 20 batches ~2 min.
 
 mkdir -p ${OUTPUT_DIR}
 
@@ -77,6 +119,7 @@ accelerate launch \
     --lerobot_base action \
     --lerobot_video_backend pyav \
     --image_fit crop \
+    --lerobot_stats_path ${LEROBOT_STATS_PATH} \
     --n_epochs ${N_EPOCHS} \
     --save_freq 1 \
     --action_dim 21 \
@@ -96,10 +139,17 @@ accelerate launch \
     --image_size 384 288 \
     --num_workers ${NUM_WORKERS} \
     --shuffle_frames 1 \
+    --shuffle_window ${SHUFFLE_WINDOW} \
     --save_steps ${SAVE_STEPS} \
     --val_ratio 0.02 \
     --val_freq ${VAL_FREQ:-1000} \
-    --max_val_batches ${MAX_VAL_BATCHES:-50} \
+    --max_val_batches ${MAX_VAL_BATCHES:-20} \
+    --val_num_workers ${VAL_NUM_WORKERS:-2} \
+    --val_fixed ${VAL_FIXED} \
+    --ema_decay ${EMA_DECAY} \
+    --ema_every ${EMA_EVERY} \
+    --keep_weights_every ${KEEP_WEIGHTS_EVERY} \
+    --keep_best_val ${KEEP_BEST_VAL} \
     --use_flare 1 \
     --n_flare_tokens_per_frame 4 \
     --n_flare_steps 8 \
@@ -107,6 +157,7 @@ accelerate launch \
     --flare_frame_stride 4 \
     --flare_layer_index -1 \
     --resume_checkpoint "${RESUME_CHECKPOINT}" \
+    --resume_skip_data 1 \
     --save_full_state 1 \
     --max_ckpts ${MAX_CKPTS}
 
