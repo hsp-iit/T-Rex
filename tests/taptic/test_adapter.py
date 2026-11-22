@@ -112,6 +112,43 @@ def test_batch_and_roundtrip(setup):
         chunk_21d(s, raw, len(raw) - 15)
 
 
+def test_trex_per_step_q01_q99_normalization(setup):
+    """Original T-Rex scheme: q01/q99 per (chunk step, dim) over the training chunks, clipped to [-1, 1]."""
+    src, ds, ids = setup
+    stats = fit_stats(src, ids[:2], normalization='trex_q01_q99_per_step_clipped')
+    block = stats['taptic']
+    assert block['normalization'] == 'trex_q01_q99_per_step_clipped' and 'min' not in block['action']
+    lo, hi = np.asarray(block['action']['q01']), np.asarray(block['action']['q99'])
+    assert lo.shape == hi.shape == (16, 21) and np.all(hi > lo)
+    assert np.asarray(block['state']['q01']).shape == (21,)
+    chunks = []
+    for ep in ids[:2]:
+        s, a = np.stack(src.frames(ep)['observation.state']), np.stack(src.frames(ep).action)
+        chunks += [chunk_21d(s, a, int(t)) for t in src.anchors(ep)]
+    C = np.stack(chunks)
+    assert block['num_chunks'] == len(C)
+    const = np.asarray(block['action']['constant'])
+    q01, q99 = np.quantile(C, .01, axis=0), np.quantile(C, .99, axis=0)
+    np.testing.assert_allclose(lo, q01, atol=1e-6)
+    np.testing.assert_allclose(hi[~const], q99[~const], atol=1e-6)
+    ds_q = TRexTapticDataset(ds.config, ds.processor, SimpleNamespace(print=print), episode_ids=ids, _stats=stats)
+    n = ds_q.normalize_actions(C)
+    assert n.min() >= -1 and n.max() <= 1
+    # per step: q01 -> -1, q99 -> +1, and only the tails (~1 % per side) are clipped
+    np.testing.assert_allclose(ds_q.normalize_actions(lo), -1, atol=1e-5)
+    np.testing.assert_allclose(ds_q.normalize_actions(hi)[~const], 1, atol=1e-5)    # const is [16, 21]
+    # only values outside [q01, q99] are clipped (<= ~1 % per side; hand joints resting at a limit map to
+    # exactly -1/+1 without being outliers)
+    assert ((C < lo) | (C > hi))[:, ~const].mean() < .025
+    inside = np.clip(C, lo, hi)
+    np.testing.assert_allclose(ds_q.denormalize_actions(ds_q.normalize_actions(inside)), inside, atol=2e-6)
+    # a mode string that does not match the stored bounds is rejected
+    bad = copy.deepcopy(stats)
+    bad['taptic']['normalization'] = 'affine_train_minmax_unclipped'
+    with pytest.raises(ValueError):
+        TRexTapticDataset(ds.config, ds.processor, SimpleNamespace(print=print), episode_ids=ids, _stats=bad)
+
+
 def test_future_samples_and_missing_are_explicit():
     import pandas as pd
     sm = pd.DataFrame({'read_end_ns': [1, 3, 5], 'force': [np.ones(15)*i for i in [1, 2, 3]],

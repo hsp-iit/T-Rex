@@ -5,7 +5,7 @@ python -m taptic.inspect_dataset --root ROOT --out audit.json [--stats stats.jso
 import argparse
 import json
 import numpy as np
-from .data import Source, fit_stats
+from .data import NORMALIZATIONS, Source, fit_stats
 
 
 def audit(src):
@@ -76,6 +76,8 @@ def main():
     p.add_argument('--root', required=True)
     p.add_argument('--out', required=True)
     p.add_argument('--stats')
+    p.add_argument('--normalization', choices=NORMALIZATIONS, default=NORMALIZATIONS[0],
+                   help='affine train min-max (default) or the original T-Rex per-step q01/q99, clipped')
     args = p.parse_args()
     src = Source(args.root)
     report = audit(src)
@@ -83,7 +85,7 @@ def main():
         json.dump(report, f, indent=2)
     if args.stats:
         with open(args.stats, 'w') as f:
-            json.dump(fit_stats(src), f, indent=2)
+            json.dump(fit_stats(src, normalization=args.normalization), f, indent=2)
 
 if __name__ == '__main__':
     main()

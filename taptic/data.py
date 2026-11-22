@@ -157,18 +157,34 @@ def tactile_stream_between(sm, available, tick, previous_tick, native, *, qualit
     return result
 
 
+NORMALIZATIONS = ('affine_train_minmax_unclipped', 'trex_q01_q99_per_step_clipped')
+
+
+def _bounds(stats):
+    # 'min'/'max': affine train min-max, [21], unclipped (reversible, held-out outliers included).
+    # 'q01'/'q99': original T-Rex scheme, per (chunk step, dim) [16, 21] for actions ([21] for state),
+    #              clipped to [-1, 1] (scripts/midtrain.py of the T-Rex full pipeline).
+    if 'q01' in stats:
+        return np.asarray(stats['q01'], np.float32), np.asarray(stats['q99'], np.float32), True
+    return np.asarray(stats['min'], np.float32), np.asarray(stats['max'], np.float32), False
+
+
 def normalize(x, stats):
-    lo, hi = np.asarray(stats['min'], np.float32), np.asarray(stats['max'], np.float32)
-    # Reversible affine normalization, including held-out outliers (no clipping).
-    return ((np.asarray(x, np.float32) - lo) / (hi - lo) * 2 - 1).astype(np.float32)
+    lo, hi, clip = _bounds(stats)
+    y = (np.asarray(x, np.float32) - lo) / (hi - lo) * 2 - 1
+    return (np.clip(y, -1., 1.) if clip else y).astype(np.float32)
 
 
 def denormalize(x, stats):
-    lo, hi = np.asarray(stats['min'], np.float32), np.asarray(stats['max'], np.float32)
+    lo, hi, _ = _bounds(stats)
     return ((np.asarray(x, np.float32) + 1) * .5 * (hi - lo) + lo).astype(np.float32)
 
 
-def fit_stats(source, train_episodes=None):
+def fit_stats(source, train_episodes=None, normalization='affine_train_minmax_unclipped'):
+    if normalization not in NORMALIZATIONS:
+        raise ValueError(f'normalization must be one of {NORMALIZATIONS}')
+    per_step = normalization == 'trex_q01_q99_per_step_clipped'
+    chunks, states = [], []
     ids = sorted(map(int, train_episodes if train_episodes is not None else
                      source.episodes.index[source.episodes.suggested_split == 'train']))
     if not ids or any(source.episodes.loc[e, 'suggested_split'] != 'train' for e in ids):
@@ -192,18 +208,36 @@ def fit_stats(source, train_episodes=None):
         rot = rotvec_gd_to_matrix(s[:, 37:40])
         state21 = np.concatenate([s[:, 34:37], rot[:, :, 0], rot[:, :, 1], s[:, 7:19]], axis=-1)
         slo, shi = np.minimum(slo, state21.min(0)), np.maximum(shi, state21.max(0))
+        if per_step:
+            states.append(state21.astype(np.float32))
         for t in source.anchors(ep):
             c = chunk_21d(s, a, int(t))
             lo, hi = np.minimum(lo, c.min(0)), np.maximum(hi, c.max(0))
+            if per_step:
+                chunks.append(c.astype(np.float32))
             n += 1
     if n == 0:
         raise ValueError('no valid training chunks')
-    constant = hi - lo < 1e-6
-    hi[constant] = lo[constant] + 1.0
-    shi = np.where(shi - slo < 1e-6, slo + 1., shi)
-    return {'taptic': {'state': {'min': slo.tolist(), 'max': shi.tolist()}, 'action': {'min': lo.tolist(), 'max': hi.tolist(),
-                                 'mask': [True] * 21, 'constant': constant.tolist()},
+    if per_step:
+        # q01/q99 over every training chunk, per (chunk step, dim); a (near-)constant entry gets width 1
+        # (normalizes to -1 there) instead of a division by ~0.
+        C = np.stack(chunks)                                                    # [n, 16, 21]
+        lo, hi = np.quantile(C, .01, axis=0), np.quantile(C, .99, axis=0)
+        constant = hi - lo < 1e-6
+        hi = np.where(constant, lo + 1., hi)
+        S = np.concatenate(states)
+        slo, shi = np.quantile(S, .01, axis=0), np.quantile(S, .99, axis=0)
+        shi = np.where(shi - slo < 1e-6, slo + 1., shi)
+        state = {'q01': slo.tolist(), 'q99': shi.tolist()}
+        action = {'q01': lo.tolist(), 'q99': hi.tolist(), 'mask': [True] * 21, 'constant': constant.tolist()}
+    else:
+        constant = hi - lo < 1e-6
+        hi[constant] = lo[constant] + 1.0
+        shi = np.where(shi - slo < 1e-6, slo + 1., shi)
+        state = {'min': slo.tolist(), 'max': shi.tolist()}
+        action = {'min': lo.tolist(), 'max': hi.tolist(), 'mask': [True] * 21, 'constant': constant.tolist()}
+    return {'taptic': {'state': state, 'action': action,
                        'train_episodes': ids, 'source_identity': source.identity,
-                       'num_chunks': n, 'normalization': 'affine_train_minmax_unclipped',
+                       'num_chunks': n, 'normalization': normalization,
                        'taxel_scale': [128., 128., 255.],
                        'action_layout': 'flange delta xyz m, rotation columns 1/2, absolute hand rad'}}

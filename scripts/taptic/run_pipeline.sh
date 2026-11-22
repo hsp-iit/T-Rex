@@ -12,6 +12,9 @@
 #   TRAIN_BSZ    per-GPU midtrain batch (default 16, as original T-Rex)
 #                GRAD_ACCUM is derived so that NUM_GPUS*TRAIN_BSZ*GRAD_ACCUM = 128 (fixed)
 #   VQVAE_CKPT   midtrain stage only: VQ-VAE checkpoint (default: runs/vqvae/LATEST_CKPT)
+#   TAPTIC_STATS midtrain stage only: normalization statistics (default docs/taptic_train_stats.json;
+#                docs/taptic_train_stats_trex_q.json = original T-Rex per-step q01/q99, clipped)
+#   RESUME_CHECKPOINT  midtrain stage only: start from a pretrain checkpoint dir (--resume_source pretrain)
 #   MIN_GPU_GIB  minimum memory per GPU for preflight (default 40)
 #   NUM_WORKERS  dataloader workers per process (default 6)
 #   MAX_DISK_PCT disk usage ceiling checked by preflight (default 90, the lab rule)
@@ -33,6 +36,8 @@ TRAIN_BSZ=${TRAIN_BSZ:-16}
 MIN_GPU_GIB=${MIN_GPU_GIB:-40}
 NUM_WORKERS=${NUM_WORKERS:-6}
 MAX_DISK_PCT=${MAX_DISK_PCT:-90}
+TAPTIC_STATS=${TAPTIC_STATS:-$REPO/docs/taptic_train_stats.json}
+RESUME_CHECKPOINT=${RESUME_CHECKPOINT:-}
 DRY_RUN=${DRY_RUN:-0}
 
 [[ -x "$PY" ]] || { echo "missing $PY: run scripts/taptic/setup_env.sh"; exit 1; }
@@ -70,6 +75,8 @@ info() {
         echo "git_dirty_files:"; git -C "$REPO" status --porcelain 2>/dev/null || true
         echo "NUM_GPUS=${NUM_GPUS:-} TRAIN_BSZ=$TRAIN_BSZ GRAD_ACCUM=${GRAD_ACCUM:-} EFFECTIVE_BSZ=$EFFECTIVE_BSZ"
         echo "CUDA_VISIBLE_DEVICES=${CUDA_VISIBLE_DEVICES:-unset} SLURM_JOB_ID=${SLURM_JOB_ID:-}"
+        echo "TAPTIC_STATS=$TAPTIC_STATS sha256=$(sha256sum "$TAPTIC_STATS" 2>/dev/null | cut -c1-64)"
+        echo "RESUME_CHECKPOINT=${RESUME_CHECKPOINT:-none (base Qwen3-VL)}"
         echo "--- nvidia-smi"; nvidia-smi 2>&1 || true
         echo "--- pip freeze"; "$PY" -m pip freeze 2>&1 || echo "(pip freeze failed)"
     } > "$f"
@@ -109,12 +116,16 @@ stage_midtrain() {
         VQVAE_CKPT=$(cat "$RUNS/vqvae/LATEST_CKPT")
     fi
     [[ "$DRY_RUN" == 1 || -f "$VQVAE_CKPT" ]] || { echo "VQ-VAE checkpoint not found: $VQVAE_CKPT"; exit 1; }
+    [[ "$DRY_RUN" == 1 || -f "$TAPTIC_STATS" ]] || { echo "TAPTIC_STATS not found: $TAPTIC_STATS"; exit 1; }
+    [[ "$DRY_RUN" == 1 || -z "$RESUME_CHECKPOINT" || -f "$RESUME_CHECKPOINT/model.pt" ]] || {
+        echo "RESUME_CHECKPOINT has no model.pt: $RESUME_CHECKPOINT"; exit 1; }
     echo "=== midtrain: $NUM_GPUS GPUs x batch $TRAIN_BSZ x accum $GRAD_ACCUM = $EFFECTIVE_BSZ; VQ $VQVAE_CKPT ==="
+    echo "=== stats $TAPTIC_STATS; init ${RESUME_CHECKPOINT:-base Qwen3-VL} ==="
     run "$PY" "$REPO/scripts/taptic/preflight.py" --n-gpus "$NUM_GPUS" \
         --min-mem-gib "$MIN_GPU_GIB" --storage "$out" --need-gib 60 --max-used-pct "$MAX_DISK_PCT"
     mkdir -p "$out"
     local common=(TAPTIC_ROOT="$TAPTIC_ROOT" MODEL_PATH="$MODEL_PATH" VQVAE_CKPT="$VQVAE_CKPT"
-                  TAPTIC_STATS="$REPO/docs/taptic_train_stats.json"
+                  TAPTIC_STATS="$TAPTIC_STATS" RESUME_CHECKPOINT="$RESUME_CHECKPOINT"
                   NUM_GPUS="$NUM_GPUS" TRAIN_BSZ="$TRAIN_BSZ" GRAD_ACCUM="$GRAD_ACCUM"
                   LR=1e-4 EPOCHS=10 NUM_WORKERS="$NUM_WORKERS"
                   MASTER_PORT="${MASTER_PORT:-$((29500 + ${SLURM_JOB_ID:-$$} % 1000))}")

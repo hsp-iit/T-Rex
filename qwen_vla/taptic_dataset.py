@@ -37,7 +37,7 @@ import PIL.Image
 import torch
 import torch.nn.functional as F
 from taptic.actions import chunk_21d, rotvec_gd_to_matrix
-from taptic.data import (Source, CAMERAS, finite, normalize, denormalize,
+from taptic.data import (Source, CAMERAS, NORMALIZATIONS, finite, normalize, denormalize,
                          tactile_at, tactile_stream_between)
 from taptic.video import VideoReader
 from taptic.timing import build_quality, latest_quality
@@ -133,8 +133,13 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         if len(ids) != len(set(ids)) or any(self.source.episodes.loc[e, 'suggested_split'] != 'train' for e in ids):
             raise ValueError('statistics contain non-training episodes')
         st = block['action']
-        lo, hi = np.asarray(st['min']), np.asarray(st['max'])
-        if lo.shape != (21,) or hi.shape != (21,) or not np.isfinite([lo, hi]).all() or np.any(hi <= lo):
+        mode = block.get('normalization', 'affine_train_minmax_unclipped')
+        if mode not in NORMALIZATIONS or (mode == 'trex_q01_q99_per_step_clipped') != ('q01' in st):
+            raise ValueError(f'statistics: normalization {mode!r} does not match the stored action bounds')
+        lo, hi = (np.asarray(st['q01']), np.asarray(st['q99'])) if 'q01' in st else \
+                 (np.asarray(st['min']), np.asarray(st['max']))
+        shape = (16, 21) if 'q01' in st else (21,)
+        if lo.shape != shape or hi.shape != shape or not np.isfinite([lo, hi]).all() or np.any(hi <= lo):
             raise ValueError('invalid action normalization statistics')
         self.action_stats = st
         self.scope = self.source.episodes if episode_ids is None else self.source.episodes.loc[episode_ids]
