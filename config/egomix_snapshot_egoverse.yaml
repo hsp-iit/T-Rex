@@ -1,0 +1,17 @@
+# EgoVerse-only snapshot views (utils/egomix_snapshot.py): EgoVerse A and B plus their replacement runs.
+# Its own view_dir (own lock, cache and plans), so it never touches /fastwork/lgori/egomix_snapshot.
+#   sbatch --export=ALL,CONFIG=/home/lgori/trex-mod/config/egomix_snapshot_egoverse.yaml scripts/egomix_snapshot.sh
+#   LEROBOT_ROOT=/fastwork/lgori/egomix_snapshot_egoverse/retarget ...   # or --local-copy it, as pretrain_4gpu.sbatch does
+sources:                                          # egomix output folders (read only)
+  - /fastwork/lgori/egomix_10tb_egoverse_gpu      # EgoVerse A (half 0)
+  - /fastwork/lgori/egomix_10tb_egoverse_gpu_b    # EgoVerse B (half 1)
+  - /fastwork/lgori/egomix_10tb_replace_egoverse  # replacements for A
+  - /fastwork/lgori/egomix_10tb_replace_egoverse_b  # replacements for B
+view_dir: /fastwork/lgori/egomix_snapshot_egoverse
+modes: [retarget]
+settle_seconds: 300
+world_up:                                         # skip EgoVerse worlds that are not gravity up (drop_episodes.py)
+  recheck: true
+  python: /home/lgori/.conda/envs/egomix/bin/python
+  egomix_dir: /home/lgori/egomix
+  sim_repo: /home/lgori/panda-sim
