@@ -97,7 +97,8 @@ def load_model(args, device):
         n_flare_tokens_per_frame=n_tpf,
         n_flare_steps=n_steps,
     )
-    sd = torch.load(os.path.join(ckpt, "model.pt"), map_location="cpu")
+    sd = torch.load(os.path.join(ckpt, args.weights), map_location="cpu")
+    print(f"Weights: {os.path.join(ckpt, args.weights)}", flush=True)
     if "state_dict" in sd:
         sd = sd["state_dict"]
     missing, unexpected = model.load_state_dict(sd, strict=False)
@@ -221,6 +222,8 @@ def main():
     p.add_argument("--seed", type=int, default=42, help="must match training for the same val split")
     p.add_argument("--val_ratio", type=float, default=0.02)
     p.add_argument("--n_examples", type=int, default=6)
+    p.add_argument("--weights", default="model.pt",
+                   help="weights file in the checkpoint dir: model.pt, or model_ema.pt (EMA of the weights)")
     # data settings: defaults mirror scripts/pretrain.sh
     p.add_argument("--action_dim", type=int, default=21)
     p.add_argument("--action_chunk", type=int, default=16)
@@ -247,6 +250,17 @@ def main():
     # ── data: same episode split as training, checkpoint normalization ──
     full = TRexLeRobotDataset(args, processor, _PrintAccelerator())
     val = full.create_val_split(val_ratio=args.val_ratio, seed=args.seed)
+    # The split is drawn from each dataset's episode count, so it is the run's held-out set only on the
+    # same data (snapshot views grow when refreshed). pretrain.py records its train-split size.
+    ts_path = os.path.join(args.checkpoint_path, "training_state.json")
+    if os.path.exists(ts_path):
+        with open(ts_path) as f:
+            want = json.load(f).get("dataset_frames")
+        have = int(full._cum_frames[-1]) if len(full._cum_frames) else 0
+        if want is not None and int(want) != have:
+            raise SystemExit(f"train split has {have} frames, the checkpoint's run trained on {want}: the data, "
+                             "--val_ratio or --seed differ, so 'val' would contain training episodes")
+        print(f"Train split matches the checkpoint's run ({have} frames)", flush=True)
     with open(os.path.join(args.checkpoint_path, "stats_data.json")) as f:
         block = next(iter(json.load(f).values()))
     A = lambda k, s: np.array(block[k][s])
