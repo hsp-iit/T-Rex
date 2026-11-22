@@ -94,6 +94,13 @@ def add_lerobot_args(parser):
     g.add_argument("--lerobot_video_backend", type=str, default="",
                    help="LeRobot video decoder (torchcodec, pyav); empty = LeRobot default. "
                         "Use pyav when FFmpeg shared libraries are not available for torchcodec.")
+    g.add_argument("--lerobot_tolerance_s", type=float, default=0.2,
+                   help="Largest gap between a queried and a decoded video timestamp, as a fraction of the frame "
+                        "period (1/fps). LeRobot's default, an absolute 1e-4 s, is below float32 resolution once "
+                        "a video file is longer than 1024 s (v3.0 stores many episodes per file), and then fails.")
+    g.add_argument("--lerobot_max_bad_items", type=int, default=1000,
+                   help="Items whose frames cannot be decoded are replaced by the next item, with a warning; "
+                        "the worker raises after this many (0 = always raise).")
     g.add_argument("--image_fit", choices=["stretch", "crop", "pad"], default="stretch",
                    help="How frames reach --image_size: stretch, centre crop, or letterbox.")
     g.add_argument("--lerobot_stats_path", type=str, default="",
@@ -375,6 +382,7 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
                 continue
             s.ds = LeRobotDataset(s.repo_id, root=s.root, episodes=sel,
                                   delta_timestamps=self._delta_timestamps(s),
+                                  tolerance_s=getattr(self.config, "lerobot_tolerance_s", 0.2) / s.fps,
                                   video_backend=getattr(self.config, "lerobot_video_backend", None) or None)
             self._selected[s.root] = sel
             lengths.append(s.episode_lengths(sel))
@@ -636,10 +644,27 @@ class TRexLeRobotDataset(torch.utils.data.Dataset):
         return int(self._src_cum[-1]) if len(self._src_cum) else 0
 
     def __getitem__(self, idx):
-        si = int(np.searchsorted(self._src_cum, idx, side="right"))
-        local = idx - (int(self._src_cum[si - 1]) if si > 0 else 0)
-        s = self.sources[si]
-        item = s.ds[local]
+        from lerobot.datasets.video_utils import FrameTimestampError
+        for _ in range(100):
+            si = int(np.searchsorted(self._src_cum, idx, side="right"))
+            local = idx - (int(self._src_cum[si - 1]) if si > 0 else 0)
+            s = self.sources[si]
+            try:
+                item = s.ds[local]
+                break
+            except FrameTimestampError as e:
+                # One bad frame must not end a multi-day job, nor every job that resumes into it.
+                self._n_bad = getattr(self, "_n_bad", 0) + 1
+                limit = getattr(self.config, "lerobot_max_bad_items", 1000)
+                if self._n_bad > limit:
+                    raise
+                msg = str(e).splitlines()
+                video = next((l for l in msg if l.startswith("video:")), "")
+                print(f"[LeRobot] WARNING: skipping item {idx} ({os.path.basename(str(s.root))}, frame {local}), bad item "
+                      f"{self._n_bad}/{limit} in this worker: {msg[0][:160]} {video}", flush=True)
+                idx = (idx + 1) % len(self)
+        else:
+            raise RuntimeError(f"[LeRobot] 100 consecutive items failed to decode, the last one {idx}")
 
         # Frames become image_size PILs here, not in collate_fn: a raw decoded
         # frame is float32 at full resolution (~33 MB at 1920x1456), and a worker
