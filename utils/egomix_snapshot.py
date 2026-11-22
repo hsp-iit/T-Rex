@@ -5,7 +5,8 @@ that are complete and safe to read, as LeRobot v3 datasets that TRexLeRobotDatas
     python -m utils.egomix_snapshot config/egomix_snapshot.yaml             # build, or refresh, the views
     python -m utils.egomix_snapshot config/egomix_snapshot.yaml --verify    # do the views still match?
     sbatch scripts/egomix_snapshot.sh                                       # the refresh as a cpu job
-    LEROBOT_ROOT=<view_dir>/retarget sbatch scripts/pretrain.sh             # train on the views
+    LEROBOT_ROOT=$(python -m utils.egomix_snapshot --local-copy <view_dir>/retarget $TMPDIR/egomix_views)
+                                         # in the training job: the views' tables on node-local disk (below)
 
 Optional: nothing else in trex-mod imports this module, and the loader is not changed.
 
@@ -46,6 +47,13 @@ refresh leaves the view as it was. A training that is already running keeps the 
 
 After egomix's drop_episodes.py --apply rebuilds a source dataset, the files the view links to change:
 --verify reports it (and a refresh refuses to append to that view); rebuild it with --rebuild.
+
+BeeGFS. On this cluster (cnode and anode alike) the BeeGFS client fails some of pyarrow's parquet reads
+with EFAULT (errno 14, "Bad address"), deterministically per file, for egomix's files as for the views',
+through pyarrow, pandas and datasets (so LeRobot) alike; plain Python reads and copies of the same files
+work, and the copies read fine from node-local disk. This module reads parquet through Python, and
+--local-copy puts the views' tables (~2 GB for retarget) on node-local disk for training, with their
+videos still linked to BeeGFS (decoding those works).
 """
 import argparse
 import csv
@@ -99,8 +107,15 @@ def retry(read, tries=5):
 
 
 def read_parquet(path, columns=None):
-    # pre_buffer off: with it, pyarrow fails (EFAULT) on recently written files on this cluster's BeeGFS
-    return pq.read_table(path, columns=columns, pre_buffer=False)
+    """A parquet file read with Python and parsed from memory. pyarrow's own file reads fail now and
+    then with EFAULT (errno 14, "Bad address") on this cluster's BeeGFS, in a process that has read many
+    files (pre_buffer=False is not enough); the same file then reads fine in a fresh process."""
+    with open(path, 'rb') as f:
+        data = f.read()
+    try:
+        return pq.read_table(pa.BufferReader(data), columns=columns)
+    except Exception as error:  # noqa: BLE001
+        raise RuntimeError(f'{path}: {type(error).__name__}: {error}') from error
 
 
 # ---------------------------------------------------------------- config
@@ -679,6 +694,61 @@ def refresh_view(root, episodes, state):
     return len(manifest)
 
 
+# ---------------------------------------------------------------- node-local copy for training
+
+def local_copy(source, target, tries=3):
+    """Copies the views under `source` (a <view_dir>/<mode> folder, or one view) to `target` on
+    node-local disk: their parquet tables as files, their video links as links (the videos stay on
+    BeeGFS, where decoding them works). This cluster's BeeGFS client fails some of pyarrow's parquet
+    reads with EFAULT (errno 14), for pyarrow, pandas and datasets alike, deterministically per file
+    (also for egomix's own files); plain copies of the same files read fine from local disk. Each copied
+    view is checked: every parquet file reads with pyarrow, and its data rows add up to info.json
+    (a refresh running meanwhile is caught and the copy taken again). Prints `target` on stdout."""
+    def say(message):
+        print(f'{time.strftime("%H:%M:%S")} {message}', file=sys.stderr, flush=True)
+
+    source, target = Path(source).resolve(), Path(target)
+    views = ([source] if (source / 'meta/info.json').exists()
+             else sorted(p.parents[1] for p in source.glob('*/meta/info.json')))
+    if not views:
+        raise SystemExit(f'{source}: no view (meta/info.json) there')
+    started, size = time.time(), 0
+    for view in views:
+        dest = target if view == source else target / view.name
+        if dest.exists() and not (dest / 'meta/info.json').exists() and any(dest.iterdir()):
+            raise SystemExit(f'{dest} exists and is not an earlier copy of a view; not overwriting it')
+        for attempt in range(tries):
+            shutil.rmtree(dest, ignore_errors=True)
+            for folder, _, names in os.walk(view):  # symlinked videos come as names, not followed
+                rel = Path(folder).relative_to(view)
+                (dest / rel).mkdir(parents=True, exist_ok=True)
+                for name in names:
+                    if name.endswith('.tmp'):
+                        continue
+                    path = Path(folder) / name
+                    if path.is_symlink():
+                        os.symlink(os.readlink(path), dest / rel / name)
+                    else:
+                        shutil.copyfile(path, dest / rel / name)
+                        size += path.stat().st_size
+            info = json.loads((dest / 'meta/info.json').read_text())
+            try:
+                frames = sum(pq.read_table(p).num_rows for p in sorted((dest / 'data').glob('*/*.parquet')))
+                episodes = sum(pq.read_table(p).num_rows for p in sorted((dest / 'meta/episodes').glob('*/*.parquet')))
+                pq.read_table(dest / 'meta/tasks.parquet')
+            except OSError as error:
+                raise SystemExit(f'{dest}: a parquet file does not read even from local disk: {error}')
+            if (frames, episodes) == (info['total_frames'], info['total_episodes']):
+                break
+            say(f'{view.name}: copied mid-refresh ({episodes} episodes, {frames} frames for info.json\'s '
+                f'{info["total_episodes"]}, {info["total_frames"]}); copying again')
+            time.sleep(30)
+        else:
+            raise SystemExit(f'{view}: no consistent copy after {tries} tries (a refresh running?)')
+    say(f'copied {len(views)} views ({gb(size)} of tables) to {target} in {time.time() - started:.0f} s')
+    print(target)
+
+
 # ---------------------------------------------------------------- main
 
 def report(roots, additions, plan_path):
@@ -706,6 +776,10 @@ def report(roots, additions, plan_path):
 def main():
     if sys.argv[1:] == ['--world-up-worker']:
         return world_up_worker()
+    if sys.argv[1:2] == ['--local-copy']:
+        if len(sys.argv) != 4:
+            raise SystemExit('usage: python -m utils.egomix_snapshot --local-copy <view_dir>/<mode> <local dir>')
+        return local_copy(sys.argv[2], sys.argv[3])
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('config', help='the snapshot config (see config/egomix_snapshot.yaml)')
     parser.add_argument('--dry-run', action='store_true', help='decide and report; write no view')
@@ -780,7 +854,8 @@ def main():
             for ep in episodes:
                 path = root.data_path(ep)
                 if path not in rows:
-                    rows[path] = pq.ParquetFile(path, pre_buffer=False).metadata.num_rows
+                    with open(path, 'rb') as f:
+                        rows[path] = pq.ParquetFile(pa.BufferReader(f.read())).metadata.num_rows
                 data += stat_of(path)[0] * ep['length'] / max(1, rows[path])
             log(f'  {key}: +{len(episodes):,} episodes, ~{gb(data)} of data tables')
         log('dry run: no view written')

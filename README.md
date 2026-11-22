@@ -266,7 +266,17 @@ like any LeRobot root. Set the egomix output folders and `view_dir` in
 ```bash
 sbatch --export=ALL,SNAPSHOT_ARGS=--dry-run scripts/egomix_snapshot.sh   # what would be taken, and why not the rest
 sbatch scripts/egomix_snapshot.sh                                        # build; rerun to append what finished since
-LEROBOT_ROOT=/fastwork/lgori/egomix_snapshot/retarget sbatch scripts/pretrain.sh
+```
+
+**Train from a node-local copy of the tables.** On this cluster the BeeGFS client fails some of
+pyarrow's parquet reads with `OSError: [Errno 14] Bad address` (deterministically per file, through
+pyarrow, pandas and `datasets` alike, on cpu and gpua nodes, egomix's own files included), while the
+same files read fine from local disk. So in the training job, before `accelerate launch`, copy the
+views' tables (~2 GB for retarget; the videos stay linked to BeeGFS, where decoding them works):
+
+```bash
+LEROBOT_ROOT=$(python -m utils.egomix_snapshot --local-copy /fastwork/lgori/egomix_snapshot/retarget ${TMPDIR:-/tmp}/egomix_views)
+export HF_DATASETS_CACHE=${TMPDIR:-/tmp}/egomix_views_hf    # the datasets cache on local disk too
 ```
 
 A refresh only appends to the views (a running training keeps what it loaded).

@@ -13,6 +13,8 @@
 #SBATCH --mem=32G
 #SBATCH --time=4:00:00
 #SBATCH --output=/fastwork/lgori/egomix_10tb_logs/%x-%j.out
+#SBATCH --mail-type=BEGIN,END,TIME_LIMIT_90
+#SBATCH --mail-user=leonardo.gori@iit.it
 set -euo pipefail
 PROJECT_ROOT=${PROJECT_ROOT:-/home/lgori/trex-mod}
 # Any python with pyarrow, pandas, numpy and pyyaml (the trex env has them); the world-up recheck
