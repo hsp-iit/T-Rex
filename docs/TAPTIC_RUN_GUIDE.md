@@ -1,5 +1,7 @@
 # Running the TAPTIC T-Rex midtrain on a new cluster
 
+> **trex-touch worktree:** the touch modules (self-handover, contact and event weighting, long force history), the dataset variants (re-collected unscrew, source selection) and their jobs, evaluation and tests are documented in [TOUCH_MODULES.md](TOUCH_MODULES.md).
+
 This guide is written for whoever launches the training (a person or a coding agent) on a
 machine we have not used before. Follow it top to bottom. Every command is
 copy-pasteable. The experiment itself is fixed: **do not change hyperparameters, data or

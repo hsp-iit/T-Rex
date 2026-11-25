@@ -2,6 +2,7 @@
 
 Variants (see docs/taptic_ours/REPORT.md):
   vanilla     fixed tau=0.4, no risk tokens                 (the launched baseline)
+              touch delays only with --tactile_async_touch 1 (asynchronous touch, docs/TOUCH_MODULES.md)
   multisplit  uniform tau in {0.2,0.4,0.6}, no risk tokens
   external    multisplit checkpoint + inference-time risk gate (no risk tokens)
   ours        risk tokens in both experts + multisplit + inference-time risk gate
@@ -127,8 +128,8 @@ def validate_variant(args):
             errors.append('vanilla = fixed tau 0.4 (cascaded_split_mode fixed, split_step 6)')
         if risk_tokens:
             errors.append('vanilla has no risk tokens')
-        if delays != (0,):
-            errors.append('vanilla uses tactile_delay_ms [0] (the launched baseline)')
+        if delays != (0,) and not int(getattr(args, 'tactile_async_touch', 0) or 0):
+            errors.append('vanilla uses tactile_delay_ms [0] (the launched baseline) unless --tactile_async_touch 1')
         if o['head'] > 0 or o['probe'] or o['dropout'] > 0 or o['oversample'] > 1:
             errors.append('vanilla has no future-risk head/probe, risk dropout or oversampling')
     elif v in ('multisplit', 'ours'):

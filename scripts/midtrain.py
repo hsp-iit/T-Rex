@@ -36,6 +36,8 @@ import torch
 import logging
 import argparse
 import shutil
+import itertools
+import time
 import math
 import re
 import wandb
@@ -101,6 +103,12 @@ def tactile_flow_loss(pred, target, mask=None, slot_mask=None):
         m = m & mask.to(device=err.device, dtype=torch.bool)[:, None]
     m = m.to(err.dtype)
     return (err * m).sum() / m.sum().clamp_min(1.0)
+
+
+def _tactile_feature_dim(args):
+    """Per-finger tactile vector width as built by the TAPTIC loader (saved in training_args.json)."""
+    from qwen_vla.taptic_dataset import tactile_feature_dim
+    return tactile_feature_dim(args)
 
 
 def _masked_mse(pred, target, mask):
@@ -277,7 +285,7 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
             # Qui gli autori conservano la KV cache e il numero di token action.
             # Non conservano x_t per la loss tattile: nel training il Tactile Expert viene
             # supervisionato con un altro punto rumoroso, costruito dalle azioni ground truth.
-            _, cached_kv, n_action_in_cache, _ = raw_model.forward_flow_action_partial(
+            x_split, cached_kv, n_action_in_cache, _ = raw_model.forward_flow_action_partial(
                 inputs_embeds=slow_embeds_ext, position_ids=pos_ids, noise=ahat_noise,
                 attention_mask=batch["attention_mask"], state_embeds=se, fast_embeds=fe,
                 num_steps_total=args.cascaded_total_steps, split_step=handover.action_steps,
@@ -295,6 +303,22 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
         eps_r = batch["eps_r"].to(slow_embeds.dtype)
         x_tau, tau_t, v_target_r = tactile_training_pair(
             norm_actions_gt, eps_r, batch['time_r'], handover, args.flow_time_precision)
+        # Self-handover (training only, --tactile_self_handover p): for a random fraction p of the
+        # samples the pair starts at the Action expert's OWN state x_split at tau_split (the no-grad
+        # trajectory above, same weights) and follows the straight path x_split -> demo:
+        #   x_tau = a + (tau / tau_split) (x_split - a),   v = (x_split - a) / tau_split.
+        # At inference the Tactile expert always continues from x_split; with ground-truth pairs only,
+        # its input is centred on the demo and it never learns to correct the Action expert's error.
+        p_self = float(getattr(args, 'tactile_self_handover', 0.) or 0.) if training else 0.
+        res['self_handover_frac'] = 0.
+        if p_self > 0:
+            sel = torch.rand(B, device=x_tau.device) < p_self
+            a_f, xs_f = norm_actions_gt.float(), x_split.float()
+            s_f = (tau_t.float() / handover.tau)[:, None, None]
+            m3 = sel[:, None, None]
+            x_tau = torch.where(m3, (a_f + s_f * (xs_f - a_f)).to(x_tau.dtype), x_tau)
+            v_target_r = torch.where(m3, ((xs_f - a_f) / handover.tau).to(v_target_r.dtype), v_target_r)
+            res['self_handover_frac'] = float(sel.float().mean())
         res['r_target_norm'] = v_target_r.float().abs().mean().detach()
         dropout = getattr(args, 'cascaded_tactile_dropout', 0.) if training else 0.
         # Tactile dropout — zero the values, not the tensor shape.
@@ -332,6 +356,42 @@ def cascaded_losses(model, raw_model, batch, args, handover, *, is_stage1, use_f
                 pred_head, batch, 'risk_future_after_F', batch.get('risk_F'), batch.get('risk_F_valid'))
         res['loss_tac'] = tactile_flow_loss(v_pred_r, v_target_r, batch.get("tactile_loss_mask"),
                                             batch.get("tactile_slot_mask"))
+        # Contact weighting (training only, --tactile_force_contact_weight w): the hand dims (9:21) of
+        # samples flagged force_contact (force task, fingertip |F| above threshold at the fast tick)
+        # count w times in the tactile loss. The unweighted value is kept for logging.
+        w_fc = float(getattr(args, 'tactile_force_contact_weight', 1.) or 1.) if training else 1.
+        res['loss_tac_plain'] = res['loss_tac']
+        res['force_contact_frac'] = None
+        sw = None          # per-(sample, dim) sqrt-weights of the tactile loss; None = unweighted (baseline)
+        if batch.get('force_contact') is not None:
+            fc = batch['force_contact'].to(device=v_pred_r.device, dtype=torch.bool)
+            res['force_contact_frac'] = float(fc.float().mean())
+            if w_fc != 1.:
+                sw = torch.ones(v_pred_r.shape[0], 1, v_pred_r.shape[-1], device=v_pred_r.device, dtype=torch.float32)
+                sw[fc, :, 9:] = w_fc ** 0.5
+        # Event weighting (training only, --tactile_event_weight w; taptic/touch_events.py): samples flagged
+        # touch_event (an event of --tactile_event_types inside --tactile_event_window_ms, a task in
+        # --tactile_event_tasks, valid native touch) count w times on EVERY action dim. With
+        # --tactile_event_normalize 1 the per-sample weights are rescaled to mean 1 over the supervised samples
+        # of the batch, so the loss scale does not depend on how many events a batch holds. Combines
+        # multiplicatively with contact weighting.
+        w_ev = float(getattr(args, 'tactile_event_weight', 1.) or 1.) if training else 1.
+        res['touch_event_frac'] = None
+        if batch.get('touch_event') is not None:
+            ev = batch['touch_event'].to(device=v_pred_r.device, dtype=torch.bool)
+            res['touch_event_frac'] = float(ev.float().mean())
+            if w_ev != 1.:
+                f = torch.where(ev, torch.tensor(w_ev, device=ev.device), torch.tensor(1., device=ev.device)).float()
+                if int(getattr(args, 'tactile_event_normalize', 1)):
+                    m = batch.get("tactile_loss_mask")
+                    m = (torch.ones_like(ev) if m is None else m.to(device=ev.device, dtype=torch.bool))
+                    if m.any():
+                        f = f / f[m].mean()
+                s = f.sqrt()[:, None, None].expand(-1, 1, v_pred_r.shape[-1])
+                sw = s if sw is None else sw * s
+        if sw is not None:
+            res['loss_tac'] = tactile_flow_loss(v_pred_r.float() * sw, v_target_r.float() * sw,
+                                                batch.get("tactile_loss_mask"), batch.get("tactile_slot_mask"))
     return res
 
 
@@ -450,6 +510,14 @@ class EpisodeGroupedSampler(_DistributedSampler):
         if self._num_episodes > 1:
             self._orig_starts[1:] = self._cum_frames[:-1]
 
+    # Restartable training (docs/TOUCH_MODULES.md): drop the first N indices of the next epoch on this rank (the
+    # samples an interrupted run already trained on), once; the order of the rest is unchanged.
+    skip_samples = 0
+
+    def _skip(self, it):
+        n, self.skip_samples = int(self.skip_samples), 0
+        return itertools.islice(it, n, None) if n else it
+
     def __iter__(self):
         g = torch.Generator()
         g.manual_seed(self.seed + self.epoch)
@@ -498,7 +566,7 @@ class EpisodeGroupedSampler(_DistributedSampler):
             if wrap_parts:
                 indices = np.concatenate([indices] + wrap_parts)
 
-        return iter(indices[:chunk].tolist())
+        return self._skip(iter(indices[:chunk].tolist()))
 
 
 class RiskOversampledEpisodeSampler(EpisodeGroupedSampler):
@@ -543,7 +611,7 @@ class RiskOversampledEpisodeSampler(EpisodeGroupedSampler):
         idx = order[lo:lo + chunk]
         if len(idx) < chunk:                              # wrap like the parent sampler
             idx = np.concatenate([idx, order[:chunk - len(idx)]])
-        return iter(idx.tolist())
+        return self._skip(iter(idx.tolist()))
 
 
 class MidtrainTacFlareDataset(Dataset):
@@ -1404,6 +1472,63 @@ def _risk_definition(args):
     return RiskConfig.from_args(args).to_dict()
 
 
+def resume_state_dir(args):
+    return getattr(args, "resume_state_dir", "") or os.path.join(args.output_dir, "resume_state")
+
+
+def save_resume_state(accelerator, args, lr_scheduler, progress):
+    """Restartable training (docs/TOUCH_MODULES.md): everything needed to continue this run where it stopped --
+    model and optimizer (the DeepSpeed engine incl. its ZeRO partitions, via accelerate), RNG states, the LR
+    scheduler, the step counters and the position in the epoch. Written to <dir>.tmp and swapped in, so a crash
+    during the save keeps the previous state. All ranks must call it."""
+    final = resume_state_dir(args)
+    tmp, old = final + ".tmp", final + ".old"
+    if accelerator.is_main_process:
+        shutil.rmtree(tmp, ignore_errors=True)
+    accelerator.wait_for_everyone()
+    t0 = time.time()
+    accelerator.save_state(tmp)
+    accelerator.wait_for_everyone()
+    if accelerator.is_main_process:
+        torch.save(lr_scheduler.state_dict(), os.path.join(tmp, "lr_scheduler.pt"))
+        with open(os.path.join(tmp, "progress.json"), "w") as f:
+            json.dump(progress, f, indent=1)
+        shutil.rmtree(old, ignore_errors=True)
+        if os.path.isdir(final):
+            os.rename(final, old)
+        os.rename(tmp, final)
+        shutil.rmtree(old, ignore_errors=True)
+        accelerator.print(f"[resume] state saved at global_step {progress['global_step']} "
+                          f"(epoch {progress['epoch']}, {progress['batches_done_in_epoch']} batches) in "
+                          f"{time.time() - t0:.0f} s -> {final}")
+    accelerator.wait_for_everyone()
+
+
+def load_resume_state(accelerator, args, lr_scheduler, fingerprint):
+    """Counterpart of save_resume_state. --resume_from_state auto: continue from <output_dir>/resume_state when it
+    exists (None otherwise: fresh start); a directory: that state (must exist). The saved run must have the same
+    structure (world size, batch, accumulation, epochs, steps, seed), else the data position would be wrong."""
+    d = args.resume_from_state
+    if d == "auto":
+        d = resume_state_dir(args)
+        if not os.path.isfile(os.path.join(d, "progress.json")):
+            accelerator.print(f"[resume] no saved state in {d}: starting from the beginning")
+            return None
+    if not os.path.isfile(os.path.join(d, "progress.json")):
+        raise FileNotFoundError(f"--resume_from_state {d}: no progress.json")
+    with open(os.path.join(d, "progress.json")) as f:
+        prog = json.load(f)
+    saved = prog.get("fingerprint", {})
+    bad = {k: (saved.get(k), v) for k, v in fingerprint.items() if saved.get(k) != v}
+    if bad:
+        raise ValueError(f"[resume] saved state {d} does not match this run (saved, now): {bad}")
+    accelerator.load_state(d)
+    lr_scheduler.load_state_dict(torch.load(os.path.join(d, "lr_scheduler.pt"), map_location="cpu"))
+    accelerator.print(f"[resume] restored {d}: epoch {prog['epoch']}, global_step {prog['global_step']}, "
+                      f"{prog['batches_done_in_epoch']} batches of that epoch done (saved {prog.get('saved_at')})")
+    return prog
+
+
 def save_checkpoint(model, processor, accelerator, args, epoch, global_step, stats_data):
     save_dir = os.path.join(args.output_dir, f"checkpoint-{epoch}-{global_step}")
 
@@ -1428,7 +1553,26 @@ def save_checkpoint(model, processor, accelerator, args, epoch, global_step, sta
             json.dump({
                 **({"data_format": "taptic",
                     "taptic_tactile_input": getattr(args, "taptic_tactile_input", "taxels"),
-                    "tacf6_dim": 360 if getattr(args, "taptic_tactile_input", "taxels") == "taxels" else 3,
+                    "tacf6_dim": _tactile_feature_dim(args),
+                    "tactile_history_span_ms": float(getattr(args, "tactile_history_span_ms", 0.)),
+                    "tactile_history_points": int(getattr(args, "tactile_history_points", 8)),
+                    "tactile_self_handover": float(getattr(args, "tactile_self_handover", 0.)),
+                    "tactile_force_contact_weight": float(getattr(args, "tactile_force_contact_weight", 1.)),
+                    "tactile_force_tasks": list(getattr(args, "tactile_force_tasks", [])),
+                    "force_contact_threshold": float(getattr(args, "force_contact_threshold", 2.)),
+                    "tactile_event_weight": float(getattr(args, "tactile_event_weight", 1.)),
+                    "tactile_event_types": list(getattr(args, "tactile_event_types", [])),
+                    "tactile_event_window_ms": list(getattr(args, "tactile_event_window_ms", [200., 1000.])),
+                    "tactile_event_tasks": list(getattr(args, "tactile_event_tasks", [])),
+                    "tactile_event_labels": list(getattr(args, "tactile_event_labels", [])),
+                    "tactile_event_jump_quantile": float(getattr(args, "tactile_event_jump_quantile", .97)),
+                    "tactile_event_normalize": int(getattr(args, "tactile_event_normalize", 1)),
+                    "taptic_exclude_sources": list(getattr(args, "taptic_exclude_sources", [])),
+                    "taptic_vqvae_source_identity": getattr(args, "taptic_vqvae_source_identity", ""),
+                    "tactile_async_touch": int(getattr(args, "tactile_async_touch", 0)),
+                    "resume_state_every": int(getattr(args, "resume_state_every", 0)),
+                    "resumed_from": getattr(args, "resumed_from", None),
+                    "lerobot_root": getattr(args, "lerobot_root", ""),
                     "tactile_layout": ("thumb..little x 120 taxels x xyz"
                                        if getattr(args, "taptic_tactile_input", "taxels") == "taxels"
                                        else "thumb..little x SDK force xyz; VQ history native ~76 Hz"),
@@ -1885,13 +2029,37 @@ def train(args):
     device = accelerator.device
     model.train()
 
-    for epoch in range(args.n_epochs):
+    # Restartable training (docs/TOUCH_MODULES.md). resume_every: micro-steps between saved states, rounded up to
+    # whole optimizer steps so no partial gradient accumulation is ever saved.
+    start_epoch, skip_batches = 0, 0
+    resume_every = int(getattr(args, "resume_state_every", 0) or 0)
+    if resume_every:
+        ga = accelerator.gradient_accumulation_steps
+        resume_every = -(-resume_every // ga) * ga
+    fingerprint = {"world_size": world_size, "steps_per_epoch": steps_per_epoch, "n_epochs": args.n_epochs,
+                   "train_bsz_per_gpu": args.train_bsz_per_gpu, "seed": args.seed,
+                   "gradient_accumulation_steps": accelerator.gradient_accumulation_steps,
+                   "num_training_steps": num_training_steps}
+    if getattr(args, "resume_from_state", ""):
+        prog = load_resume_state(accelerator, args, lr_scheduler, fingerprint)
+        if prog is not None:
+            global_step, start_epoch, skip_batches = (int(prog["global_step"]), int(prog["epoch"]),
+                                                      int(prog["batches_done_in_epoch"]))
+            if skip_batches >= steps_per_epoch:
+                start_epoch, skip_batches = start_epoch + 1, 0
+            args.resumed_from = {"global_step": global_step, "epoch": start_epoch, "skip_batches": skip_batches,
+                                 "saved_at": prog.get("saved_at")}
+
+    for epoch in range(start_epoch, args.n_epochs):
         # Required for proper shuffling each epoch when the dataloader is
         # not prepared by accelerate.
         train_sampler.set_epoch(epoch)
+        n_skip = skip_batches if epoch == start_epoch else 0
+        train_sampler.skip_samples = n_skip * args.train_bsz_per_gpu
+        batches_done = n_skip
 
         from tqdm import tqdm
-        it = (tqdm(dataloader, total=steps_per_epoch, desc=f"Epoch {epoch}")
+        it = (tqdm(dataloader, total=steps_per_epoch, initial=n_skip, desc=f"Epoch {epoch}")
               if accelerator.is_main_process else dataloader)
 
         for batch in it:
@@ -1997,7 +2165,7 @@ def train(args):
 
 
             # BACKWARD: calcola e accumula gradienti.
-            metric.update(loss, loss_act, loss_tac, loss_flare)
+            metric.update(loss, loss_act, res.get('loss_tac_plain', loss_tac), loss_flare)
             # The future-risk probe sees detached features: its loss only trains the probe, and it is
             # kept out of the logged total so totals stay comparable across variants.
             accelerator.backward(loss + res['loss_risk_probe'] if res.get('loss_risk_probe') is not None
@@ -2042,6 +2210,13 @@ def train(args):
                         log_dict["refine/r_target_norm"] = float(r_target_norm)
                     log_dict.update(batch_diagnostics(batch))
                     log_dict["tactile/dropout_fired"] = float(res['tactile_dropped'])
+                    log_dict["tactile/self_handover_frac"] = float(res.get('self_handover_frac') or 0.)
+                    if res.get('force_contact_frac') is not None:
+                        log_dict["tactile/force_contact_frac"] = res['force_contact_frac']
+                    if res.get('touch_event_frac') is not None:
+                        log_dict["tactile/touch_event_frac"] = res['touch_event_frac']
+                    if torch.is_tensor(loss_tac):
+                        log_dict["tactile/loss_weighted"] = float(loss_tac.detach())
                     for k in ('head', 'probe'):
                         if res.get(f'loss_risk_{k}') is not None:
                             log_dict[f"risk_future/{k}_loss"] = float(res[f'loss_risk_{k}'].detach())
@@ -2064,6 +2239,11 @@ def train(args):
                     wandb.log(val_m, step=global_step)
 
             global_step += 1
+            batches_done += 1
+            if resume_every and global_step % resume_every == 0:
+                save_resume_state(accelerator, args, lr_scheduler, {
+                    "epoch": epoch, "global_step": global_step, "batches_done_in_epoch": batches_done,
+                    "fingerprint": fingerprint, "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
             if args.max_train_steps and global_step >= args.max_train_steps:
                 break
 
@@ -2078,6 +2258,15 @@ def train(args):
             accelerator.wait_for_everyone()
             save_checkpoint(model, processor, accelerator, args,
                             epoch, global_step, dataset.stats_data)
+        if resume_every and epoch < args.n_epochs - 1 and global_step % resume_every != 0:
+            save_resume_state(accelerator, args, lr_scheduler, {
+                "epoch": epoch, "global_step": global_step, "batches_done_in_epoch": batches_done,
+                "fingerprint": fingerprint, "saved_at": time.strftime("%Y-%m-%dT%H:%M:%S")})
+
+    # Run complete: the restart state (~30 GB) is no longer needed (the final checkpoint has the weights).
+    if (resume_every and not (args.max_train_steps and global_step >= args.max_train_steps)
+            and accelerator.is_main_process):
+        shutil.rmtree(resume_state_dir(args), ignore_errors=True)
 
 
 if __name__ == "__main__":
@@ -2187,6 +2376,60 @@ if __name__ == "__main__":
     parser.add_argument("--cascaded_split_step",  type=int, default=6)
     parser.add_argument("--cascaded_tactile_dropout", type=float, default=0.1)
     parser.add_argument("--cascaded_loss_weight", type=float, default=1.0)
+    # trex-touch: let the Tactile expert use touch (all defaults = baseline, bitwise).
+    parser.add_argument("--tactile_history_span_ms", type=float, default=0.,
+                        help=">0 (sdk_force): each per-finger tactile vector token carries "
+                             "--tactile_history_points force samples spread evenly over this span (oldest "
+                             "first, last = current sample). 0 = current sample only (baseline).")
+    parser.add_argument("--tactile_history_points", type=int, default=8)
+    parser.add_argument("--tactile_self_handover", type=float, default=0.,
+                        help="Training only: fraction of samples whose Tactile-expert pair starts at the "
+                             "Action expert's own state x_split (straight path x_split -> demo) instead of "
+                             "the ground-truth noisy point; inference always continues from x_split. 0 = baseline.")
+    parser.add_argument("--tactile_force_contact_weight", type=float, default=1.,
+                        help="Training only: weight of the hand dims of the tactile loss on samples of "
+                             "--tactile_force_tasks with fingertip |F| > --force_contact_threshold at the "
+                             "fast tick. 1 = baseline.")
+    parser.add_argument("--tactile_force_tasks", nargs="*",
+                        default=["dosing_pipette", "insert_credit_card", "insert_game_object_cylinder",
+                                 "unscrew_the_bottle", "grasp_plastic_glass"])
+    parser.add_argument("--force_contact_threshold", type=float, default=2.0,
+                        help="Raw SDK calc_force units (same threshold as the offline touch probes).")
+    parser.add_argument("--tactile_event_weight", type=float, default=1.,
+                        help="Training only: weight of the tactile loss (all action dims) on samples with a touch "
+                             "event (taptic/touch_events.py) in the window, for --tactile_event_tasks with valid "
+                             "touch. 1 = baseline.")
+    parser.add_argument("--tactile_event_types", nargs="*", default=["grasp_onset", "resistance"],
+                        help="Any of grasp_onset resistance release label.")
+    parser.add_argument("--tactile_event_window_ms", nargs=2, type=float, default=[200., 1000.],
+                        metavar=("PRE", "POST"), help="Sample t is an event sample if an event lies in "
+                                                      "[t - POST, t + PRE].")
+    parser.add_argument("--tactile_event_tasks", nargs="*",
+                        default=["dosing_pipette", "insert_credit_card", "insert_game_object_cylinder",
+                                 "unscrew_the_bottle", "grasp_plastic_glass"])
+    parser.add_argument("--tactile_event_labels", nargs="*", default=["insert", "squeeze", "unscrew", "push"],
+                        help="Subtask names whose start is a 'label' event.")
+    parser.add_argument("--tactile_event_jump_quantile", type=float, default=0.97,
+                        help="Per-task 'resistance' threshold: this quantile of the strongest-finger force rise "
+                             "over 0.2 s during contact, training episodes only.")
+    parser.add_argument("--tactile_event_normalize", type=int, default=1,
+                        help="1: rescale the per-sample event weights to mean 1 in each batch.")
+    parser.add_argument("--taptic_exclude_sources", nargs="*", default=[],
+                        help="Dataset variant: drop every episode whose source_repo is listed (e.g. "
+                             "TAPTIC/unscrew_the_bottle in the derived dataset with the re-collected unscrew). "
+                             "The --taptic_stats file must be fitted on the same selection.")
+    parser.add_argument("--resume_state_every", type=int, default=0,
+                        help="Restartable training: save the full training state (model, optimizer, RNG, LR scheduler, step, position in the epoch) every N micro-steps (rounded up to whole optimizer steps) and at each epoch end, to <output_dir>/resume_state. 0 = off (default).")
+    parser.add_argument("--resume_from_state", type=str, default="",
+                        help="'auto': continue from <output_dir>/resume_state if it exists (fresh start otherwise); a directory: continue from that state; empty (default): fresh run.")
+    parser.add_argument("--resume_state_dir", type=str, default="",
+                        help="Where the restart state lives (default <output_dir>/resume_state).")
+    parser.add_argument("--tactile_async_touch", type=int, default=0,
+                        help="1: allow --tactile_delay_ms != [0] for --variant vanilla (asynchronous touch: touch newer than the image, T-Rex fast ticks; docs/TOUCH_MODULES.md). Explicit so the baseline cannot drift.")
+    parser.add_argument("--taptic_vqvae_source_identity", type=str, default="",
+                        help="Use a touch encoder (VQ-VAE) trained on ANOTHER dataset: >= 12 leading hex chars of "
+                             "that dataset's identity (e.g. the feedback-off run with the owner's VQ-VAE). The two "
+                             "datasets must share no recordings. Empty (default): encoder must come from this dataset.")
 
     # VQ-VAE tactile code tokens (fast-path only).  When 0 (default) the model
     # graph and dataloader are identical to the pre-feature version — flip

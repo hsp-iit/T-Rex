@@ -125,6 +125,36 @@ def history_at(track, tick_ns, window, stale_ns):
     return track['force'][idx].copy(), True, n_real, age
 
 
+def spread_history_at(track, tick_ns, span_ns, n_points, stale_ns):
+    """Causal force history over a longer span, subsampled to n_points.
+
+    Same validity rule as history_at (latest causal sample, not excluded, not
+    stale). Point k (oldest first) is the latest sample of the same segment read
+    at or before read[end] - span_ns * (n_points-1-k)/(n_points-1); targets that
+    precede the segment start repeat its first sample (history_at's padding
+    rule). The last point is the current sample, so the current force is kept.
+
+    Returns (history [n_points,5,3] float32 raw, valid bool, n_real_points int).
+    """
+    read, avail, seg = track['read_ns'], track['available_ns'], track['segment']
+    zeros = np.zeros((n_points, 5, 3), np.float32)
+    cand = np.flatnonzero((read <= tick_ns) & (avail <= tick_ns))
+    if not len(cand) or seg[cand[-1]] < 0:
+        return zeros, False, 0
+    end = int(cand[-1])
+    if int(tick_ns - read[end]) > stale_ns:
+        return zeros, False, 0
+    start = end
+    while start > 0 and seg[start - 1] == seg[end]:
+        start -= 1
+    frac = np.arange(n_points - 1, -1, -1, dtype=np.float64) / max(n_points - 1, 1)
+    targets = read[end] - np.round(frac * span_ns).astype(np.int64)
+    idx = start + np.searchsorted(read[start:end + 1], targets, side='right') - 1
+    n_real = int((idx >= start).sum())
+    idx = np.clip(idx, start, end)
+    return track['force'][idx].copy(), True, n_real
+
+
 def training_window_ends(segment, stride=1, window=16, pad_short=True):
     """Window end indices for VQ-VAE training (stride in native samples).
 

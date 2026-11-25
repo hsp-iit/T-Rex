@@ -6,10 +6,12 @@ Ported action math is in actions.py; units and limitations are in docs/taptic.md
 from __future__ import annotations
 import hashlib
 import json
+import os
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
+import pyarrow as pa
 import pyarrow.dataset as pads
 
 from .actions import chunk_21d
@@ -61,12 +63,34 @@ class Source:
                         h.update(b)
         h.update((self.root / 'meta/info.json').read_bytes())
         self.identity = h.hexdigest()
+        # Derived datasets (scripts/taptic/append_recordings.py) record their parent and the parent episodes
+        # they keep byte-identical; not part of the identity hash.
+        p = self.root / 'meta/derived_from.json'
+        self.derived_from = json.loads(p.read_text()) if p.exists() else None
+
+    def _frame_rows(self, haptics):
+        """All frame rows (the columns frames() returns + episode_index), read once per process without Arrow's
+        thread pool, sorted by episode, with each episode's row range. A data-loader worker froze inside a threaded
+        per-episode dataset scan (job 5491, 25 Nov); slicing this table gives the same rows."""
+        key = (os.getpid(), bool(haptics))
+        if getattr(self, '_rows_key', None) != key:
+            cols = ['action', 'observation.state', 'frame_index', 'timestamp']
+            if haptics:
+                cols += [k for k in self.table.schema.names if k.startswith('observation.haptics.')]
+            t = self.table.to_table(columns=cols + ['episode_index'], use_threads=False)
+            e = t.column('episode_index').to_numpy()
+            order = np.argsort(e, kind='stable')
+            t, e = t.take(pa.array(order)).select(cols), e[order]
+            u, first = np.unique(e, return_index=True)
+            last = np.r_[first[1:], len(e)]
+            self._rows, self._rows_range = t, {int(k): (int(a), int(b)) for k, a, b in zip(u, first, last)}
+            self._rows_key = key
+        return self._rows, self._rows_range
 
     def frames(self, ep, haptics=False):
-        cols = ['action', 'observation.state', 'frame_index', 'timestamp']
-        if haptics:
-            cols += [k for k in self.table.schema.names if k.startswith('observation.haptics.')]
-        d = self.table.to_table(columns=cols, filter=pads.field('episode_index') == int(ep)).to_pandas()
+        t, rng = self._frame_rows(haptics)
+        a, b = rng.get(int(ep), (0, 0))
+        d = t.slice(a, b - a).to_pandas()
         d = d.sort_values('frame_index').reset_index(drop=True)
         n = int(self.episodes.loc[ep, 'length'])
         if len(d) != n or not np.array_equal(d.frame_index, np.arange(n)):

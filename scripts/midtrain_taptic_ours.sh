@@ -46,12 +46,47 @@ RISK_FUTURE_HEAD_WEIGHT=${RISK_FUTURE_HEAD_WEIGHT:-0.1}
 RISK_FUTURE_PROBE=${RISK_FUTURE_PROBE:-1}
 RISK_DROPOUT=${RISK_DROPOUT:-0.1}
 RISK_OVERSAMPLE=${RISK_OVERSAMPLE:-2}
+# trex-touch components (any VARIANT; defaults = baseline; docs/TOUCH_MODULES.md): long tactile history in
+# the per-finger vector tokens, self-handover Tactile-expert pairs, contact-weighted hand dims of the tactile
+# loss, event-weighted tactile loss, dataset variant selection by source repo, touch encoder from another dataset.
+TACTILE_HISTORY_SPAN_MS=${TACTILE_HISTORY_SPAN_MS:-0}
+TACTILE_HISTORY_POINTS=${TACTILE_HISTORY_POINTS:-8}
+TACTILE_SELF_HANDOVER=${TACTILE_SELF_HANDOVER:-0}
+TACTILE_FORCE_CONTACT_WEIGHT=${TACTILE_FORCE_CONTACT_WEIGHT:-1}
+TACTILE_EVENT_WEIGHT=${TACTILE_EVENT_WEIGHT:-1}
+TACTILE_EVENT_TYPES=${TACTILE_EVENT_TYPES:-"grasp_onset resistance"}
+TACTILE_EVENT_WINDOW_MS=${TACTILE_EVENT_WINDOW_MS:-"200 1000"}
+TACTILE_EVENT_JUMP_QUANTILE=${TACTILE_EVENT_JUMP_QUANTILE:-0.97}
+TACTILE_EVENT_NORMALIZE=${TACTILE_EVENT_NORMALIZE:-1}
+TAPTIC_EXCLUDE_SOURCES=${TAPTIC_EXCLUDE_SOURCES:-}
+TAPTIC_VQVAE_SOURCE_IDENTITY=${TAPTIC_VQVAE_SOURCE_IDENTITY:-}
+# Asynchronous touch for the fixed-split (vanilla) variant (docs/TOUCH_MODULES.md): each sample's touch is newer
+# than its image by one of these delays (ms), as when the tactile expert re-runs on the cached vision pass
+# between images (T-Rex fast ticks). "0" = synchronous (default, the baseline's batch).
+TACTILE_ASYNC_DELAYS_MS=${TACTILE_ASYNC_DELAYS_MS:-0}
+TOUCH_ARGS=(--tactile_history_span_ms "${TACTILE_HISTORY_SPAN_MS}" --tactile_history_points "${TACTILE_HISTORY_POINTS}"
+            --tactile_self_handover "${TACTILE_SELF_HANDOVER}"
+            --tactile_force_contact_weight "${TACTILE_FORCE_CONTACT_WEIGHT}"
+            --tactile_event_weight "${TACTILE_EVENT_WEIGHT}" --tactile_event_types ${TACTILE_EVENT_TYPES}
+            --tactile_event_window_ms ${TACTILE_EVENT_WINDOW_MS}
+            --tactile_event_jump_quantile "${TACTILE_EVENT_JUMP_QUANTILE}"
+            --tactile_event_normalize "${TACTILE_EVENT_NORMALIZE}"
+            --taptic_exclude_sources ${TAPTIC_EXCLUDE_SOURCES})
+if [[ -n "${TAPTIC_VQVAE_SOURCE_IDENTITY}" ]]; then   # only when set: an empty argument can be lost on the way
+  TOUCH_ARGS+=(--taptic_vqvae_source_identity "${TAPTIC_VQVAE_SOURCE_IDENTITY}")
+fi
+# Restartable training (docs/TOUCH_MODULES.md): save the full training state every N micro-steps; continue from it.
+RESUME_STATE_EVERY=${RESUME_STATE_EVERY:-0}
+RESUME_FROM_STATE=${RESUME_FROM_STATE:-}
+if [[ "${RESUME_STATE_EVERY}" != "0" ]]; then TOUCH_ARGS+=(--resume_state_every "${RESUME_STATE_EVERY}"); fi
+if [[ -n "${RESUME_FROM_STATE}" ]]; then TOUCH_ARGS+=(--resume_from_state "${RESUME_FROM_STATE}"); fi
 EXPERIMENT_NAME=${EXPERIMENT_NAME:-trex_midtrain_taptic_${VARIANT}}
 RUN_NAME=${RUN_NAME:-${EXPERIMENT_NAME}_$(date +%m%d_%H%M)}
 
 case "$VARIANT" in
   vanilla)
-    VARIANT_ARGS=(--cascaded_split_mode fixed --cascaded_split_step 6 --tactile_delay_ms 0) ;;
+    VARIANT_ARGS=(--cascaded_split_mode fixed --cascaded_split_step 6 --tactile_delay_ms ${TACTILE_ASYNC_DELAYS_MS})
+    if [[ "${TACTILE_ASYNC_DELAYS_MS}" != "0" ]]; then VARIANT_ARGS+=(--tactile_async_touch 1); fi ;;
   multisplit)
     VARIANT_ARGS=(--cascaded_split_mode multi --cascaded_splits 0.2 0.4 0.6 --tactile_delay_ms ${TACTILE_DELAY_MS}
                   --risk_stats "${RISK_STATS}" --risk_future_probe ${RISK_FUTURE_PROBE}) ;;
@@ -132,6 +167,7 @@ accelerate launch \
     --val_freq "${VAL_FREQ:-500}" \
     --max_val_batches "${MAX_VAL_BATCHES:-50}" \
     "${VARIANT_ARGS[@]}" \
+    "${TOUCH_ARGS[@]}" \
     "${RESUME_ARGS[@]}"
 
 echo ">>> TAPTIC ${VARIANT} mid-training finished."

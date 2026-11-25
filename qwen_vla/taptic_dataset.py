@@ -48,7 +48,7 @@ from taptic.data import (Source, CAMERAS, NORMALIZATIONS, finite, normalize, den
                          tactile_at, tactile_stream_between)
 from taptic.video import VideoReader
 from taptic.timing import build_quality, latest_quality
-from taptic.force_history import build_force_track, history_at
+from taptic.force_history import build_force_track, history_at, spread_history_at
 from taptic.risk import (RiskConfig, RiskStats, risk_features, features_at, joint_track_from_frames,
                          SCALAR_KEYS as RISK_KEYS)
 from .flow_matching import validate_split_config
@@ -78,9 +78,25 @@ def tactile_input(cfg):
     return mode
 
 
+def tactile_history_points(cfg):
+    """Points per finger of the long force history (0 = off: the token carries the current sample only).
+
+    --tactile_history_span_ms > 0 (sdk_force only): each per-finger vector token carries
+    --tactile_history_points force samples spread evenly over the last span (oldest first, the
+    last one is the current sample), normalized with the same train-only force statistics.
+    The VQ-VAE codes keep their native 16-sample window, so the token count is unchanged.
+    """
+    if tactile_input(cfg) != 'sdk_force' or float(getattr(cfg, 'tactile_history_span_ms', 0) or 0) <= 0:
+        return 0
+    return int(getattr(cfg, 'tactile_history_points', 8))
+
+
 def tactile_feature_dim(cfg):
     """Width of each of the five per-finger vector tokens."""
-    return 360 if tactile_input(cfg) == 'taxels' else 3
+    if tactile_input(cfg) == 'taxels':
+        return 360
+    n = tactile_history_points(cfg)
+    return 3 * n if n else 3
 
 
 def validate_vqvae_config(vq):
@@ -125,6 +141,11 @@ def validate_config(cfg):
                          '(frame offsets; physical delays use --tactile_delay_ms)')
     if tactile_delays_ms(cfg) != (0,) and mode != 'sdk_force':
         raise ValueError('delayed tactile conditioning (tactile_delay_ms) requires sdk_force input')
+    if float(getattr(cfg, 'tactile_history_span_ms', 0) or 0) > 0:
+        if mode != 'sdk_force':
+            raise ValueError('tactile_history_span_ms requires sdk_force input')
+        if int(getattr(cfg, 'tactile_history_points', 8)) < 2:
+            raise ValueError('tactile_history_points must be >= 2')
     if getattr(cfg, 'use_risk_tokens', 0) and not getattr(cfg, 'risk_stats', ''):
         raise ValueError('use_risk_tokens=1 requires --risk_stats (train-only risk statistics)')
     if getattr(cfg, 'risk_stats', '') and mode != 'sdk_force':
@@ -141,10 +162,17 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         self.source = Source(config.lerobot_root)
         self.stats_data = _stats if _stats is not None else json.loads(Path(config.taptic_stats).read_text())
         block = self.stats_data['taptic']
-        if block['source_identity'] != self.source.identity:
+        # Evaluation only (jobs/eval/offline_eval.py --root on another dataset; docs/TOUCH_MODULES.md): score a
+        # model on a dataset it was not trained on, with the model's own normalization and touch encoder. The
+        # checks tying the statistics and the VQ-VAE to this dataset's training episodes are skipped.
+        self.other_dataset_eval = bool(int(getattr(config, 'taptic_eval_other_dataset', 0) or 0))
+        if self.other_dataset_eval and split == 'train':
+            raise ValueError('taptic_eval_other_dataset is for evaluation splits only')
+        if block['source_identity'] != self.source.identity and not self.other_dataset_eval:
             raise ValueError('statistics belong to a different dataset')
         ids = block['train_episodes']
-        if len(ids) != len(set(ids)) or any(self.source.episodes.loc[e, 'suggested_split'] != 'train' for e in ids):
+        if not self.other_dataset_eval and (
+                len(ids) != len(set(ids)) or any(self.source.episodes.loc[e, 'suggested_split'] != 'train' for e in ids)):
             raise ValueError('statistics contain non-training episodes')
         st = block['action']
         mode = block.get('normalization', 'affine_train_minmax_unclipped')
@@ -157,8 +185,16 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             raise ValueError('invalid action normalization statistics')
         self.action_stats = st
         self.scope = self.source.episodes if episode_ids is None else self.source.episodes.loc[episode_ids]
+        # Dataset variant selection (docs/TOUCH_MODULES.md): drop every episode recorded in these source repos,
+        # e.g. the old 10 Hz unscrew when the derived dataset also holds its re-collection.
+        excl = set(getattr(config, 'taptic_exclude_sources', None) or ())
+        if excl:
+            unknown = excl - set(self.scope.source_repo.astype(str))
+            if unknown:
+                raise ValueError(f'taptic_exclude_sources not in this dataset: {sorted(unknown)}')
+            self.scope = self.scope[~self.scope.source_repo.astype(str).isin(excl)]
         training = sorted(map(int, self.scope.index[self.scope.suggested_split == 'train']))
-        if sorted(ids) != training:
+        if sorted(ids) != training and not self.other_dataset_eval:
             raise ValueError('statistics training episodes do not match dataset scope')
         self.image_size = tuple(config.image_size) if getattr(config, 'image_size', None) else None
         self.use_flare = bool(getattr(config, 'use_flare', 0))
@@ -171,14 +207,47 @@ class TRexTapticDataset(torch.utils.data.Dataset):
         self.vq_window = int(getattr(config, 'vqvae_window', 16))
         if self.tactile_input == 'sdk_force':
             self.force_stats, vq_data = load_force_stats(config)
-            if vq_data.get('source_identity') not in (None, self.source.identity):
-                raise ValueError('VQ-VAE force statistics belong to a different dataset')
+            parent = self.source.derived_from or {}
+            vq_id = vq_data.get('source_identity')
             vq_train = set(vq_data.get('train_episodes', []))
+            # Touch encoder trained on another dataset (docs/TOUCH_MODULES.md), e.g. the feedback-off recordings
+            # with the owner's VQ-VAE: allowed only when its source dataset is named (>= 12 hex chars of the
+            # identity). Its training episodes belong to that dataset, so the overlap check does not apply; the two
+            # datasets must share no recordings (checked for feedback on/off in eval/nohaptic/audit.md).
+            vq_other = str(getattr(config, 'taptic_vqvae_source_identity', '') or '')
+            if vq_other:
+                if len(vq_other) < 12 or not str(vq_id or '').startswith(vq_other):
+                    raise ValueError(f'VQ-VAE source identity {vq_id!r} does not match '
+                                     f'taptic_vqvae_source_identity {vq_other!r}')
+                if vq_id == self.source.identity:
+                    raise ValueError('taptic_vqvae_source_identity is only for a VQ-VAE trained on another dataset')
+                vq_train = set()
+            elif self.other_dataset_eval:
+                vq_train = set()
+            elif parent and vq_id == parent.get('parent_identity'):
+                # Derived dataset (meta/derived_from.json, scripts/taptic/append_recordings.py): the VQ-VAE was
+                # trained on the parent; valid only if every episode it saw is unchanged here.
+                if not vq_train <= set(parent.get('unchanged_episodes', [])):
+                    raise ValueError('VQ-VAE was trained on parent episodes that this derived dataset changed')
+            elif vq_id not in (None, self.source.identity):
+                raise ValueError('VQ-VAE force statistics belong to a different dataset '
+                                 '(name its source with taptic_vqvae_source_identity to use it deliberately)')
             if vq_train and not vq_train <= set(ids):
                 raise ValueError('VQ-VAE was trained on non-training episodes')
             if self.use_vqvae and vq_data.get('window', self.vq_window) != self.vq_window:
                 raise ValueError('VQ-VAE window does not match vqvae_window')
         self.delays_ns = tuple(int(d) * 1_000_000 for d in tactile_delays_ms(config))
+        self.hist_points = tactile_history_points(config)
+        self.hist_span_ns = int(round(float(getattr(config, 'tactile_history_span_ms', 0) or 0) * 1e6))
+        # Force-interaction tasks for the contact-weighted tactile loss (flag only; no model input).
+        self.force_tasks = frozenset(getattr(config, 'tactile_force_tasks', None) or ())
+        self.contact_threshold = float(getattr(config, 'force_contact_threshold', 2.0))
+        # Touch events for the event-weighted tactile loss (flag only; no model input). taptic/touch_events.py.
+        self.event_tasks = frozenset(getattr(config, 'tactile_event_tasks', None) or ())
+        self.event_jump = {}
+        self.event_flags = (self._touch_event_flags(config)
+                            if float(getattr(config, 'tactile_event_weight', 1.) or 1.) != 1.
+                            or getattr(config, 'emit_touch_events', False) else None)
         self.emit_slot_mask = self.delays_ns != (0,)
         self.risk_stats = self.risk_cfg = None
         self.risk_future = risk_future_enabled(config)
@@ -186,10 +255,60 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             self.risk_cfg = RiskConfig.from_args(config)
             self.risk_stats = RiskStats.load(config.risk_stats)
             self.risk_stats.check_config(self.risk_cfg)
-            self.risk_stats.check_source(self.source, ids)
+            # Same rule as the touch encoder above (docs/TOUCH_MODULES.md): contact-risk statistics fitted on
+            # another dataset are accepted in a derived dataset (fitted on unchanged parent episodes), when that
+            # dataset is named with taptic_vqvae_source_identity, or in a cross-dataset evaluation.
+            rs_id = str(self.risk_stats.source_identity or '')
+            named = str(getattr(config, 'taptic_vqvae_source_identity', '') or '')
+            parent = self.source.derived_from or {}
+            if rs_id == self.source.identity:
+                self.risk_stats.check_source(self.source, ids)
+            elif self.other_dataset_eval or (len(named) >= 12 and rs_id.startswith(named)):
+                pass
+            elif parent and rs_id == parent.get('parent_identity'):
+                if not set(self.risk_stats.train_episodes) <= set(parent.get('unchanged_episodes', [])) & set(ids):
+                    raise ValueError('risk statistics were fitted on parent episodes this derived dataset changed '
+                                     'or does not train on')
+            else:
+                raise ValueError('risk statistics belong to a different dataset')
         self._cache_key = None
         self._video = VideoReader()
         self._set_split(split)
+
+    def _touch_event_flags(self, config):
+        """{episode: bool [T]} = frame t lies in an event window (taptic/touch_events.py), for every episode in
+        scope. The per-task `resistance` threshold comes from the native TRAINING episodes only."""
+        from taptic.touch_events import (DEFAULT_LABELS, DEFAULT_TYPES, DEFAULT_WINDOW_MS, episode_events,
+                                         finger_force, jump_threshold, window_flags)
+        types = tuple(getattr(config, 'tactile_event_types', None) or DEFAULT_TYPES)
+        pre_ms, post_ms = (list(getattr(config, 'tactile_event_window_ms', None) or DEFAULT_WINDOW_MS) * 2)[:2]
+        names = self.source.table.schema.names
+        cols = ['episode_index', 'frame_index', 'observation.state'] + (['subtask_index'] if 'subtask_index' in names else [])
+        core = self.source.table.to_table(columns=cols).to_pandas()
+        F_by, s_by = {}, {}
+        for ep, d in core.groupby('episode_index', sort=False):
+            if int(ep) in self.scope.index:
+                d = d.sort_values('frame_index')
+                F_by[int(ep)] = finger_force(np.stack(d['observation.state'].to_numpy()))
+                s_by[int(ep)] = d['subtask_index'].to_numpy() if 'subtask_index' in d else None
+        label_ids = ()
+        if 'label' in types:
+            want = set(getattr(config, 'tactile_event_labels', None) or DEFAULT_LABELS)
+            idx = json.loads((self.source.root / 'meta/subtasks.json').read_text())['subtask_to_index']
+            label_ids = tuple(int(v) for k, v in idx.items() if k in want)
+        q = float(getattr(config, 'tactile_event_jump_quantile', .97))
+        tasks = self.scope.source_task.astype(str)
+        train = set(map(int, self.scope.index[self.scope.suggested_split == 'train']))
+        flags = {}
+        for task in sorted(set(tasks)):
+            eps = [int(e) for e in self.scope.index[tasks == task]]
+            native_train = [F_by[e] for e in eps if e in train and not bool(self.scope.loc[e, 'tactile_interpolated'])]
+            self.event_jump[task] = jump_threshold(native_train, q) if native_train else float('inf')
+            for e in eps:
+                ev = episode_events(F_by[e], types=types, subtask=s_by[e], label_ids=label_ids,
+                                    jump=self.event_jump[task])
+                flags[e] = window_flags(ev, pre_ms / 1000., post_ms / 1000.)
+        return flags
 
     def _set_split(self, split):
         self.split = split
@@ -311,8 +430,23 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                 force_history = np.zeros((self.vq_window, 5, 3), np.float32)
             policy_tactile = (self.force_stats.normalize(force_history[-1]).astype(np.float32)
                               if force_valid_tick else np.zeros((5, 3), np.float32))
+            if self.hist_points:
+                policy_tactile = np.zeros((5, 3 * self.hist_points), np.float32)
+                if force_valid_tick:
+                    long_hist, ok, _ = spread_history_at(self._cache_force, fast_ns, self.hist_span_ns,
+                                                         self.hist_points, stale_ns)
+                    if not ok:
+                        raise RuntimeError('long force history invalid at a valid tick')
+                    policy_tactile = (self.force_stats.normalize(long_hist).astype(np.float32)
+                                      .transpose(1, 0, 2).reshape(5, -1))       # [5 fingers, points x xyz]
         else:
             policy_tactile = scaled.reshape(5, 360)
+        force_contact = bool(force_valid_tick and force_history is not None
+                             and str(self.source.episodes.loc[ep, 'source_task']) in self.force_tasks
+                             and np.linalg.norm(force_history[-1], axis=-1).max() > self.contact_threshold)
+        touch_event = bool(self.event_flags is not None and force_valid_tick
+                           and str(self.source.episodes.loc[ep, 'source_task']) in self.event_tasks
+                           and self.event_flags[ep][t])
         risk_S = risk_F = None
         future = None
         if self.risk_stats is not None:
@@ -343,7 +477,7 @@ class TRexTapticDataset(torch.utils.data.Dataset):
                          'slow_ns': slow_ns, 'fast_ns': fast_ns, 'tactile_delay_ns': delay_ns,
                          'fast_tick_aligned': aligned}, 'delay_k': 0,
                 'risk_S': risk_S, 'risk_F': risk_F, 'tactile_slot_mask': slot_mask,
-                'risk_future': future}
+                'risk_future': future, 'force_contact': force_contact, 'touch_event': touch_event}
 
     def anchor_risk(self, log=None):
         """r_S (risk at the slow tick S = times[t]) and its validity for every row of this split,
@@ -496,6 +630,8 @@ class TRexTapticDataset(torch.utils.data.Dataset):
             "tactile_loss_mask": loss_mask,
             "force_history_n_real": torch.tensor([x['force_history_n_real'] for x in batch]),
             "tactile_slot_mask": slot_mask,
+            "force_contact": torch.tensor([bool(x.get('force_contact', False)) for x in batch]),
+            "touch_event": torch.tensor([bool(x.get('touch_event', False)) for x in batch]),
             "tactile_delay_ns": torch.tensor([x['meta']['tactile_delay_ns'] for x in batch], dtype=torch.long),
             **risk,
         }
