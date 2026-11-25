@@ -91,8 +91,9 @@ stage_vq() {
         --min-mem-gib "$MIN_GPU_GIB" --storage "$out" --need-gib 20 --max-used-pct "$MAX_DISK_PCT"
     mkdir -p "$out"
     local args=(--data_format taptic --lerobot_root "$TAPTIC_ROOT" --granularity finger
-                --window 16 --stride 2 --codebook_size 64 --embed_dim 128 --batch_size 256
-                --lr 3e-4 --weight_tau 0 --num_workers "$NUM_WORKERS" --val_every 2000
+                --window 16 --stride 2 --codebook_size 64 --embed_dim 128 --batch_size 1024
+                --recon_target delta --n_quantizers 2
+                --lr 1e-3 --weight_tau 0 --num_workers "$NUM_WORKERS" --val_every 2000
                 --use_wandb 0 --mixed_precision bf16)
     cd "$REPO"
     # probe: dataset, model wiring and checkpoint I/O on 8 real episodes

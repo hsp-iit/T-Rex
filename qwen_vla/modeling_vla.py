@@ -140,8 +140,13 @@ class Qwen3VLVLAModel(nn.Module):
         # used (pre-computed OR produced on-the-fly by the embedded VQ-VAE) so
         # toggling everything off gives a graph identical to the pre-feature
         # checkpoint.
+        # Residual-VQ checkpoints (n_quantizers = S > 1) give S indices per slot;
+        # each stage gets its own K rows (offset s*K) and the S embeddings are
+        # summed into ONE token, so the token count does not change with S.
+        self.vqvae_n_quantizers = int((vqvae_config or {}).get("n_quantizers", 1))
         if self.use_tactile_code:
-            self.tactile_code_embedder = nn.Embedding(vqvae_codebook_size, H)
+            self.tactile_code_embedder = nn.Embedding(
+                vqvae_codebook_size * self.vqvae_n_quantizers, H)
 
         # Embedded VQ-VAE: the encoder + EMA quantizer that map a raw F6
         # history window → discrete codes, run on-the-fly during training and
@@ -375,12 +380,24 @@ class Qwen3VLVLAModel(nn.Module):
         blob = ckpt_path_or_blob
         if isinstance(blob, str):
             blob = torch.load(blob, map_location="cpu", weights_only=False)
+        cfg_keys = ("codebook_size", "granularity", "n_quantizers", "recon_target")
+        if "config" in blob:
+            mine = self.tactile_vqvae.cfg.to_dict()
+            # Missing fields in an old blob mean the dataclass defaults.
+            defaults = type(self.tactile_vqvae.cfg)().to_dict()
+            got = {k: blob["config"].get(k, defaults[k]) for k in cfg_keys}
+            if got != {k: mine[k] for k in cfg_keys}:
+                raise ValueError(f"VQ-VAE checkpoint {got} does not match the model's "
+                                 f"vqvae_config {({k: mine[k] for k in cfg_keys})}")
         missing, unexpected = self.tactile_vqvae.load_state_dict(
             blob["model_state"], strict=False)
         if missing:
             print(f"  [tactile_vqvae] missing keys: {missing[:6]} ...")
         if unexpected:
-            print(f"  [tactile_vqvae] unexpected keys: {unexpected[:6]} ...")
+            # e.g. residual_quantizers.* from an RVQ checkpoint loaded into a
+            # plain-VQ model: the codes would silently differ from training.
+            raise ValueError(f"[tactile_vqvae] unexpected keys {unexpected[:6]}: "
+                             "checkpoint and vqvae_config disagree")
         stats = blob["stats"]
         self.tacf6_vqvae_min.copy_(torch.as_tensor(stats["tacf6_min"], dtype=torch.float32))
         self.tacf6_vqvae_max.copy_(torch.as_tensor(stats["tacf6_max"], dtype=torch.float32))
@@ -433,11 +450,21 @@ class Qwen3VLVLAModel(nn.Module):
         per_hand_codes = []
         for h in range(n_hands):
             wh = normed[:, :, h * n_fingers:(h + 1) * n_fingers, :].to(w_dtype)  # [B, T, 5, D]
-            idx = vq.encode(wh)                                          # [B] or [B, 5]
-            if idx.dim() == 1:
-                idx = idx.unsqueeze(1)                                   # [B, 1]
+            idx = vq.encode(wh)                                  # [B] / [B, 5] (+ [, S])
+            if not vq.is_per_finger:
+                idx = idx.unsqueeze(1)                           # [B, 1] (+ [, S])
             per_hand_codes.append(idx.long())
-        return torch.cat(per_hand_codes, dim=1)                         # [B, n_codes]
+        return torch.cat(per_hand_codes, dim=1)                 # [B, n_codes] (+ [, S])
+
+    def embed_tactile_codes(self, codes: torch.Tensor) -> torch.Tensor:
+        """[B, n_codes] or residual [B, n_codes, S] int → [B, n_codes, H]."""
+        if codes.dim() == 2:
+            return self.tactile_code_embedder(codes)
+        S = codes.shape[-1]
+        if S != self.vqvae_n_quantizers:
+            raise ValueError(f"got {S} residual stages, embedder built for {self.vqvae_n_quantizers}")
+        offset = torch.arange(S, device=codes.device) * self.vqvae_codebook_size
+        return self.tactile_code_embedder(codes + offset).sum(dim=-2)
 
     def initialize_vla_weights(self):
         """Xavier-init all new VLA-specific linear layers.
@@ -627,7 +654,7 @@ class Qwen3VLVLAModel(nn.Module):
         if (tactile_codes is not None
                 and self.use_tactile_code
                 and tactile_codes.shape[1] > 0):
-            code_emb = self.tactile_code_embedder(tactile_codes.to(device).long())
+            code_emb = self.embed_tactile_codes(tactile_codes.to(device).long())
             tac_parts.append(code_emb.to(dtype))
         if tactile_f6 is not None and tactile_f6.shape[1] > 0:
             tac_parts.append(self.tacf6_embedder(tactile_f6.to(dtype)))

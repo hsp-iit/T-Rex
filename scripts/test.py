@@ -398,6 +398,9 @@ class CascadedServer:
             blob = torch.load(args.vqvae_ckpt, map_location="cpu",
                               weights_only=False)
             cfg = TactileVQVAEConfig.from_dict(blob["config"])
+            if cfg.n_quantizers != 1:
+                raise NotImplementedError("the external VQ-VAE server path supports plain-VQ checkpoints only (n_quantizers=1); "
+                                          "use the embedded VQ-VAE path for residual VQ")
             self.vqvae_model = TactileVQVAE(cfg)
             self.vqvae_model.load_state_dict(blob["model_state"])
             self.vqvae_model.eval().to(self.device)

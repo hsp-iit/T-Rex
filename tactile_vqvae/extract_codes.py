@@ -281,6 +281,9 @@ def _worker(rank: int, world: int, args, ep_list: List[Tuple[str, int]]):
     else:
         device = torch.device("cpu")
 
+    if cfg.n_quantizers != 1:
+        raise NotImplementedError("extract_codes supports plain-VQ checkpoints only (n_quantizers=1); "
+                                  "use the embedded VQ-VAE path for residual VQ")
     model = TactileVQVAE(cfg).to(device)
     model.load_state_dict(state["model_state"])
     model.eval()

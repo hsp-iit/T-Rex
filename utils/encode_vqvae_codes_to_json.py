@@ -44,6 +44,9 @@ def _parse_episode_frame(deform_path: str) -> Tuple[str, int]:
 def _load_vqvae(ckpt_path: str, device: torch.device) -> Tuple[TactileVQVAE, TacF6Stats, int]:
     blob = torch.load(ckpt_path, map_location="cpu", weights_only=False)
     cfg = TactileVQVAEConfig.from_dict(blob["config"])
+    if cfg.n_quantizers != 1:
+        raise NotImplementedError("encode_vqvae_codes_to_json supports plain-VQ checkpoints only (n_quantizers=1); "
+                                  "use the embedded VQ-VAE path for residual VQ")
     model = TactileVQVAE(cfg)
     model.load_state_dict(blob["model_state"])
     model.eval().to(device)

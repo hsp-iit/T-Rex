@@ -86,6 +86,13 @@ def parse_args() -> argparse.Namespace:
                    help="hand: 1 code per (hand, window).  finger: 5 codes per "
                         "(hand, window) — encoder/decoder process each finger "
                         "with shared weights + finger ID embedding.")
+    p.add_argument("--recon_target", type=str, default="abs", choices=["abs", "delta"],
+                   help="abs: reconstruct the whole window.  delta: reconstruct the "
+                        "window minus its last sample (the current reading the policy "
+                        "already sees), so codes encode the within-window dynamics.")
+    p.add_argument("--n_quantizers", type=int, default=1,
+                   help="Residual VQ stages per code slot (1 = plain VQ).  The policy "
+                        "sums the stage embeddings into one token per slot.")
 
     # Training
     p.add_argument("--output_dir", type=str, required=True)
@@ -154,6 +161,8 @@ def _build_config(args) -> TactileVQVAEConfig:
         weight_alpha=args.weight_alpha,
         weight_tau=args.weight_tau,
         granularity=args.granularity,
+        recon_target=args.recon_target,
+        n_quantizers=args.n_quantizers,
     )
 
 

@@ -130,17 +130,97 @@ def test_vqvae_shapes_for_force(granularity):
     assert cfg.stats_dim == 15 and TactileVQVAEConfig().stats_dim == 60
 
 
+@pytest.mark.parametrize('granularity', ['finger', 'hand'])
+def test_residual_delta_vqvae_shapes_and_decode(granularity):
+    cfg = TactileVQVAEConfig(window=W, in_channels=15, per_finger_dim=3, n_hands=1, codebook_size=16,
+                             hidden_channels=16, bottleneck_channels=32, embed_dim=16, granularity=granularity,
+                             input_signal='taptic_sdk_force', recon_target='delta', n_quantizers=2)
+    m = TactileVQVAE(cfg)
+    assert len(m.quantizers) == 2
+    x = torch.randn(3, W, 5, 3).clamp(-1, 1)
+    out = m(x, torch.ones(3))
+    out['total_loss'].backward()
+    assert m.encoder.parameters().__next__().grad is not None
+    m.eval()
+    idx = m.encode(x)
+    assert idx.shape == ((3, 5, 2) if granularity == 'finger' else (3, 2))
+    with torch.no_grad():
+        ref = m(x)['recon']                       # eval forward does not touch the codebooks
+        assert torch.equal(m(x)['indices'], idx)
+        rec = m.decode_indices(idx, last=x[:, -1:])
+    assert torch.allclose(rec, ref, atol=1e-5)
+    with pytest.raises(ValueError):
+        m.decode_indices(idx)                     # delta needs the reference sample
+
+
+def test_old_checkpoint_config_loads_as_plain_abs_vq():
+    old = TactileVQVAEConfig(window=W, in_channels=15, per_finger_dim=3, n_hands=1, codebook_size=16,
+                             hidden_channels=16, bottleneck_channels=32, embed_dim=16,
+                             granularity='finger').to_dict()
+    del old['recon_target'], old['n_quantizers']
+    cfg = TactileVQVAEConfig.from_dict(old)
+    assert (cfg.recon_target, cfg.n_quantizers) == ('abs', 1)
+    m = TactileVQVAE(cfg)
+    assert not any(k.startswith('residual_quantizers') for k in m.state_dict())
+    assert m.encode(torch.zeros(2, W, 5, 3)).shape == (2, 5)
+
+
+def test_vla_sums_residual_code_embeddings_and_rejects_mismatch():
+    from qwen_vla.modeling_vla import Qwen3VLVLAModel
+    small = dict(window=W, per_finger_dim=3, n_hands=1, in_channels=15, codebook_size=16,
+                 hidden_channels=16, bottleneck_channels=32, embed_dim=16, granularity='finger',
+                 input_signal='taptic_sdk_force')
+    cfg = TactileVQVAEConfig(recon_target='delta', n_quantizers=2, **small)
+    h = _Holder(cfg, -np.ones(15) * 30, np.ones(15) * 30)
+    h.vqvae_codebook_size, h.vqvae_n_quantizers = 16, 2
+    h.tactile_code_embedder = torch.nn.Embedding(32, 8)
+    raw = torch.randint(-20, 20, (2, W, 5, 3)).float()
+    codes = Qwen3VLVLAModel.encode_tactile_f6_history(h, raw)
+    assert codes.shape == (2, 5, 2)
+    emb = Qwen3VLVLAModel.embed_tactile_codes(h, codes)
+    E = h.tactile_code_embedder.weight
+    assert emb.shape == (2, 5, 8)
+    assert torch.allclose(emb, E[codes[..., 0]] + E[16 + codes[..., 1]])
+    # Plain codes still go through the embedder unchanged.
+    assert torch.equal(Qwen3VLVLAModel.embed_tactile_codes(h, codes[..., 0]), E[codes[..., 0]])
+    with pytest.raises(ValueError):
+        Qwen3VLVLAModel.embed_tactile_codes(h, torch.zeros(2, 5, 3, dtype=torch.long))
+
+
+def test_load_tactile_vqvae_rejects_config_mismatch():
+    """An RVQ checkpoint must not load silently into a plain-VQ model (or vice versa)."""
+    from qwen_vla.modeling_vla import Qwen3VLVLAModel
+    small = dict(window=W, per_finger_dim=3, n_hands=1, in_channels=15, codebook_size=16,
+                 hidden_channels=16, bottleneck_channels=32, embed_dim=16, granularity='finger',
+                 input_signal='taptic_sdk_force')
+    rvq = TactileVQVAEConfig(recon_target='delta', n_quantizers=2, **small)
+    blob = {'config': rvq.to_dict(), 'model_state': TactileVQVAE(rvq).state_dict(),
+            'stats': {'tacf6_min': [-1.0] * 15, 'tacf6_max': [1.0] * 15, 'tacf6_mask': [True] * 15}}
+    h = _Holder(TactileVQVAEConfig(**small), -np.ones(15), np.ones(15))
+    with pytest.raises(ValueError):
+        Qwen3VLVLAModel.load_tactile_vqvae(h, blob)
+    h2 = _Holder(rvq, -np.ones(15), np.ones(15))
+    Qwen3VLVLAModel.load_tactile_vqvae(h2, blob)
+    for k, v in blob['model_state'].items():
+        assert torch.equal(h2.tactile_vqvae.state_dict()[k], v)
+    blob_noconf = {k: v for k, v in blob.items() if k != 'config'}
+    with pytest.raises(ValueError):                       # residual keys are unexpected for plain VQ
+        Qwen3VLVLAModel.load_tactile_vqvae(h, blob_noconf)
+
+
 def test_vqvae_train_smoke_writes_taptic_checkpoint(root, tmp_path):
     env = {**os.environ, 'PYTHONPATH': str(REPO), 'CUDA_VISIBLE_DEVICES': '', 'OMP_NUM_THREADS': '2'}
     cmd = [sys.executable, '-m', 'tactile_vqvae.train', '--data_format', 'taptic', '--lerobot_root', str(root),
            '--output_dir', str(tmp_path), '--run_name', 'smoke', '--granularity', 'finger',
            '--codebook_size', '16', '--embed_dim', '16', '--hidden_channels', '16', '--bottleneck_channels', '32',
            '--batch_size', '8', '--num_workers', '0', '--mixed_precision', 'no', '--weight_tau', '0',
-           '--smoke_test', '1']
+           '--smoke_test', '1', '--recon_target', 'delta', '--n_quantizers', '2']
     r = subprocess.run(cmd, cwd=REPO, env=env, capture_output=True, text=True, timeout=600)
     assert r.returncode == 0, r.stdout[-3000:] + r.stderr[-3000:]
     blob = torch.load(tmp_path / 'smoke/latest.pt', weights_only=False)
     assert blob['config']['input_signal'] == 'taptic_sdk_force'
+    assert (blob['config']['recon_target'], blob['config']['n_quantizers']) == ('delta', 2)
+    assert any(k.startswith('residual_quantizers.0.') for k in blob['model_state'])
     assert (blob['config']['n_hands'], blob['config']['per_finger_dim']) == (1, 3)
     assert len(blob['stats']['tacf6_min']) == 15 and blob['data']['weight_tau'] > 0
     assert blob['data']['train_episodes'] == [0, 1, 2, 3]
@@ -290,6 +370,8 @@ def test_tactile_observation_tokens_codes_plus_force(root, source, tmp_path):
     h.tactile_vqvae.load_state_dict(blob['model_state'])
     h.use_tactile_code, h.use_tactile_deform = True, False
     h.tactile_code_embedder = torch.nn.Embedding(16, 64)
+    h.vqvae_codebook_size, h.vqvae_n_quantizers = 16, 1
+    h.embed_tactile_codes = Qwen3VLVLAModel.embed_tactile_codes.__get__(h)
     h.tacf6_embedder = ActionEmbedder(3, 64)
     h.encode_tactile_f6_history = Qwen3VLVLAModel.encode_tactile_f6_history.__get__(h)
     hist = torch.randint(-20, 20, (2, W, 5, 3)).float()

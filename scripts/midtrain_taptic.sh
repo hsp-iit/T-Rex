@@ -7,7 +7,8 @@
 #   2. this script with VQVAE_CKPT=<run>/latest.pt
 #
 # Tactile expert input per sample: 5 VQ code tokens (16 native force samples,
-# ~210 ms, per finger) + 5 current-force tokens. Legacy 10 Hz episodes (3 tasks)
+# ~210 ms, per finger; with a residual-VQ checkpoint each token is the sum of
+# its stage embeddings) + 5 current-force tokens. Legacy 10 Hz episodes (3 tasks)
 # are kept for the action expert/FLARE but masked out of the tactile loss.
 set -euo pipefail
 

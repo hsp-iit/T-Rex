@@ -39,10 +39,34 @@ windows the policy encodes.
 - Normalization: train-only per-channel q01/q99 min-max to [-1, 1] (clipped),
   stored in the checkpoint with dataset identity and episode lists.
 - Recon weighting scale `weight_tau`: auto = p75 of train raw window magnitudes.
+- `recon_target=delta` (default in the TAPTIC scripts): the decoder rebuilds
+  `x - x[-1]`. The current reading is already a policy token, so the code spends
+  its bits on the within-window dynamics (ramps, onsets, releases). With
+  `abs` the 64-code model learned the force level only and reconstructed worse
+  than holding the current reading constant.
+- `n_quantizers=2` (default in the TAPTIC scripts): residual VQ, 2 indices per
+  finger (`encode()` -> `[B, 5, 2]`). The policy embeds each stage in its own
+  `K` rows of `tactile_code_embedder` and sums them, so it still adds 5 tokens.
+- Checkpoints without these fields load as `abs` / 1 stage (the old model).
+
+Validation-set comparison (2026-11-25, 53 val episodes / 46,782 windows, 30 epochs each;
+light / firm contact = max|F| in 3-20 / >= 20 counts; skill = 1 - MSE / MSE(hold the
+current reading constant over the window), i.e. what the code adds to the force token):
+
+| model | bits/finger | skill light | skill firm | RMSE firm (counts) |
+|---|---|---|---|---|
+| abs, K=64, batch 256, lr 3e-4 (checkpoint of 2026-11-19) | 6 | -0.19 | -0.18 | 4.0-8.6 |
+| delta, 2x64 residual, batch 256, lr 3e-4 | 12 | 0.68 | 0.72 | 2.0-3.3 |
+| **delta, 2x64 residual, batch 1024, lr 1e-3 (script default)** | 12 | 0.76 | 0.82 | 1.6-2.6 |
+
+Short 8k-step ablation, same metric: delta K=64 0.68, delta K=512 0.68, abs K=512 0.44
+(firm). A larger codebook does not help once the target is the delta; the second
+residual stage does. Sharp events (a release within ~13 ms) are still smoothed.
 
 ```bash
 TAPTIC_ROOT=... OUTPUT_DIR=... bash tactile_vqvae/scripts/train_vqvae_taptic.sh
-# defaults: window 16, stride 2, codebook 64, embed 128, 30 epochs; SMOKE=1 for a quick check
+# defaults: window 16, stride 2, codebook 64 x 2 residual stages, delta target, embed 128,
+# batch 1024, lr 1e-3, 30 epochs (~9 min on one RTX 4060); SMOKE=1 for a quick check
 ```
 
 Check in the log: recon decreasing, perplexity stable, `active` close to the
@@ -55,8 +79,8 @@ TAPTIC_ROOT=... MODEL_PATH=.../Qwen3-VL-2B-Instruct VQVAE_CKPT=<run>/latest.pt \
 OUTPUT_DIR=... [RESUME_CHECKPOINT=<pretrain ckpt>] bash scripts/midtrain_taptic.sh
 ```
 
-Tactile expert tokens per sample: 5 VQ codes (embedded frozen VQ-VAE, encoded
-on the fly from the raw history) + 5 current-force tokens (`tacf6_dim=3`,
+Tactile expert tokens per sample: 5 VQ code tokens (embedded frozen VQ-VAE, encoded
+on the fly from the raw history; residual stages summed per token) + 5 current-force tokens (`tacf6_dim=3`,
 normalized with the VQ-VAE stats). Batch adds `tactile_f6_history [B,16,5,3]`
 (raw), `tactile_loss_mask [B]`, `force_history_n_real [B]`; W&B logs
 `tactile/valid_frac`. The loader rejects a VQ-VAE trained on another dataset,

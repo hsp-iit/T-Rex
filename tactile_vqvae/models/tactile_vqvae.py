@@ -40,6 +40,17 @@ class TactileVQVAEConfig:
     n_hands: int = 2
     # Provenance of the input signal (documentation + guards, not used in forward).
     input_signal: str = "f6"
+    # What the decoder reconstructs.  "abs": the whole normalized window.
+    # "delta": the window minus its last sample (x - x[:, -1:]); the last sample
+    # is the current reading, which the policy already receives as a token, so
+    # the code spends its bits on the within-window dynamics instead of the level.
+    # The encoder input is the same absolute window in both modes.
+    recon_target: str = "abs"
+    # Residual VQ stages per code slot.  1 = plain VQ (one index per slot).
+    # S > 1: stage s quantizes the residual left by stages < s; encode() returns
+    # an extra trailing dim of size S.  Checkpoints without these fields load as
+    # ("abs", 1), i.e. exactly the previous model.
+    n_quantizers: int = 1
 
     @property
     def stats_dim(self) -> int:
@@ -63,6 +74,10 @@ class TactileVQVAE(nn.Module):
             raise ValueError(
                 f"Unknown granularity {cfg.granularity!r}; expected 'hand' or 'finger'.")
         self.is_per_finger = (cfg.granularity == "finger")
+        if cfg.recon_target not in ("abs", "delta"):
+            raise ValueError(f"Unknown recon_target {cfg.recon_target!r}; expected 'abs' or 'delta'.")
+        if cfg.n_quantizers < 1:
+            raise ValueError("n_quantizers must be >= 1")
 
         if self.is_per_finger:
             self.encoder = F6PerFingerEncoder(
@@ -102,15 +117,62 @@ class TactileVQVAE(nn.Module):
                 n_fingers=cfg.n_fingers,
             )
 
-        self.quantizer = VQEMAQuantizer(
-            codebook_size=cfg.codebook_size,
-            embed_dim=cfg.embed_dim,
-            commitment_weight=cfg.commitment_weight,
-            decay=cfg.decay,
-            revive_freq=cfg.revive_freq,
-            revive_threshold=cfg.revive_threshold,
-            init_mode=cfg.init_mode,
-        )
+        def make_quantizer():
+            return VQEMAQuantizer(
+                codebook_size=cfg.codebook_size,
+                embed_dim=cfg.embed_dim,
+                commitment_weight=cfg.commitment_weight,
+                decay=cfg.decay,
+                revive_freq=cfg.revive_freq,
+                revive_threshold=cfg.revive_threshold,
+                init_mode=cfg.init_mode,
+            )
+
+        # Stage 0 keeps its historical name so old state_dicts load unchanged.
+        self.quantizer = make_quantizer()
+        self.residual_quantizers = nn.ModuleList(
+            [make_quantizer() for _ in range(cfg.n_quantizers - 1)])
+
+    @property
+    def quantizers(self):
+        return [self.quantizer, *self.residual_quantizers]
+
+    def _quantize(self, z: torch.Tensor):
+        """Residual VQ over [N, D].  Returns z_q [N, D], indices [N, S], loss, stage-0 info."""
+        residual, z_q, idx, vq_loss, info0 = z, 0, [], 0, None
+        for s, q in enumerate(self.quantizers):
+            q_st, i, loss, info = q(residual)
+            z_q = z_q + q_st
+            residual = residual - q_st.detach()
+            idx.append(i)
+            vq_loss = vq_loss + loss
+            if s == 0:
+                info0 = info
+        return z_q, torch.stack(idx, dim=-1), vq_loss, info0
+
+    def _quantize_eval(self, z: torch.Tensor) -> torch.Tensor:
+        """Indices [N, S] without EMA updates."""
+        residual, idx = z, []
+        for q in self.quantizers:
+            i = q.encode_only(residual)
+            residual = residual - q.embed[i]
+            idx.append(i)
+        return torch.stack(idx, dim=-1)
+
+    def _embed_indices(self, idx: torch.Tensor) -> torch.Tensor:
+        """[..., S] indices → [..., D] sum of the per-stage codebook vectors."""
+        return sum(q.embed[idx[..., s]] for s, q in enumerate(self.quantizers))
+
+    def _squeeze_stage(self, idx: torch.Tensor) -> torch.Tensor:
+        """Plain VQ keeps the historical index shape (no trailing stage dim)."""
+        return idx.squeeze(-1) if self.cfg.n_quantizers == 1 else idx
+
+    def _add_reference(self, recon: torch.Tensor, last: Optional[torch.Tensor]) -> torch.Tensor:
+        if self.cfg.recon_target == "abs":
+            return recon
+        if last is None:
+            raise ValueError("recon_target='delta' needs the window's last sample to rebuild it")
+        return recon + last
 
     def _recon_weight(self, magnitude: torch.Tensor) -> torch.Tensor:
         """Per-sample weight = 1 + α·sigmoid(magnitude/τ - 1).
@@ -142,13 +204,15 @@ class TactileVQVAE(nn.Module):
         z_e = self.encoder(f6)                                        # [B, D] or [B, F, D]
         if self.is_per_finger:
             B, F, D = z_e.shape
-            z_e_flat = z_e.reshape(B * F, D)
-            z_q_flat, idx_flat, vq_loss, qinfo = self.quantizer(z_e_flat)
+            z_q_flat, idx_flat, vq_loss, qinfo = self._quantize(z_e.reshape(B * F, D))
             z_q = z_q_flat.reshape(B, F, D)
-            indices = idx_flat.reshape(B, F)
+            indices = idx_flat.reshape(B, F, -1)
         else:
-            z_q, indices, vq_loss, qinfo = self.quantizer(z_e)
-        recon = self.decoder(z_q)                                     # [B, T, 5, 6]
+            z_q, indices, vq_loss, qinfo = self._quantize(z_e)
+        indices = self._squeeze_stage(indices)
+        # "delta": the decoder predicts x - x_last; adding x_last back makes the
+        # loss below identical in form for both targets.
+        recon = self._add_reference(self.decoder(z_q), f6[:, -1:])   # [B, T, 5, D]
 
         per_sample = (recon - f6).pow(2).mean(dim=[1, 2, 3])          # [B]
         if self.cfg.use_magnitude_weight and magnitude is not None:
@@ -174,24 +238,25 @@ class TactileVQVAE(nn.Module):
     @torch.no_grad()
     def encode(self, f6: torch.Tensor) -> torch.Tensor:
         """Inference helper.
-        Hand   mode: f6 [B, T, 5, 6] → indices [B].
-        Finger mode: f6 [B, T, 5, 6] → indices [B, 5].
+        Hand   mode: f6 [B, T, 5, D] → indices [B]     ([B, S] with n_quantizers=S>1).
+        Finger mode: f6 [B, T, 5, D] → indices [B, 5]  ([B, 5, S] with S>1).
         """
         z_e = self.encoder(f6)
         if self.is_per_finger:
             B, F, D = z_e.shape
-            idx = self.quantizer.encode_only(z_e.reshape(B * F, D))
-            return idx.reshape(B, F)
-        return self.quantizer.encode_only(z_e)
+            idx = self._quantize_eval(z_e.reshape(B * F, D)).reshape(B, F, -1)
+        else:
+            idx = self._quantize_eval(z_e)
+        return self._squeeze_stage(idx)
 
     @torch.no_grad()
-    def decode_indices(self, indices: torch.Tensor) -> torch.Tensor:
-        """Hand   mode: indices [B]      → recon [B, T, 5, 6].
-        Finger mode: indices [B, 5]   → recon [B, T, 5, 6].
+    def decode_indices(self, indices: torch.Tensor,
+                       last: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """Indices as returned by encode() → recon [B, T, 5, D].
+
+        last : [B, 1, 5, D] normalized last sample of the window; required when
+               recon_target='delta' (the codes only describe the change).
         """
-        if self.is_per_finger:
-            B, F = indices.shape
-            z_q = self.quantizer.embed[indices.reshape(-1)].reshape(B, F, -1)
-        else:
-            z_q = self.quantizer.embed[indices]
-        return self.decoder(z_q)
+        if self.cfg.n_quantizers == 1:
+            indices = indices.unsqueeze(-1)
+        return self._add_reference(self.decoder(self._embed_indices(indices)), last)
